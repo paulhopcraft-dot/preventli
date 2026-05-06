@@ -5,6 +5,7 @@ import { Building2, Loader2, LogOut, Plus, Pencil, Layers } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ClientSetupForm } from "@/components/partner/ClientSetupForm";
 import { apiRequest } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
@@ -41,11 +42,33 @@ interface CaseRow {
 
 const ALL_CLIENTS = "__all__";
 
+type ViewTab = "cases" | "risk" | "rtw";
+
+const TAB_DEFS: { id: ViewTab; label: string; description: string }[] = [
+  { id: "cases", label: "Cases", description: "All open cases — sorted by next action priority." },
+  { id: "risk", label: "Risk", description: "High and medium-risk cases that need attention now." },
+  { id: "rtw", label: "RTW", description: "Cases with an active return-to-work plan." },
+];
+
+/**
+ * A case is "in RTW" when its workStatus indicates the worker is actively
+ * progressing back to work — i.e. anything other than fully off / not started.
+ * Keeps the rule deterministic so the demo behaves predictably.
+ */
+function isRtwCase(workStatus: string): boolean {
+  const s = (workStatus ?? "").toLowerCase();
+  if (!s) return false;
+  // Off-work / pre-RTW states are excluded.
+  if (s.includes("not started") || s.includes("off work") || s === "off") return false;
+  return /rtw|return|graduated|suitable|modified|partial|reduced|light/.test(s);
+}
+
 export default function PartnerWorkspace() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { user, logout } = useAuth();
   const [selectedOrgId, setSelectedOrgId] = useState<string>(ALL_CLIENTS);
+  const [activeTab, setActiveTab] = useState<ViewTab>("cases");
   const [formOpen, setFormOpen] = useState(false);
   const [editingClientId, setEditingClientId] = useState<string | undefined>(undefined);
   const [openingCaseId, setOpeningCaseId] = useState<string | null>(null);
@@ -124,10 +147,30 @@ export default function PartnerWorkspace() {
     [clients],
   );
 
-  const headerTitle =
+  // Per-tab counts shown in the tab pills, computed from the same case list
+  // the API already filtered by selected client.
+  const tabCounts = useMemo(() => {
+    return {
+      cases: cases.length,
+      risk: cases.filter((c) => c.riskLevel === "High" || c.riskLevel === "Medium").length,
+      rtw: cases.filter((c) => isRtwCase(c.workStatus)).length,
+    };
+  }, [cases]);
+
+  // Tab filter applied client-side over the same dataset.
+  const visibleCases = useMemo(() => {
+    if (activeTab === "risk") {
+      return cases.filter((c) => c.riskLevel === "High" || c.riskLevel === "Medium");
+    }
+    if (activeTab === "rtw") return cases.filter((c) => isRtwCase(c.workStatus));
+    return cases;
+  }, [cases, activeTab]);
+
+  const clientLabel =
     selectedOrgId === ALL_CLIENTS
-      ? "All cases"
-      : (clients.find((c) => c.id === selectedOrgId)?.name ?? "Client") + " — cases";
+      ? "All clients"
+      : clients.find((c) => c.id === selectedOrgId)?.name ?? "Client";
+  const tabSubtitle = TAB_DEFS.find((t) => t.id === activeTab)?.description ?? "";
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
@@ -267,13 +310,32 @@ export default function PartnerWorkspace() {
         </aside>
 
         <main className="flex flex-1 flex-col overflow-hidden">
-          <div className="flex items-center justify-between border-b px-6 py-4">
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight">{headerTitle}</h1>
-              <p className="text-sm text-muted-foreground">
-                Sorted by next action priority — open cases first, highest risk, soonest due.
-              </p>
-            </div>
+          <div className="border-b px-6 pt-4">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              {clientLabel}
+            </p>
+            <Tabs
+              value={activeTab}
+              onValueChange={(v) => setActiveTab(v as ViewTab)}
+              className="mt-2"
+            >
+              <TabsList className="bg-transparent p-0">
+                {TAB_DEFS.map((t) => (
+                  <TabsTrigger
+                    key={t.id}
+                    value={t.id}
+                    className="gap-2 rounded-none border-b-2 border-transparent bg-transparent px-4 py-2 text-base data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none"
+                    data-testid={`tab-${t.id}`}
+                  >
+                    {t.label}
+                    <Badge variant="secondary" className="text-xs">
+                      {tabCounts[t.id]}
+                    </Badge>
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </Tabs>
+            <p className="pb-3 pt-2 text-sm text-muted-foreground">{tabSubtitle}</p>
           </div>
 
           <div className="flex-1 overflow-y-auto">
@@ -281,7 +343,7 @@ export default function PartnerWorkspace() {
               <div className="flex items-center justify-center py-20">
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
               </div>
-            ) : cases.length === 0 ? (
+            ) : visibleCases.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-20 text-center text-muted-foreground">
                 <Layers className="mb-3 h-8 w-8" />
                 <p className="text-sm">No cases for this view.</p>
@@ -301,7 +363,7 @@ export default function PartnerWorkspace() {
                   </tr>
                 </thead>
                 <tbody>
-                  {cases.map((c) => (
+                  {visibleCases.map((c) => (
                     <tr
                       key={c.id}
                       className={cn(
