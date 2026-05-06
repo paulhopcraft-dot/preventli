@@ -1,11 +1,33 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Building2, Loader2, LogOut, Plus, Pencil, Layers } from "lucide-react";
+import {
+  Building2,
+  Loader2,
+  LogOut,
+  Plus,
+  Pencil,
+  Layers,
+  ChevronRight,
+  ChevronDown,
+} from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { ClientSetupForm } from "@/components/partner/ClientSetupForm";
 import { apiRequest } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
@@ -42,12 +64,90 @@ interface CaseRow {
 
 const ALL_CLIENTS = "__all__";
 
-type ViewTab = "cases" | "risk" | "rtw";
+type ViewTab =
+  | "cases"
+  | "risk"
+  | "rtw"
+  | "checks"
+  | "checkins"
+  | "financials"
+  | "predictions"
+  | "audit";
 
-const TAB_DEFS: { id: ViewTab; label: string; description: string }[] = [
-  { id: "cases", label: "Cases", description: "All open cases — sorted by next action priority." },
-  { id: "risk", label: "Risk", description: "High and medium-risk cases that need attention now." },
-  { id: "rtw", label: "RTW", description: "Cases with an active return-to-work plan." },
+interface TabDef {
+  id: ViewTab;
+  label: string;
+  description: string;
+  /**
+   * Tabs whose content is "drill into a single client" link to a route in
+   * the existing employer view (after a JWT swap). `null` means the tab
+   * renders its content inline (Cases / Risk / RTW).
+   */
+  deepLink: string | null;
+}
+
+const TAB_DEFS: TabDef[] = [
+  {
+    id: "cases",
+    label: "Cases",
+    description: "All open cases — sorted by next action priority.",
+    deepLink: null,
+  },
+  {
+    id: "risk",
+    label: "Risk",
+    description: "High and medium-risk cases that need attention now.",
+    deepLink: null,
+  },
+  {
+    id: "rtw",
+    label: "RTW",
+    description: "Cases with an active return-to-work plan.",
+    deepLink: null,
+  },
+  {
+    id: "checks",
+    label: "Checks",
+    description: "Health checks — pre-employment, wellness, mental health, exit.",
+    deepLink: "/checks",
+  },
+  {
+    id: "checkins",
+    label: "Check-ins",
+    description: "Upcoming and recent worker check-ins.",
+    deepLink: "/checkins",
+  },
+  {
+    id: "financials",
+    label: "Financials",
+    description: "Cost analysis and financial overview.",
+    deepLink: "/financials",
+  },
+  {
+    id: "predictions",
+    label: "Predictions",
+    description: "Predicted risks and recovery trajectories.",
+    deepLink: "/predictions",
+  },
+  {
+    id: "audit",
+    label: "Audit",
+    description: "System activity and change history.",
+    deepLink: "/audit",
+  },
+];
+
+interface NewAction {
+  id: "case" | "check" | "rtw";
+  label: string;
+  /** Path inside the chosen client's employer view. */
+  path: string;
+}
+
+const NEW_ACTIONS: NewAction[] = [
+  { id: "case", label: "New case", path: "/employer/new-case" },
+  { id: "check", label: "Send a check", path: "/checks" },
+  { id: "rtw", label: "New RTW plan", path: "/rtw-planner" },
 ];
 
 /**
@@ -72,6 +172,41 @@ export default function PartnerWorkspace() {
   const [formOpen, setFormOpen] = useState(false);
   const [editingClientId, setEditingClientId] = useState<string | undefined>(undefined);
   const [openingCaseId, setOpeningCaseId] = useState<string | null>(null);
+  /** When set, opens the client-picker dialog before navigating to `path`. */
+  const [pendingNav, setPendingNav] = useState<{ path: string; label: string } | null>(null);
+  const [navigatingToClient, setNavigatingToClient] = useState<string | null>(null);
+
+  /**
+   * JWT-swap into the given client org and navigate to a path inside the
+   * existing employer view. Used for the deep-link tabs (Checks, Check-ins,
+   * Financials, Predictions, Audit) and the "+ New" actions, which all reuse
+   * existing employer-side pages rather than rebuilding cross-client UIs.
+   */
+  async function swapAndNavigate(orgId: string, path: string): Promise<void> {
+    if (navigatingToClient) return;
+    setNavigatingToClient(orgId);
+    try {
+      await apiRequest("POST", "/api/partner/active-org", { organizationId: orgId });
+      await queryClient.invalidateQueries({ queryKey: ["/api/cases"] });
+      navigate(path);
+    } catch (err) {
+      console.error("[partner] failed to swap+navigate", err);
+      setNavigatingToClient(null);
+    }
+  }
+
+  /**
+   * Resolve a tab/action click that needs a chosen client. If a specific
+   * client is already selected on the left rail, jump straight in. Otherwise
+   * open the client-picker dialog.
+   */
+  function requestNav(path: string, label: string): void {
+    if (selectedOrgId !== ALL_CLIENTS) {
+      void swapAndNavigate(selectedOrgId, path);
+      return;
+    }
+    setPendingNav({ path, label });
+  }
 
   /**
    * Open a case from the partner workspace by reusing the rich employer
@@ -147,13 +282,18 @@ export default function PartnerWorkspace() {
     [clients],
   );
 
-  // Per-tab counts shown in the tab pills, computed from the same case list
-  // the API already filtered by selected client.
-  const tabCounts = useMemo(() => {
+  // Per-tab counts shown in the tab pills. `null` = no badge for that tab
+  // (used for deep-link tabs where we don't have cross-client counts).
+  const tabCounts = useMemo<Record<ViewTab, number | null>>(() => {
     return {
       cases: cases.length,
       risk: cases.filter((c) => c.riskLevel === "High" || c.riskLevel === "Medium").length,
       rtw: cases.filter((c) => isRtwCase(c.workStatus)).length,
+      checks: null,
+      checkins: null,
+      financials: null,
+      predictions: null,
+      audit: null,
     };
   }, [cases]);
 
@@ -166,11 +306,12 @@ export default function PartnerWorkspace() {
     return cases;
   }, [cases, activeTab]);
 
-  const clientLabel =
-    selectedOrgId === ALL_CLIENTS
-      ? "All clients"
-      : clients.find((c) => c.id === selectedOrgId)?.name ?? "Client";
-  const tabSubtitle = TAB_DEFS.find((t) => t.id === activeTab)?.description ?? "";
+  const activeDef = TAB_DEFS.find((t) => t.id === activeTab) ?? TAB_DEFS[0];
+  const showsCaseTable = activeDef.deepLink === null;
+  const selectedClient =
+    selectedOrgId === ALL_CLIENTS ? null : clients.find((c) => c.id === selectedOrgId) ?? null;
+  const clientLabel = selectedClient?.name ?? "All clients";
+  const tabSubtitle = activeDef.description;
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
@@ -311,15 +452,37 @@ export default function PartnerWorkspace() {
 
         <main className="flex flex-1 flex-col overflow-hidden">
           <div className="border-b px-6 pt-4">
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              {clientLabel}
-            </p>
+            <div className="flex items-start justify-between gap-4">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                {clientLabel}
+              </p>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button size="sm" className="h-8 gap-1" data-testid="new-action-button">
+                    <Plus className="h-4 w-4" />
+                    New
+                    <ChevronDown className="h-3 w-3 opacity-70" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-44">
+                  {NEW_ACTIONS.map((a) => (
+                    <DropdownMenuItem
+                      key={a.id}
+                      onClick={() => requestNav(a.path, a.label)}
+                      data-testid={`new-action-${a.id}`}
+                    >
+                      {a.label}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
             <Tabs
               value={activeTab}
               onValueChange={(v) => setActiveTab(v as ViewTab)}
               className="mt-2"
             >
-              <TabsList className="bg-transparent p-0">
+              <TabsList className="h-auto flex-wrap justify-start bg-transparent p-0">
                 {TAB_DEFS.map((t) => (
                   <TabsTrigger
                     key={t.id}
@@ -328,9 +491,11 @@ export default function PartnerWorkspace() {
                     data-testid={`tab-${t.id}`}
                   >
                     {t.label}
-                    <Badge variant="secondary" className="text-xs">
-                      {tabCounts[t.id]}
-                    </Badge>
+                    {tabCounts[t.id] !== null && (
+                      <Badge variant="secondary" className="text-xs">
+                        {tabCounts[t.id]}
+                      </Badge>
+                    )}
                   </TabsTrigger>
                 ))}
               </TabsList>
@@ -339,7 +504,15 @@ export default function PartnerWorkspace() {
           </div>
 
           <div className="flex-1 overflow-y-auto">
-            {casesQuery.isLoading ? (
+            {!showsCaseTable ? (
+              <DeepLinkPanel
+                tab={activeDef}
+                clients={clients}
+                selectedClient={selectedClient}
+                onPickClient={(orgId) => swapAndNavigate(orgId, activeDef.deepLink as string)}
+                navigatingTo={navigatingToClient}
+              />
+            ) : casesQuery.isLoading ? (
               <div className="flex items-center justify-center py-20">
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
               </div>
@@ -422,6 +595,160 @@ export default function PartnerWorkspace() {
         }}
         clientId={editingClientId}
       />
+
+      <Dialog
+        open={pendingNav !== null}
+        onOpenChange={(o) => {
+          if (!o) setPendingNav(null);
+        }}
+      >
+        <DialogContent className="max-h-[80vh] overflow-hidden">
+          <DialogHeader>
+            <DialogTitle>Pick a client</DialogTitle>
+            <DialogDescription>
+              {pendingNav?.label ?? "Action"} — choose which client this is for.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="-mx-1 max-h-[60vh] overflow-y-auto px-1">
+            {clients.length === 0 ? (
+              <p className="py-8 text-center text-sm text-muted-foreground">
+                No clients yet — add one from the sidebar first.
+              </p>
+            ) : (
+              <ul className="divide-y">
+                {clients.map((c) => (
+                  <li key={c.id}>
+                    <button
+                      type="button"
+                      className={cn(
+                        "flex w-full items-center justify-between gap-3 px-2 py-2 text-left text-sm transition hover:bg-muted",
+                        navigatingToClient === c.id && "opacity-50",
+                      )}
+                      onClick={() => {
+                        if (!pendingNav) return;
+                        const path = pendingNav.path;
+                        setPendingNav(null);
+                        void swapAndNavigate(c.id, path);
+                      }}
+                      data-testid={`client-picker-${c.id}`}
+                    >
+                      <span className="flex items-center gap-2">
+                        {c.logoUrl ? (
+                          <img
+                            src={c.logoUrl}
+                            alt=""
+                            className="h-6 w-6 flex-shrink-0 rounded object-contain"
+                          />
+                        ) : (
+                          <Building2 className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+                        )}
+                        <span className="truncate">{c.name}</span>
+                      </span>
+                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+interface DeepLinkPanelProps {
+  tab: TabDef;
+  clients: ClientOrg[];
+  selectedClient: ClientOrg | null;
+  onPickClient: (orgId: string) => void;
+  navigatingTo: string | null;
+}
+
+/**
+ * Content for the deep-link tabs (Checks / Check-ins / Financials /
+ * Predictions / Audit). When a client is selected on the left rail, we show
+ * a single big "View [Client]'s [Tab]" CTA that JWT-swaps. When "All clients"
+ * is selected, we show a per-client grid so the partner can drill in directly.
+ */
+function DeepLinkPanel({
+  tab,
+  clients,
+  selectedClient,
+  onPickClient,
+  navigatingTo,
+}: DeepLinkPanelProps): JSX.Element {
+  if (selectedClient) {
+    return (
+      <div className="flex flex-col items-center justify-center px-6 py-16 text-center">
+        <div className="mx-auto max-w-md space-y-4">
+          <h2 className="text-xl font-semibold">
+            {selectedClient.name} — {tab.label}
+          </h2>
+          <p className="text-sm text-muted-foreground">{tab.description}</p>
+          <Button
+            size="lg"
+            className="gap-2"
+            onClick={() => onPickClient(selectedClient.id)}
+            disabled={navigatingTo !== null}
+            data-testid={`open-deeplink-${tab.id}`}
+          >
+            {navigatingTo === selectedClient.id ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <ChevronRight className="h-4 w-4" />
+            )}
+            Open {tab.label}
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (clients.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 text-center text-muted-foreground">
+        <Layers className="mb-3 h-8 w-8" />
+        <p className="text-sm">No clients yet — add one from the sidebar first.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="px-6 py-6">
+      <p className="mb-4 text-sm text-muted-foreground">
+        Pick a client to view their {tab.label.toLowerCase()}:
+      </p>
+      <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        {clients.map((c) => (
+          <li key={c.id}>
+            <button
+              type="button"
+              className={cn(
+                "flex w-full items-center justify-between gap-3 rounded-md border bg-card px-3 py-3 text-left text-sm transition hover:bg-muted",
+                navigatingTo === c.id && "opacity-50",
+              )}
+              onClick={() => onPickClient(c.id)}
+              disabled={navigatingTo !== null}
+              data-testid={`deeplink-client-${c.id}`}
+            >
+              <span className="flex min-w-0 items-center gap-2">
+                {c.logoUrl ? (
+                  <img
+                    src={c.logoUrl}
+                    alt=""
+                    className="h-6 w-6 flex-shrink-0 rounded object-contain"
+                  />
+                ) : (
+                  <Building2 className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+                )}
+                <span className="truncate font-medium">{c.name}</span>
+              </span>
+              <ChevronRight className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+            </button>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
