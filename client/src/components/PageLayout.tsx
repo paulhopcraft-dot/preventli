@@ -4,7 +4,6 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { ThemeToggle } from "./theme-toggle";
-import { ChatWidget } from "./ChatWidget";
 import { BookingModal } from "./BookingModal";
 import { NotificationBell } from "./NotificationBell";
 import { Button } from "./ui/button";
@@ -225,8 +224,7 @@ export function PageLayout({ children, title, subtitle }: PageLayoutProps) {
         caseContext={caseContext}
       />
 
-      {/* Floating Health Assistant Chat Widget */}
-      <ChatWidget caseContext={caseContext} />
+      {/* Floating Health Assistant Chat Widget mounted globally in App.tsx */}
 
       {/* Support Contact Modal */}
       <SupportModal open={supportOpen} onClose={() => setSupportOpen(false)} />

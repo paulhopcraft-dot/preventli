@@ -4,7 +4,6 @@ import { useNavigate, Link } from "react-router-dom";
 import { CompanyNav } from "@/components/CompanyNav";
 import { SearchBar } from "@/components/SearchBar";
 import { CasesTable } from "@/components/CasesTable";
-import { ChatWidget } from "@/components/ChatWidget";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -425,7 +424,6 @@ export default function CasesDashboard() {
         </div>
       </main>
       
-      <ChatWidget />
       <ContextualHelpSystem mode="floating" showTips={true} userRole="case_manager" />
       {user && <FirstTimeTour userRole={user.role} userId={user.id} />}
     </div>
