@@ -681,6 +681,8 @@ export interface IStorage {
   upsertWorkerByEmail(data: InsertWorker): Promise<WorkerDB>;
   listWorkers(organizationId: string): Promise<WorkerDB[]>;
   getWorkerProfile(id: string): Promise<{ worker: WorkerDB; assessments: PreEmploymentAssessmentDB[]; bookings: TelehealthBookingDB[] } | null>;
+  getWorkerCasesByWorker(workerId: string, workerName: string, organizationId: string): Promise<WorkerCaseDB[]>;
+  getCertificatesForWorkerTimeline(workerId: string, workerName: string, organizationId: string): Promise<MedicalCertificateDB[]>;
 
   // Telehealth Bookings
   createTelehealthBooking(data: InsertTelehealthBooking): Promise<TelehealthBookingDB>;
@@ -4152,6 +4154,93 @@ class DbStorage implements IStorage {
       .where(eq(telehealthBookings.workerId, id))
       .orderBy(desc(telehealthBookings.createdAt));
     return { worker, assessments, bookings: bookingRows };
+  }
+
+  async getWorkerCasesByWorker(
+    workerId: string,
+    workerName: string,
+    organizationId: string,
+  ): Promise<WorkerCaseDB[]> {
+    // Defensive fallback for cases that escaped the Wave 0 backfill (e.g.,
+    // name with non-canonical whitespace). Primary join is via workerId.
+    return await db
+      .select()
+      .from(workerCases)
+      .where(and(
+        eq(workerCases.organizationId, organizationId),
+        or(
+          eq(workerCases.workerId, workerId),
+          and(
+            isNull(workerCases.workerId),
+            eq(workerCases.workerName, workerName),
+          ),
+        ),
+      ))
+      .orderBy(desc(workerCases.dateOfInjury));
+  }
+
+  async getCertificatesForWorkerTimeline(
+    workerId: string,
+    workerName: string,
+    organizationId: string,
+  ): Promise<MedicalCertificateDB[]> {
+    // Primary join is medicalCertificates.workerId. Defensive fallback for
+    // certificates with workerId=null: include rows whose case belongs to the
+    // same worker (via worker_cases.workerId or matching workerName+org).
+    const rows = await db
+      .selectDistinct({
+        id: medicalCertificates.id,
+        caseId: medicalCertificates.caseId,
+        issueDate: medicalCertificates.issueDate,
+        startDate: medicalCertificates.startDate,
+        endDate: medicalCertificates.endDate,
+        capacity: medicalCertificates.capacity,
+        workCapacityPercentage: medicalCertificates.workCapacityPercentage,
+        notes: medicalCertificates.notes,
+        source: medicalCertificates.source,
+        documentUrl: medicalCertificates.documentUrl,
+        sourceReference: medicalCertificates.sourceReference,
+        createdAt: medicalCertificates.createdAt,
+        updatedAt: medicalCertificates.updatedAt,
+        certificateType: medicalCertificates.certificateType,
+        organizationId: medicalCertificates.organizationId,
+        workerId: medicalCertificates.workerId,
+        documentId: medicalCertificates.documentId,
+        restrictions: medicalCertificates.restrictions,
+        treatingPractitioner: medicalCertificates.treatingPractitioner,
+        practitionerType: medicalCertificates.practitionerType,
+        clinicName: medicalCertificates.clinicName,
+        rawExtractedData: medicalCertificates.rawExtractedData,
+        extractionConfidence: medicalCertificates.extractionConfidence,
+        requiresReview: medicalCertificates.requiresReview,
+        isCurrentCertificate: medicalCertificates.isCurrentCertificate,
+        reviewDate: medicalCertificates.reviewDate,
+        fileName: medicalCertificates.fileName,
+        fileUrl: medicalCertificates.fileUrl,
+        functionalRestrictionsJson: medicalCertificates.functionalRestrictionsJson,
+      })
+      .from(medicalCertificates)
+      .leftJoin(workerCases, eq(medicalCertificates.caseId, workerCases.id))
+      .where(and(
+        eq(medicalCertificates.organizationId, organizationId),
+        or(
+          eq(medicalCertificates.workerId, workerId),
+          // Fallback path: cert has no workerId, but its case belongs to this worker.
+          and(
+            isNull(medicalCertificates.workerId),
+            or(
+              eq(workerCases.workerId, workerId),
+              and(
+                isNull(workerCases.workerId),
+                eq(workerCases.workerName, workerName),
+                eq(workerCases.organizationId, organizationId),
+              ),
+            ),
+          ),
+        ),
+      ))
+      .orderBy(desc(medicalCertificates.issueDate));
+    return rows as MedicalCertificateDB[];
   }
 
   // ============================================================================
