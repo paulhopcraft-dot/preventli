@@ -675,6 +675,7 @@ export interface IStorage {
 
   // Workers
   createWorker(data: InsertWorker): Promise<WorkerDB>;
+  resolveOrCreateWorker(name: string, organizationId: string): Promise<string>;
   getWorkerById(id: string): Promise<WorkerDB | null>;
   getWorkerByEmail(email: string): Promise<WorkerDB | null>;
   upsertWorkerByEmail(data: InsertWorker): Promise<WorkerDB>;
@@ -1223,10 +1224,16 @@ class DbStorage implements IStorage {
     const now = new Date();
     const dueDate = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000); // 7 days from now
 
+    const workerId = await this.resolveOrCreateWorker(
+      caseData.workerName,
+      caseData.organizationId,
+    );
+
     const [inserted] = await db
       .insert(workerCases)
       .values({
         organizationId: caseData.organizationId,
+        workerId,
         workerName: caseData.workerName,
         company: caseData.company,
         dateOfInjury: new Date(caseData.dateOfInjury),
@@ -1529,10 +1536,18 @@ class DbStorage implements IStorage {
         ? caseData.certificateHistory[caseData.certificateHistory.length - 1].documentUrl
         : undefined;
 
+    const dbOrganizationId =
+      caseData.organizationId || existingCase[0]?.organizationId || "default";
+    const dbWorkerName = caseData.workerName || "Unknown";
+    const resolvedWorkerId =
+      existingCase[0]?.workerId ??
+      (await this.resolveOrCreateWorker(dbWorkerName, dbOrganizationId));
+
     const dbData = {
       id: caseData.id,
-      organizationId: caseData.organizationId || existingCase[0]?.organizationId || "default",
-      workerName: caseData.workerName || "Unknown",
+      organizationId: dbOrganizationId,
+      workerId: resolvedWorkerId,
+      workerName: dbWorkerName,
       company: caseData.company || "Unknown",
       dateOfInjury,
       dateOfInjurySource: caseData.dateOfInjurySource || "unknown",
@@ -4070,6 +4085,25 @@ class DbStorage implements IStorage {
   async createWorker(data: InsertWorker): Promise<WorkerDB> {
     const [created] = await db.insert(workers).values(data).returning();
     return created;
+  }
+
+  /**
+   * Resolve a worker by (name, organizationId), creating one if missing.
+   * Used by case-creation flows so worker_cases.worker_id is populated going
+   * forward (mirrors the WHT-00b backfill).
+   */
+  async resolveOrCreateWorker(name: string, organizationId: string): Promise<string> {
+    const [existing] = await db
+      .select({ id: workers.id })
+      .from(workers)
+      .where(and(eq(workers.name, name), eq(workers.organizationId, organizationId)))
+      .limit(1);
+    if (existing) return existing.id;
+    const [created] = await db
+      .insert(workers)
+      .values({ name, organizationId })
+      .returning({ id: workers.id });
+    return created.id;
   }
 
   async getWorkerById(id: string): Promise<WorkerDB | null> {
