@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { AlertTriangle, Clock, CheckCircle, Calendar, UserPlus, ArrowRight, TrendingUp } from "lucide-react";
 import { TimelineNode } from "@/components/TimelineNode";
+import { WorkerHealthTimeline } from "@/components/WorkerHealthTimeline";
 
 interface Assessment {
   id: string;
@@ -398,13 +399,13 @@ export default function WorkerProfile() {
           </Card>
         </div>
 
-        {/* Check history timeline */}
+        {/* Health history timeline */}
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <TrendingUp className="h-4 w-4 text-muted-foreground" />
-                <CardTitle className="text-base">Check History</CardTitle>
+                <CardTitle className="text-base">Health History</CardTitle>
               </div>
               <Button size="sm" asChild>
                 <Link to="/assessments/new">
@@ -415,12 +416,7 @@ export default function WorkerProfile() {
             </div>
           </CardHeader>
           <CardContent>
-            <CheckTimeline
-              assessments={assessments}
-              recheckUrgency={recheckUrgency}
-              nextCheckDue={nextCheckDue}
-              lastClearanceLevel={lastClearanceLevel}
-            />
+            <WorkerHealthTimeline workerId={id!} />
           </CardContent>
         </Card>
 
