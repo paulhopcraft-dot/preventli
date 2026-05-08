@@ -591,6 +591,7 @@ router.get("/cases", requirePartner, async (req: AuthRequest, res: Response) => 
         id: workerCases.id,
         organizationId: workerCases.organizationId,
         organizationName: organizations.name,
+        workerId: workerCases.workerId,
         workerName: workerCases.workerName,
         company: workerCases.company,
         riskLevel: workerCases.riskLevel,

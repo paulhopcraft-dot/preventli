@@ -27,6 +27,7 @@ interface CaseRow {
   id: string;
   organizationId: string;
   organizationName: string;
+  workerId: string | null;
   workerName: string;
   company: string;
   riskLevel: string;
