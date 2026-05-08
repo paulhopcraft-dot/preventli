@@ -78,7 +78,6 @@ const NewAssessmentPage = lazy(() => import("./pages/NewAssessmentPage"));
 const AssessmentDetailPage = lazy(() => import("./pages/AssessmentDetailPage"));
 const HelpCenterPage = lazy(() => import("./pages/HelpCenterPage"));
 const PartnerClientPicker = lazy(() => import("./pages/PartnerWorkspace"));
-const PartnerCaseDetailPage = lazy(() => import("./pages/PartnerCaseDetailPage"));
 const ChangePasswordPage = lazy(() => import("./pages/ChangePasswordPage"));
 
 // LogoutRedirect component - triggers logout and redirects to login
@@ -198,16 +197,6 @@ export default function App() {
                       <ProtectedRoute>
                         <Suspense fallback={<PageLoader />}>
                           <CasesPage />
-                        </Suspense>
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/partner/cases/:id"
-                    element={
-                      <ProtectedRoute>
-                        <Suspense fallback={<PageLoader />}>
-                          <PartnerCaseDetailPage />
                         </Suspense>
                       </ProtectedRoute>
                     }
