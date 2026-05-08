@@ -1,4 +1,4 @@
-import { useParams, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -326,7 +326,18 @@ function CommandCentre({ workerCase, caseActions, effectiveRiskLevel, onApproveR
       <div className="rounded-xl border bg-card p-4 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h2 className="text-xl font-bold">{workerCase.workerName}</h2>
+            <h2 className="text-xl font-bold">
+              {workerCase.workerId ? (
+                <Link
+                  to={`/workers/${workerCase.workerId}`}
+                  className="hover:underline focus:underline focus:outline-none"
+                >
+                  {workerCase.workerName}
+                </Link>
+              ) : (
+                workerCase.workerName
+              )}
+            </h2>
             <p className="text-sm text-muted-foreground mt-0.5">
               {workerCase.company}
               {workerCase.dateOfInjury ? ` · Injured ${workerCase.dateOfInjury}` : ""}
@@ -843,7 +854,18 @@ export default function EmployerCaseDetailPage() {
               <ArrowLeft className="h-4 w-4" />
             </Button>
             <div className="min-w-0">
-              <h1 className="text-lg font-bold truncate">{workerCase.workerName}</h1>
+              <h1 className="text-lg font-bold truncate">
+                {workerCase.workerId ? (
+                  <Link
+                    to={`/workers/${workerCase.workerId}`}
+                    className="hover:underline focus:underline focus:outline-none"
+                  >
+                    {workerCase.workerName}
+                  </Link>
+                ) : (
+                  workerCase.workerName
+                )}
+              </h1>
               <p className="text-xs text-muted-foreground truncate">
                 {workerCase.company} • Injured {formatCertDate(workerCase.dateOfInjury)}
               </p>

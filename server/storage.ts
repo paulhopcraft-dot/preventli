@@ -800,6 +800,7 @@ class DbStorage implements IStorage {
         const workerCase: WorkerCase = {
           id: dbCase.id,
           organizationId: dbCase.organizationId,
+          workerId: dbCase.workerId ?? undefined,
           workerName: dbCase.workerName,
           company: dbCase.company as any,
           dateOfInjury: dbCase.dateOfInjury.toISOString().split('T')[0],
@@ -969,6 +970,7 @@ class DbStorage implements IStorage {
         const workerCase: WorkerCase = {
           id: dbCase.id,
           organizationId: dbCase.organizationId,
+          workerId: dbCase.workerId ?? undefined,
           workerName: dbCase.workerName,
           company: dbCase.company as any,
           dateOfInjury: dbCase.dateOfInjury.toISOString().split('T')[0],
