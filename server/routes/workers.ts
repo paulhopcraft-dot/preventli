@@ -1,9 +1,13 @@
 import express, { type Request, type Response, type Router } from "express";
 import { z } from "zod";
+import { db } from "../db";
+import { eq } from "drizzle-orm";
 import { storage } from "../storage";
 import { authorize, type AuthRequest } from "../middleware/auth";
-import { insertWorkerSchema } from "@shared/schema";
+import { insertWorkerSchema, preEmploymentAssessments, type PreEmploymentAssessmentDB } from "@shared/schema";
+import type { WorkerHealthTimelineEvent } from "@shared/types/timeline";
 import { createLogger } from "../lib/logger";
+import { mergeAndSortTimelineEvents } from "./timeline-mapper";
 
 /** Months between checks based on clearance outcome */
 const RECHECK_MONTHS: Record<string, number> = {
@@ -93,8 +97,13 @@ router.get("/", authorize(), async (req: AuthRequest, res: Response) => {
 router.get("/:id", authorize(), async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
+    const organizationId = req.user!.organizationId;
     const profile = await storage.getWorkerProfile(id);
     if (!profile) {
+      return res.status(404).json({ error: "Worker not found" });
+    }
+    // Tenant isolation: 404 (not 403) on cross-org access to avoid leaking existence.
+    if (profile.worker.organizationId !== organizationId) {
       return res.status(404).json({ error: "Worker not found" });
     }
     const checkRec = computeNextCheckDue(profile.assessments as any[]);
@@ -102,6 +111,48 @@ router.get("/:id", authorize(), async (req: AuthRequest, res: Response) => {
   } catch (error) {
     logger.error("Error getting worker profile:", undefined, error);
     res.status(500).json({ error: "Failed to retrieve worker profile" });
+  }
+});
+
+/**
+ * @route GET /api/workers/:id/health-timeline
+ * @desc Merged timeline of assessments, cases, and certificates for a worker
+ * @access Private — tenant-isolated by organizationId
+ */
+router.get("/:id/health-timeline", authorize(), async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const organizationId = req.user!.organizationId;
+
+    const profile = await storage.getWorkerProfile(id);
+    if (!profile) {
+      return res.status(404).json({ error: "Worker not found" });
+    }
+    // Tenant isolation: 404 (not 403) on cross-org access to avoid leaking existence.
+    if (profile.worker.organizationId !== organizationId) {
+      return res.status(404).json({ error: "Worker not found" });
+    }
+
+    const workerName = profile.worker.name;
+    const [assessments, cases, certificates] = await Promise.all([
+      db
+        .select()
+        .from(preEmploymentAssessments)
+        .where(eq(preEmploymentAssessments.workerId, id)) as Promise<PreEmploymentAssessmentDB[]>,
+      storage.getWorkerCasesByWorker(id, workerName, organizationId),
+      storage.getCertificatesForWorkerTimeline(id, workerName, organizationId),
+    ]);
+
+    const events: WorkerHealthTimelineEvent[] = mergeAndSortTimelineEvents(
+      assessments,
+      cases,
+      certificates,
+    );
+
+    res.json({ events });
+  } catch (error) {
+    logger.error("Error getting worker health timeline:", undefined, error);
+    res.status(500).json({ error: "Failed to retrieve worker health timeline" });
   }
 });
 
