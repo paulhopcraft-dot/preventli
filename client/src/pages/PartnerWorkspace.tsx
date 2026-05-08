@@ -50,6 +50,7 @@ export default function PartnerWorkspace() {
   const [formOpen, setFormOpen] = useState(false);
   const [editingClientId, setEditingClientId] = useState<string | undefined>(undefined);
   const [openingCaseId, setOpeningCaseId] = useState<string | null>(null);
+  const [openingWorkerId, setOpeningWorkerId] = useState<string | null>(null);
 
   /**
    * Open a case from the partner workspace by reusing the rich employer
@@ -72,6 +73,33 @@ export default function PartnerWorkspace() {
     } catch (err) {
       console.error("[partner] failed to open case", err);
       setOpeningCaseId(null);
+    }
+  }
+
+  /**
+   * Open a worker profile from the partner workspace. Same JWT-swap pattern
+   * as openCase: the worker profile + timeline endpoints are scoped to the
+   * active organization, so we mint a fresh JWT for the case's org first,
+   * invalidate worker-scoped caches, then navigate to /workers/:workerId.
+   */
+  async function openWorkerProfile(caseRow: CaseRow): Promise<void> {
+    if (!caseRow.workerId) return;
+    if (openingWorkerId === caseRow.workerId) return; // ignore double-clicks
+    setOpeningWorkerId(caseRow.workerId);
+    try {
+      await apiRequest("POST", "/api/partner/active-org", {
+        organizationId: caseRow.organizationId,
+      });
+      // Invalidate worker-scoped query caches so the profile/timeline pages
+      // refetch against the new active org.
+      queryClient.invalidateQueries({ queryKey: ["/api/cases"] });
+      queryClient.invalidateQueries({ queryKey: ["worker-profile"] });
+      queryClient.invalidateQueries({ queryKey: ["worker-timeline"] });
+      navigate(`/workers/${caseRow.workerId}`);
+    } catch (err) {
+      console.error("[partner] failed to open worker profile", err);
+    } finally {
+      setOpeningWorkerId(null);
     }
   }
 
@@ -320,7 +348,22 @@ export default function PartnerWorkspace() {
                     >
                       <td className="px-6 py-3 font-medium">
                         <div className="flex items-center gap-2">
-                          <span>{c.workerName}</span>
+                          {c.workerId ? (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openWorkerProfile(c);
+                              }}
+                              className="hover:underline focus:underline focus:outline-none text-left"
+                              disabled={openingWorkerId === c.workerId}
+                              data-testid={`worker-link-${c.id}`}
+                            >
+                              {c.workerName}
+                            </button>
+                          ) : (
+                            <span title="Worker profile unavailable">{c.workerName}</span>
+                          )}
                           <Badge
                             variant={
                               c.riskLevel === "High"
