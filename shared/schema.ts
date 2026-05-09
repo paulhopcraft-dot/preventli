@@ -675,6 +675,7 @@ export interface TranscriptInsight {
 export interface WorkerCase {
   id: string;
   organizationId: string; // Organization/tenant isolation - added in migration 0003
+  workerId?: string | null;
   workerName: string;
   company: string; // Allow any company name from Freshdesk, not just predefined ones
   dateOfInjury: string;

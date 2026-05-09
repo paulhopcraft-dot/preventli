@@ -5,6 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { AlertTriangle, Clock, CheckCircle, Calendar, UserPlus, ArrowRight, TrendingUp } from "lucide-react";
+import { TimelineNode } from "@/components/TimelineNode";
+import { WorkerHealthTimeline } from "@/components/WorkerHealthTimeline";
 
 interface Assessment {
   id: string;
@@ -164,36 +166,6 @@ function RecheckBanner({ urgency, nextCheckDue, lastClearanceLevel, workerName }
   }
 
   return null;
-}
-
-// ─── Timeline node ────────────────────────────────────────────────────────────
-function TimelineNode({
-  date,
-  isLast,
-  isFuture,
-  dotClass,
-  children,
-}: {
-  date: string;
-  isLast: boolean;
-  isFuture?: boolean;
-  dotClass: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="flex gap-4">
-      {/* Left: dot + line */}
-      <div className="flex flex-col items-center">
-        <div className={`mt-1 h-3 w-3 rounded-full shrink-0 border-2 ${isFuture ? "border-dashed bg-white border-gray-400" : dotClass}`} />
-        {!isLast && <div className={`mt-1 flex-1 w-px ${isFuture ? "border-l-2 border-dashed border-gray-300" : "bg-gray-200"}`} style={{ minHeight: 32 }} />}
-      </div>
-      {/* Right: content */}
-      <div className="flex-1 pb-5 min-w-0">
-        <p className="text-xs text-muted-foreground mb-1">{date}</p>
-        {children}
-      </div>
-    </div>
-  );
 }
 
 // ─── Full check history timeline ───────────────────────────────────────────────
@@ -427,13 +399,13 @@ export default function WorkerProfile() {
           </Card>
         </div>
 
-        {/* Check history timeline */}
+        {/* Health history timeline */}
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <TrendingUp className="h-4 w-4 text-muted-foreground" />
-                <CardTitle className="text-base">Check History</CardTitle>
+                <CardTitle className="text-base">Health History</CardTitle>
               </div>
               <Button size="sm" asChild>
                 <Link to="/assessments/new">
@@ -444,12 +416,7 @@ export default function WorkerProfile() {
             </div>
           </CardHeader>
           <CardContent>
-            <CheckTimeline
-              assessments={assessments}
-              recheckUrgency={recheckUrgency}
-              nextCheckDue={nextCheckDue}
-              lastClearanceLevel={lastClearanceLevel}
-            />
+            <WorkerHealthTimeline workerId={id!} />
           </CardContent>
         </Card>
 

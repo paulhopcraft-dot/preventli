@@ -98,11 +98,19 @@ async function handleWorkerInjuryForm(formData: any, organizationId: string) {
   if (injuryDescription) summaryParts.push(injuryDescription);
   const summary = summaryParts.length > 0 ? summaryParts.join(". ") : "New injury report submitted via JotForm";
 
+  const resolvedWorkerName: string = workerName || "Unknown Worker";
+  const { storage } = await import("../storage");
+  const resolvedWorkerId = await storage.resolveOrCreateWorker(
+    resolvedWorkerName,
+    organizationId,
+  );
+
   // Create worker case with organizationId from mapping (NOT from form data)
   await db.insert(workerCases).values({
     id: `CASE-${Date.now()}-${randomBytes(4).toString("hex")}`,
     organizationId,
-    workerName: workerName || "Unknown Worker",
+    workerId: resolvedWorkerId,
+    workerName: resolvedWorkerName,
     company: company || "Unknown Company",
     dateOfInjury: dateOfInjury ? new Date(dateOfInjury) : new Date(),
     riskLevel: "medium",

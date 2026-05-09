@@ -675,11 +675,14 @@ export interface IStorage {
 
   // Workers
   createWorker(data: InsertWorker): Promise<WorkerDB>;
+  resolveOrCreateWorker(name: string, organizationId: string): Promise<string>;
   getWorkerById(id: string): Promise<WorkerDB | null>;
   getWorkerByEmail(email: string): Promise<WorkerDB | null>;
   upsertWorkerByEmail(data: InsertWorker): Promise<WorkerDB>;
   listWorkers(organizationId: string): Promise<WorkerDB[]>;
   getWorkerProfile(id: string): Promise<{ worker: WorkerDB; assessments: PreEmploymentAssessmentDB[]; bookings: TelehealthBookingDB[] } | null>;
+  getWorkerCasesByWorker(workerId: string, workerName: string, organizationId: string): Promise<WorkerCaseDB[]>;
+  getCertificatesForWorkerTimeline(workerId: string, workerName: string, organizationId: string): Promise<MedicalCertificateDB[]>;
 
   // Telehealth Bookings
   createTelehealthBooking(data: InsertTelehealthBooking): Promise<TelehealthBookingDB>;
@@ -797,6 +800,7 @@ class DbStorage implements IStorage {
         const workerCase: WorkerCase = {
           id: dbCase.id,
           organizationId: dbCase.organizationId,
+          workerId: dbCase.workerId ?? undefined,
           workerName: dbCase.workerName,
           company: dbCase.company as any,
           dateOfInjury: dbCase.dateOfInjury.toISOString().split('T')[0],
@@ -966,6 +970,7 @@ class DbStorage implements IStorage {
         const workerCase: WorkerCase = {
           id: dbCase.id,
           organizationId: dbCase.organizationId,
+          workerId: dbCase.workerId ?? undefined,
           workerName: dbCase.workerName,
           company: dbCase.company as any,
           dateOfInjury: dbCase.dateOfInjury.toISOString().split('T')[0],
@@ -1223,10 +1228,16 @@ class DbStorage implements IStorage {
     const now = new Date();
     const dueDate = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000); // 7 days from now
 
+    const workerId = await this.resolveOrCreateWorker(
+      caseData.workerName,
+      caseData.organizationId,
+    );
+
     const [inserted] = await db
       .insert(workerCases)
       .values({
         organizationId: caseData.organizationId,
+        workerId,
         workerName: caseData.workerName,
         company: caseData.company,
         dateOfInjury: new Date(caseData.dateOfInjury),
@@ -1529,10 +1540,18 @@ class DbStorage implements IStorage {
         ? caseData.certificateHistory[caseData.certificateHistory.length - 1].documentUrl
         : undefined;
 
+    const dbOrganizationId =
+      caseData.organizationId || existingCase[0]?.organizationId || "default";
+    const dbWorkerName = caseData.workerName || "Unknown";
+    const resolvedWorkerId =
+      existingCase[0]?.workerId ??
+      (await this.resolveOrCreateWorker(dbWorkerName, dbOrganizationId));
+
     const dbData = {
       id: caseData.id,
-      organizationId: caseData.organizationId || existingCase[0]?.organizationId || "default",
-      workerName: caseData.workerName || "Unknown",
+      organizationId: dbOrganizationId,
+      workerId: resolvedWorkerId,
+      workerName: dbWorkerName,
       company: caseData.company || "Unknown",
       dateOfInjury,
       dateOfInjurySource: caseData.dateOfInjurySource || "unknown",
@@ -4072,6 +4091,25 @@ class DbStorage implements IStorage {
     return created;
   }
 
+  /**
+   * Resolve a worker by (name, organizationId), creating one if missing.
+   * Used by case-creation flows so worker_cases.worker_id is populated going
+   * forward (mirrors the WHT-00b backfill).
+   */
+  async resolveOrCreateWorker(name: string, organizationId: string): Promise<string> {
+    const [existing] = await db
+      .select({ id: workers.id })
+      .from(workers)
+      .where(and(eq(workers.name, name), eq(workers.organizationId, organizationId)))
+      .limit(1);
+    if (existing) return existing.id;
+    const [created] = await db
+      .insert(workers)
+      .values({ name, organizationId })
+      .returning({ id: workers.id });
+    return created.id;
+  }
+
   async getWorkerById(id: string): Promise<WorkerDB | null> {
     const [row] = await db.select().from(workers).where(eq(workers.id, id)).limit(1);
     return row ?? null;
@@ -4118,6 +4156,93 @@ class DbStorage implements IStorage {
       .where(eq(telehealthBookings.workerId, id))
       .orderBy(desc(telehealthBookings.createdAt));
     return { worker, assessments, bookings: bookingRows };
+  }
+
+  async getWorkerCasesByWorker(
+    workerId: string,
+    workerName: string,
+    organizationId: string,
+  ): Promise<WorkerCaseDB[]> {
+    // Defensive fallback for cases that escaped the Wave 0 backfill (e.g.,
+    // name with non-canonical whitespace). Primary join is via workerId.
+    return await db
+      .select()
+      .from(workerCases)
+      .where(and(
+        eq(workerCases.organizationId, organizationId),
+        or(
+          eq(workerCases.workerId, workerId),
+          and(
+            isNull(workerCases.workerId),
+            eq(workerCases.workerName, workerName),
+          ),
+        ),
+      ))
+      .orderBy(desc(workerCases.dateOfInjury));
+  }
+
+  async getCertificatesForWorkerTimeline(
+    workerId: string,
+    workerName: string,
+    organizationId: string,
+  ): Promise<MedicalCertificateDB[]> {
+    // Primary join is medicalCertificates.workerId. Defensive fallback for
+    // certificates with workerId=null: include rows whose case belongs to the
+    // same worker (via worker_cases.workerId or matching workerName+org).
+    const rows = await db
+      .selectDistinct({
+        id: medicalCertificates.id,
+        caseId: medicalCertificates.caseId,
+        issueDate: medicalCertificates.issueDate,
+        startDate: medicalCertificates.startDate,
+        endDate: medicalCertificates.endDate,
+        capacity: medicalCertificates.capacity,
+        workCapacityPercentage: medicalCertificates.workCapacityPercentage,
+        notes: medicalCertificates.notes,
+        source: medicalCertificates.source,
+        documentUrl: medicalCertificates.documentUrl,
+        sourceReference: medicalCertificates.sourceReference,
+        createdAt: medicalCertificates.createdAt,
+        updatedAt: medicalCertificates.updatedAt,
+        certificateType: medicalCertificates.certificateType,
+        organizationId: medicalCertificates.organizationId,
+        workerId: medicalCertificates.workerId,
+        documentId: medicalCertificates.documentId,
+        restrictions: medicalCertificates.restrictions,
+        treatingPractitioner: medicalCertificates.treatingPractitioner,
+        practitionerType: medicalCertificates.practitionerType,
+        clinicName: medicalCertificates.clinicName,
+        rawExtractedData: medicalCertificates.rawExtractedData,
+        extractionConfidence: medicalCertificates.extractionConfidence,
+        requiresReview: medicalCertificates.requiresReview,
+        isCurrentCertificate: medicalCertificates.isCurrentCertificate,
+        reviewDate: medicalCertificates.reviewDate,
+        fileName: medicalCertificates.fileName,
+        fileUrl: medicalCertificates.fileUrl,
+        functionalRestrictionsJson: medicalCertificates.functionalRestrictionsJson,
+      })
+      .from(medicalCertificates)
+      .leftJoin(workerCases, eq(medicalCertificates.caseId, workerCases.id))
+      .where(and(
+        eq(medicalCertificates.organizationId, organizationId),
+        or(
+          eq(medicalCertificates.workerId, workerId),
+          // Fallback path: cert has no workerId, but its case belongs to this worker.
+          and(
+            isNull(medicalCertificates.workerId),
+            or(
+              eq(workerCases.workerId, workerId),
+              and(
+                isNull(workerCases.workerId),
+                eq(workerCases.workerName, workerName),
+                eq(workerCases.organizationId, organizationId),
+              ),
+            ),
+          ),
+        ),
+      ))
+      .orderBy(desc(medicalCertificates.issueDate));
+    return rows as MedicalCertificateDB[];
   }
 
   // ============================================================================

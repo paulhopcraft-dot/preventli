@@ -1,4 +1,4 @@
-import { useParams, useNavigate } from "react-router-dom";
+import { Link, useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -326,7 +326,18 @@ function CommandCentre({ workerCase, caseActions, effectiveRiskLevel, onApproveR
       <div className="rounded-xl border bg-card p-4 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h2 className="text-xl font-bold">{workerCase.workerName}</h2>
+            <h2 className="text-xl font-bold">
+              {workerCase.workerId ? (
+                <Link
+                  to={`/workers/${workerCase.workerId}`}
+                  className="hover:underline focus:underline focus:outline-none"
+                >
+                  {workerCase.workerName}
+                </Link>
+              ) : (
+                workerCase.workerName
+              )}
+            </h2>
             <p className="text-sm text-muted-foreground mt-0.5">
               {workerCase.company}
               {workerCase.dateOfInjury ? ` · Injured ${workerCase.dateOfInjury}` : ""}
@@ -723,6 +734,8 @@ function CommandCentre({ workerCase, caseActions, effectiveRiskLevel, onApproveR
 export default function EmployerCaseDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const initialTab = searchParams.get("tab") || "summary";
   const [aiSummary, setAiSummary] = useState<string | null>(null);
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -841,7 +854,18 @@ export default function EmployerCaseDetailPage() {
               <ArrowLeft className="h-4 w-4" />
             </Button>
             <div className="min-w-0">
-              <h1 className="text-lg font-bold truncate">{workerCase.workerName}</h1>
+              <h1 className="text-lg font-bold truncate">
+                {workerCase.workerId ? (
+                  <Link
+                    to={`/workers/${workerCase.workerId}`}
+                    className="hover:underline focus:underline focus:outline-none"
+                  >
+                    {workerCase.workerName}
+                  </Link>
+                ) : (
+                  workerCase.workerName
+                )}
+              </h1>
               <p className="text-xs text-muted-foreground truncate">
                 {workerCase.company} • Injured {formatCertDate(workerCase.dateOfInjury)}
               </p>
@@ -871,7 +895,7 @@ export default function EmployerCaseDetailPage() {
       </div>
 
       {/* Tabs at the top */}
-      <Tabs defaultValue="summary" className="flex-1 flex flex-col">
+      <Tabs defaultValue={initialTab} className="flex-1 flex flex-col">
         {/* Ultra-Modern Tabs with Glassmorphism */}
         <div className="relative border-b bg-gradient-to-r from-slate-50 via-white to-slate-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 px-4 py-3 overflow-x-auto backdrop-blur-xl">
           <div className="absolute inset-0 bg-gradient-to-r from-purple-500/5 via-blue-500/5 to-teal-500/5 pointer-events-none"></div>
