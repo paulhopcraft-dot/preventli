@@ -72,8 +72,8 @@ ALTER TABLE "organizations"
  *   - WorkBetter (kind=partner)
  *   - Alpine Health (kind=employer)
  *   - Alpine MDF (kind=employer)
- *   - workbetter@workbetter.com.au           — primary partner user, access to BOTH clients
- *   - workbetter-scoped@workbetter.com.au    — scoped partner user, access to Alpine Health only
+ *   - workbetter@workbetter.net.au           — primary partner user, access to BOTH clients
+ *   - workbetter-scoped@workbetter.net.au    — scoped partner user, access to Alpine Health only
  *   - 1 smoke case per Alpine company        (Task F minimal)
  *   - 5 demo workers per Alpine company across pre-employment / injury / preventative tracks (Task G)
  *
@@ -444,7 +444,7 @@ async function seed(): Promise<void> {
       kind: "partner",
       logoUrl: "/assets/workbetter-logo.jpg",
       contactName: "WorkBetter Admin",
-      contactEmail: "admin@workbetter.com.au",
+      contactEmail: "admin@workbetter.net.au",
       contactPhone: "03 9000 0001",
     },
     {
@@ -535,7 +535,7 @@ async function seed(): Promise<void> {
     {
       id: PRIMARY_PARTNER_USER_ID,
       organizationId: PARTNER_ORG_ID,
-      email: "workbetter@workbetter.com.au",
+      email: "workbetter@workbetter.net.au",
       password: passwordHash,
       role: "partner",
       subrole: null,
@@ -545,7 +545,7 @@ async function seed(): Promise<void> {
     {
       id: SCOPED_PARTNER_USER_ID,
       organizationId: PARTNER_ORG_ID,
-      email: "workbetter-scoped@workbetter.com.au",
+      email: "workbetter-scoped@workbetter.net.au",
       password: passwordHash,
       role: "partner",
       subrole: null,
@@ -657,8 +657,8 @@ async function seed(): Promise<void> {
   console.log(`  client cases (Alpine Health/MDF): ${caseRows.length}`);
 
   console.log("\n[seed-workbetter] Login credentials:");
-  console.log("  workbetter@workbetter.com.au         / workbetter123  (full access)");
-  console.log("  workbetter-scoped@workbetter.com.au  / workbetter123  (Alpine Health only)");
+  console.log("  workbetter@workbetter.net.au         / workbetter123  (full access)");
+  console.log("  workbetter-scoped@workbetter.net.au  / workbetter123  (Alpine Health only)");
 }
 
 seed()

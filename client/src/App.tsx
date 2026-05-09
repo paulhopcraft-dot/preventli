@@ -10,6 +10,7 @@ import { AuthProvider } from "./contexts/AuthContext";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { AdminRoute } from "./components/AdminRoute";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { GlobalChatWidget } from "./components/GlobalChatWidget";
 
 // Loading component
 const PageLoader = () => (
@@ -737,6 +738,7 @@ export default function App() {
                 </Routes>
               </Suspense>
               </ErrorBoundary>
+              <GlobalChatWidget />
               <Toaster />
             </AuthProvider>
           </ThemeProvider>

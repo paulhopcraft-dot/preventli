@@ -31,77 +31,137 @@ function isSmtpConfigured(): boolean {
   );
 }
 
+/** Resend (HTTP API) is preferred — single API key, no SMTP handshake. */
+function isResendConfigured(): boolean {
+  return Boolean(process.env.RESEND_API_KEY);
+}
+
+const FROM_FALLBACK = "Preventli <onboarding@resend.dev>";
+const SEND_TIMEOUT_MS = 12_000;
+
+function fromAddress(): string {
+  return (
+    process.env.EMAIL_FROM ||
+    process.env.SMTP_FROM ||
+    process.env.SMTP_USER ||
+    FROM_FALLBACK
+  );
+}
+
 /**
- * Send an email.
- *
- * In development (when SMTP is not configured), the email content is logged
- * to the console instead of being sent.
+ * Send via Resend's HTTP API. We use HTTP rather than SMTP because Render's
+ * outbound SMTP can be flaky and nodemailer can hang for 60s+ on a bad
+ * handshake — see PR #46. HTTP fails fast, has a clear status code, and
+ * needs only RESEND_API_KEY set in env.
  */
-export async function sendEmail(options: SendEmailOptions): Promise<SendEmailResult> {
-  const { to, subject, body, html } = options;
+async function sendViaResend(options: SendEmailOptions): Promise<SendEmailResult> {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) return { success: false, error: "RESEND_API_KEY not set" };
 
-  // Validate inputs
-  if (!to || !subject || !body) {
-    return {
-      success: false,
-      error: "Missing required email fields (to, subject, body)",
-    };
-  }
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), SEND_TIMEOUT_MS);
 
-  // If SMTP is not configured, log the email (dev mode)
-  if (!isSmtpConfigured()) {
-    logger.email.info("SMTP not configured - logging email instead", {
-      to,
-      subject,
-      bodyPreview: body.substring(0, 200) + (body.length > 200 ? "..." : ""),
-    });
-
-    return {
-      success: true,
-      messageId: `dev-${Date.now()}`,
-    };
-  }
-
-  // Real SMTP sending with nodemailer
   try {
-    // Dynamically import nodemailer only when needed
-    const nodemailer = await import("nodemailer");
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        from: fromAddress(),
+        to: [options.to],
+        subject: options.subject,
+        text: options.body,
+        html: options.html,
+      }),
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
 
+    const json = (await res.json().catch(() => ({}))) as { id?: string; message?: string; name?: string };
+    if (!res.ok) {
+      const error = json.message || json.name || `Resend HTTP ${res.status}`;
+      logger.email.error("Resend send failed", { status: res.status, error });
+      return { success: false, error };
+    }
+    logger.email.info("Email sent via Resend", { messageId: json.id });
+    return { success: true, messageId: json.id ?? `resend-${Date.now()}` };
+  } catch (err) {
+    clearTimeout(timer);
+    const message =
+      err instanceof Error && err.name === "AbortError"
+        ? `Resend request timed out after ${SEND_TIMEOUT_MS}ms`
+        : err instanceof Error
+          ? err.message
+          : String(err);
+    logger.email.error("Resend send threw", { error: message });
+    return { success: false, error: message };
+  }
+}
+
+/**
+ * Send via SMTP (nodemailer). Tight timeouts so a misconfigured SMTP host
+ * fails in seconds instead of hanging the request thread.
+ */
+async function sendViaSmtp(options: SendEmailOptions): Promise<SendEmailResult> {
+  try {
+    const nodemailer = await import("nodemailer");
     const transporter = nodemailer.createTransport({
       host: process.env.SMTP_HOST,
       port: parseInt(process.env.SMTP_PORT || "587", 10),
       secure: process.env.SMTP_SECURE === "true",
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
-      },
+      auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+      connectionTimeout: 5_000,
+      greetingTimeout: 5_000,
+      socketTimeout: SEND_TIMEOUT_MS,
     });
-
-    const fromAddress = process.env.SMTP_FROM || process.env.SMTP_USER || "noreply@preventli.ai";
 
     const info = await transporter.sendMail({
-      from: fromAddress,
-      to,
-      subject,
-      text: body,
-      html: html || undefined,
+      from: fromAddress(),
+      to: options.to,
+      subject: options.subject,
+      text: options.body,
+      html: options.html || undefined,
     });
-
-    logger.email.info("Email sent successfully", { messageId: info.messageId });
-
-    return {
-      success: true,
-      messageId: info.messageId,
-    };
+    logger.email.info("Email sent via SMTP", { messageId: info.messageId });
+    return { success: true, messageId: info.messageId };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    logger.email.error("Failed to send email", { errorMessage }, error);
-
-    return {
-      success: false,
-      error: errorMessage,
-    };
+    logger.email.error("SMTP send failed", { errorMessage }, error);
+    return { success: false, error: errorMessage };
   }
+}
+
+/**
+ * Send an email.
+ *
+ * Preference order: Resend HTTP API (if RESEND_API_KEY) → SMTP (if SMTP_*) →
+ * dev-mode console log. Resend is preferred because Render outbound SMTP has
+ * historically hung on bad handshakes; HTTP fails fast with clear errors.
+ */
+export async function sendEmail(options: SendEmailOptions): Promise<SendEmailResult> {
+  const { to, subject, body } = options;
+
+  if (!to || !subject || !body) {
+    return { success: false, error: "Missing required email fields (to, subject, body)" };
+  }
+
+  if (isResendConfigured()) {
+    return sendViaResend(options);
+  }
+
+  if (isSmtpConfigured()) {
+    return sendViaSmtp(options);
+  }
+
+  // Dev mode — log instead of send so local dev still works.
+  logger.email.info("No email provider configured (set RESEND_API_KEY or SMTP_*) — logging instead", {
+    to,
+    subject,
+    bodyPreview: body.substring(0, 200) + (body.length > 200 ? "..." : ""),
+  });
+  return { success: true, messageId: `dev-${Date.now()}` };
 }
 
 /**

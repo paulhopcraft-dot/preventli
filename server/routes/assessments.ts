@@ -152,7 +152,11 @@ If you have any questions, please contact us.
 
     if (!emailResult.success) {
       logger.error("Email delivery failed", undefined, { assessmentId: id, error: emailResult.error });
-      return res.status(502).json({ error: "Failed to deliver email. Please check SMTP configuration." });
+      return res.status(502).json({
+        error: emailResult.error
+          ? `Email send failed: ${emailResult.error}. Set RESEND_API_KEY (or fix SMTP_* env vars) on Render.`
+          : "Failed to deliver email — no provider configured. Set RESEND_API_KEY on Render.",
+      });
     }
 
     await storage.updatePreEmploymentAssessmentStatus(id, organizationId, {

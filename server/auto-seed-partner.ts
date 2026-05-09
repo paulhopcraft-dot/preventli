@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { db } from "./db";
-import { organizations } from "@shared/schema";
+import { organizations, users } from "@shared/schema";
 import { logger } from "./lib/logger";
 
 /**
@@ -22,8 +22,39 @@ import { logger } from "./lib/logger";
  * demo lands. It exists only to bridge the gap between merging the seed
  * and being able to run `npm run seed:workbetter` directly on prod.
  */
+/**
+ * One-shot self-heal: rename existing WorkBetter partner users from the old
+ * `@workbetter.com.au` domain to the correct `@workbetter.net.au` domain.
+ * Idempotent — uses a SQL replace, so re-running is a no-op once domains
+ * are updated. Safe to leave in place; can be removed once the demo lands.
+ */
+async function fixWorkBetterEmailDomain(): Promise<void> {
+  try {
+    const result = await db
+      .update(users)
+      .set({ email: sql`replace(${users.email}, '@workbetter.com.au', '@workbetter.net.au')` })
+      .where(sql`${users.email} like '%@workbetter.com.au'`)
+      .returning({ id: users.id, email: users.email });
+    if (result.length > 0) {
+      logger.server.info(
+        "[auto-seed] migrated WorkBetter user emails to .net.au",
+        { count: result.length },
+      );
+    }
+  } catch (err) {
+    logger.server.error(
+      "[auto-seed] email-domain self-heal failed (continuing)",
+      {},
+      err,
+    );
+  }
+}
+
 export async function autoSeedPartnerIfMissing(): Promise<void> {
   try {
+    // Always run the email-domain self-heal — cheap, idempotent.
+    await fixWorkBetterEmailDomain();
+
     const canary = await db
       .select({ id: organizations.id })
       .from(organizations)
