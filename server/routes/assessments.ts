@@ -128,7 +128,10 @@ router.post("/:id/send", authorize(), async (req: AuthRequest, res: Response) =>
       return res.status(400).json({ error: "Assessment has no candidate email" });
     }
 
-    const appUrl = process.env.APP_URL ?? "http://localhost:5000";
+    // Fallback to the live production URL — never embed a localhost link in an
+    // email that gets posted to a real recipient. If running against a non-prod
+    // environment, set APP_URL explicitly in .env (e.g. http://localhost:5000).
+    const appUrl = process.env.APP_URL ?? "https://gpnet3.onrender.com";
     const link = `${appUrl}/check/${assessment.accessToken}`;
 
     const checkLabel = CHECK_LABELS[(assessment.assessmentType as CheckCategory) ?? "pre_employment"]
