@@ -32,7 +32,7 @@ export default defineConfig({
   ],
 
   use: {
-    baseURL: process.env.PLAYWRIGHT_BASE_URL ?? "https://gpnet3.onrender.com",
+    baseURL: process.env.PLAYWRIGHT_BASE_URL ?? "https://app.preventli.ai",
     trace: "on-first-retry",
     screenshot: "only-on-failure",
     video: "retain-on-failure",

@@ -71,7 +71,7 @@ curl -X POST "https://api.render.com/v1/services/$RENDER_SERVICE_ID/deploys" \
 
 ```bash
 # Health check
-curl https://gpnet3.onrender.com/api/health
+curl https://app.preventli.ai/api/health
 
 # Expect: {"status":"ok","timestamp":"..."}
 ```
@@ -226,7 +226,7 @@ All responses include: `Strict-Transport-Security`, `Content-Security-Policy`,
 
 To verify:
 ```bash
-curl -I https://gpnet3.onrender.com/api/health | grep -i "strict\|content-sec\|x-frame"
+curl -I https://app.preventli.ai/api/health | grep -i "strict\|content-sec\|x-frame"
 ```
 
 ### CSRF protection

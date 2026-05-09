@@ -1,7 +1,7 @@
 # Preventli Manual Testing Guide
 **For: HR Coordinator / Tester**
 **System:** Preventli — Workplace Injury & Return to Work Management
-**Login:** https://gpnet3.onrender.com
+**Login:** https://app.preventli.ai
 **Credentials:** admin@gpnet.local / ChangeMe123!
 
 ---
@@ -23,7 +23,7 @@ You do not need any technical knowledge. Just follow the steps and record what y
 
 | # | Step | What you should see | Result |
 |---|------|---------------------|--------|
-| 1 | Log in at gpnet3.onrender.com | Dashboard loads, no errors | |
+| 1 | Log in at app.preventli.ai | Dashboard loads, no errors | |
 | 2 | Click **New Case** (or find the button to create a new case) | A form appears | |
 | 3 | You are asked: *"Has a WorkSafe claim been lodged?"* — click **No** | The rest of the form appears | |
 | 4 | Enter worker name: **Jake Thompson** | Field accepts the name | |

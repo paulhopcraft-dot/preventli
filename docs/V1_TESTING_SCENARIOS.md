@@ -2,7 +2,7 @@
 
 **Version:** 1.0
 **Date:** March 2026
-**Environment:** https://gpnet3.onrender.com/
+**Environment:** https://app.preventli.ai/
 **Credentials:** employer@symmetry.local / ChangeMe123!
 **Audience:** Preventli internal staff (case managers, clinical, admin)
 
@@ -17,7 +17,7 @@ Work through each section in order. Check off each item as you go. If something 
 ## Module 1 — Authentication
 
 ### 1.1 Login
-- [ ] Navigate to https://gpnet3.onrender.com/
+- [ ] Navigate to https://app.preventli.ai/
 - [ ] Login screen appears
 - [ ] Enter credentials and click Sign In
 - [ ] Redirected to cases dashboard
