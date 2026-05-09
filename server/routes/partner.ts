@@ -10,7 +10,7 @@
  */
 import { Router, Response } from "express";
 import { z } from "zod";
-import { eq, and, count, inArray, sql } from "drizzle-orm";
+import { eq, and, or, isNull, count, inArray, sql } from "drizzle-orm";
 import { db } from "../db";
 import {
   partnerUserOrganizations,
@@ -606,7 +606,12 @@ router.get("/cases", requirePartner, async (req: AuthRequest, res: Response) => 
       })
       .from(workerCases)
       .innerJoin(organizations, eq(workerCases.organizationId, organizations.id))
-      .where(inArray(workerCases.organizationId, targetIds));
+      .where(
+        and(
+          inArray(workerCases.organizationId, targetIds),
+          or(eq(workerCases.caseStatus, "open"), isNull(workerCases.caseStatus)),
+        ),
+      );
 
     const riskRank: Record<string, number> = { High: 0, Medium: 1, Low: 2 };
     const sorted = rows.slice().sort((a, b) => {
