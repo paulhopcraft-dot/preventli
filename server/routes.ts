@@ -44,6 +44,7 @@ import { employerDashboardRouter } from "./routes/employer-dashboard";
 import complianceDashboardRouter from "./routes/compliance-dashboard";
 import preEmploymentRoutes from "./routes/preEmployment";
 import exitProcessingRoutes from "./routes/exitProcessing";
+import auditEventsRouter from "./routes/audit-events";
 import memoryRoutes from "./routes/memory";
 import intelligenceRoutes from "./routes/intelligence";
 import agentRoutes from "./routes/agents";
@@ -216,6 +217,9 @@ export async function registerRoutes(app: Express): Promise<void> {
 
   // Exit Processing routes (JWT-protected)
   app.use("/api/exit-processing", exitProcessingRoutes);
+
+  // Audit Events routes (JWT-protected)
+  app.use("/api/audit-events", auditEventsRouter);
 
   // Assessments CRUD + send-to-worker (JWT-protected)
   app.use("/api/assessments", assessmentRoutes);
