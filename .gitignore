@@ -29,3 +29,7 @@ Natalie-Task-Plan-15-Jan-2026.pdf
 # PowerPoint temporary files
 ~$*.ppt*
 *.tmp
+
+# Karpathy Loop transient outputs (history.json is committed, these are not)
+scripts/karpathy/scores.json
+scripts/karpathy/run-info.json
