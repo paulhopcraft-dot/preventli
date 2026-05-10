@@ -6,6 +6,7 @@ import { storage } from "../storage";
 import { authorize, type AuthRequest } from "../middleware/auth";
 import { sendEmail } from "../services/emailService";
 import { jdUpload, saveJdFile } from "../services/fileUpload";
+import { checkStorageHealth } from "../services/storageService";
 import { createLogger } from "../lib/logger";
 
 const logger = createLogger("AssessmentsRoutes");
@@ -66,7 +67,39 @@ router.post("/", authorize(), uploadJd, async (req: AuthRequest, res: Response) 
       });
     }
 
-    const jobDescriptionFileUrl = hasFile ? (await saveJdFile(req.file!)).url : undefined;
+    // If a file is attached, do a fast preflight check on the storage backend
+    // and surface a specific error rather than a generic 500. Common cause of
+    // this path failing in prod: AWS_S3_BUCKET / AWS credentials missing on
+    // Render. Surfacing the underlying error to the API consumer makes the
+    // misconfiguration debuggable from the UI without needing log access.
+    let jobDescriptionFileUrl: string | undefined;
+    if (hasFile) {
+      const health = await checkStorageHealth();
+      if (!health.ok) {
+        logger.error("Storage health check failed before file upload", {
+          provider: health.provider,
+          error: health.error,
+        });
+        return res.status(502).json({
+          error: `File storage is misconfigured: ${health.error ?? "unknown"} (provider: ${health.provider}). Set AWS_S3_BUCKET / AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY on the server, or switch STORAGE_PROVIDER=local for dev.`,
+        });
+      }
+
+      try {
+        jobDescriptionFileUrl = (await saveJdFile(req.file!)).url;
+      } catch (uploadErr) {
+        const msg = uploadErr instanceof Error ? uploadErr.message : String(uploadErr);
+        logger.error("Job description upload failed", {
+          provider: health.provider,
+          filename: req.file!.originalname,
+          mimetype: req.file!.mimetype,
+          size: req.file!.size,
+        }, uploadErr);
+        return res.status(502).json({
+          error: `File upload to ${health.provider} storage failed: ${msg}`,
+        });
+      }
+    }
 
     // Upsert worker record
     const worker = await storage.upsertWorkerByEmail({
