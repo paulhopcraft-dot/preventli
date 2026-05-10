@@ -330,6 +330,75 @@ const MENTAL_HEALTH_QUESTIONS: Question[] = [
   { id: "additional_feedback", label: "Is there anything else you would like to share about your wellbeing, stress levels, or support needs? (Confidential — not shared with your employer)", type: "textarea", section: "Optional Feedback" },
 ];
 
+const LIMIT_3 = ["Yes, limited a lot", "Yes, limited a little", "No, not limited at all"];
+const FREQ_6 = ["All of the time", "Most of the time", "A good bit of the time", "Some of the time", "A little of the time", "None of the time"];
+const TRUTH_5 = ["Definitely true", "Mostly true", "Don't know", "Mostly false", "Definitely false"];
+
+const WELLNESS_QUESTIONS: Question[] = [
+  // Personal Information
+  { id: "company_name", label: "Company name", type: "text", section: "Personal Information" },
+  { id: "employer_email", label: "Employer email", type: "text" },
+  { id: "first_name", label: "First name", type: "text" },
+  { id: "last_name", label: "Last name", type: "text" },
+  { id: "email", label: "Your email", type: "text" },
+  { id: "job_title", label: "Job title", type: "text" },
+  { id: "age", label: "Age", type: "text" },
+  { id: "height", label: "Height", type: "text" },
+  { id: "weight", label: "Weight", type: "text" },
+  { id: "gender", label: "Gender: How do you identify?", type: "radio", options: ["Man", "Non-binary", "Woman", "Prefer to self-describe"] },
+  { id: "self_describe_gender", label: "If self-describe, please specify:", type: "text" },
+
+  // General Health
+  { id: "general_health", label: "In general, would you say your health is:", type: "radio", options: ["Excellent", "Very good", "Good", "Fair", "Poor"], section: "General Health" },
+  { id: "health_compared", label: "Compared to one year ago, how would you rate your health in general now?", type: "radio", options: ["Much better", "Somewhat better", "About the same", "Somewhat worse", "Much worse"] },
+
+  // Physical Functioning
+  { id: "limit_vigorous", label: "Vigorous activities (e.g. running, lifting heavy objects, strenuous sports)", type: "radio", options: LIMIT_3, section: "Physical Functioning — Does your health limit you in these activities?" },
+  { id: "limit_moderate", label: "Moderate activities (e.g. moving a table, vacuuming, bowling)", type: "radio", options: LIMIT_3 },
+  { id: "limit_groceries", label: "Lifting or carrying groceries", type: "radio", options: LIMIT_3 },
+  { id: "limit_stairs_multi", label: "Climbing several flights of stairs", type: "radio", options: LIMIT_3 },
+  { id: "limit_stairs_one", label: "Climbing one flight of stairs", type: "radio", options: LIMIT_3 },
+  { id: "limit_bending", label: "Bending, kneeling, or stooping", type: "radio", options: LIMIT_3 },
+  { id: "limit_walk_mile", label: "Walking more than a mile", type: "radio", options: LIMIT_3 },
+  { id: "limit_walk_blocks", label: "Walking several blocks", type: "radio", options: LIMIT_3 },
+  { id: "limit_walk_one_block", label: "Walking one block", type: "radio", options: LIMIT_3 },
+  { id: "limit_bathing", label: "Bathing or dressing yourself", type: "radio", options: LIMIT_3 },
+
+  // Role Limitations — Physical
+  { id: "phys_cut_time", label: "Cut down the amount of time you spent on work or other activities", type: "radio", options: ["Yes", "No"], section: "Role Limitations — Physical (Past 4 Weeks)" },
+  { id: "phys_less_accomplished", label: "Accomplished less than you would like", type: "radio", options: ["Yes", "No"] },
+  { id: "phys_limited_type", label: "Were limited in the kind of work or other activities", type: "radio", options: ["Yes", "No"] },
+  { id: "phys_difficulty", label: "Had difficulty performing work or other activities", type: "radio", options: ["Yes", "No"] },
+
+  // Role Limitations — Emotional
+  { id: "emot_cut_time", label: "Cut down the amount of time you spent on work or other activities", type: "radio", options: ["Yes", "No"], section: "Role Limitations — Emotional (Past 4 Weeks)" },
+  { id: "emot_less_accomplished", label: "Accomplished less than you would like", type: "radio", options: ["Yes", "No"] },
+  { id: "emot_less_careful", label: "Didn't do work or other activities as carefully as usual", type: "radio", options: ["Yes", "No"] },
+
+  // Social & Pain
+  { id: "social_interference", label: "To what extent has your physical health or emotional problems interfered with your normal social activities?", type: "radio", options: ["Not at all", "Slightly", "Moderately", "Quite a bit", "Extremely"], section: "Social & Pain" },
+  { id: "pain_level", label: "How much bodily pain have you had during the past 4 weeks?", type: "radio", options: ["None", "Very mild", "Mild", "Moderate", "Severe", "Very severe"] },
+  { id: "pain_interference", label: "During the past 4 weeks, how much did pain interfere with your normal work?", type: "radio", options: ["Not at all", "A little bit", "Moderately", "Quite a bit", "Extremely"] },
+
+  // Vitality & Mental Health
+  { id: "vit_energy", label: "Felt full of energy?", type: "radio", options: FREQ_6, section: "Vitality & Mental Health (Past 4 Weeks)" },
+  { id: "vit_nervous", label: "Been a very nervous person?", type: "radio", options: FREQ_6 },
+  { id: "vit_down", label: "Felt so down in the dumps nothing could cheer you up?", type: "radio", options: FREQ_6 },
+  { id: "vit_calm", label: "Felt calm and peaceful?", type: "radio", options: FREQ_6 },
+  { id: "vit_energy2", label: "Had a lot of energy?", type: "radio", options: FREQ_6 },
+  { id: "vit_downhearted", label: "Felt downhearted and blue?", type: "radio", options: FREQ_6 },
+  { id: "vit_worn_out", label: "Felt worn out?", type: "radio", options: FREQ_6 },
+  { id: "vit_happy", label: "Been a happy person?", type: "radio", options: FREQ_6 },
+  { id: "vit_tired", label: "Felt tired?", type: "radio", options: FREQ_6 },
+  { id: "vit_social", label: "How much of the time has your physical or emotional health interfered with your social activities?", type: "radio", options: FREQ_6 },
+
+  // General Health Perceptions
+  { id: "perc_sick_easier", label: "I seem to get sick a little easier than other people", type: "radio", options: TRUTH_5, section: "General Health Perceptions" },
+  { id: "perc_as_healthy", label: "I am as healthy as anybody I know", type: "radio", options: TRUTH_5 },
+  { id: "perc_worsen", label: "I expect my health to get worse", type: "radio", options: TRUTH_5 },
+  { id: "perc_excellent", label: "My health is excellent", type: "radio", options: TRUTH_5 },
+];
+
 const FORM_CONFIG: Record<string, { title: string; intro: string; questions: Question[] }> = {
   injury: {
     title: "Injury Assessment",
@@ -352,9 +421,9 @@ const FORM_CONFIG: Record<string, { title: string; intro: string; questions: Que
     questions: EXIT_QUESTIONS,
   },
   wellness: {
-    title: "General Wellness Assessment",
-    intro: "Please complete this wellness assessment for the",
-    questions: PRE_EMPLOYMENT_QUESTIONS,
+    title: "Health & Wellbeing Assessment",
+    intro: "Please complete this health and wellbeing assessment as accurately as possible.",
+    questions: WELLNESS_QUESTIONS,
   },
   mental_health: {
     title: "Mental Health Check",
@@ -464,7 +533,7 @@ export default function PublicQuestionnaire() {
   }
 
   const config = getFormConfig(info?.assessmentType ?? "baseline_health");
-  const roleCheckTypes = new Set(["baseline_health", "pre_employment", "wellness"]);
+  const roleCheckTypes = new Set(["baseline_health", "pre_employment"]);
   const isRoleCheck = roleCheckTypes.has(info?.assessmentType ?? "");
 
   return (
