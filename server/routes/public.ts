@@ -3,7 +3,10 @@
  * Used for worker magic-link questionnaire access.
  */
 import express, { type Request, type Response, type Router } from "express";
+import { eq } from "drizzle-orm";
+import { db } from "../db";
 import { storage } from "../storage";
+import { organizations } from "@shared/schema";
 import { createLogger } from "../lib/logger";
 import { generateReport } from "../services/reportGenerator";
 
@@ -32,12 +35,25 @@ router.get("/check/:token", async (req: Request, res: Response) => {
       return res.status(410).json({ error: "This questionnaire has already been submitted" });
     }
 
-    // Return only safe fields — no internal IDs or org data
+    // Look up the organization name so the public form can show "<OrgName>
+    // has invited you to complete a check" instead of generic "Preventli" branding.
+    // For partner-tier flows, organizationId is the *client* org (e.g. Alpine Health)
+    // because partner JWT-swap puts the client's id on the assessment record.
+    let organizationName: string | null = null;
+    if (assessment.organizationId) {
+      const [org] = await db
+        .select({ name: organizations.name })
+        .from(organizations)
+        .where(eq(organizations.id, assessment.organizationId))
+        .limit(1);
+      organizationName = org?.name ?? null;
+    }
+
     res.json({
       candidateName: assessment.candidateName,
       positionTitle: assessment.positionTitle,
       assessmentId: assessment.id,
-      organizationName: null, // populated below if we expose it
+      organizationName,
     });
   } catch (error) {
     logger.error("Error loading public check:", undefined, error);

@@ -2,6 +2,9 @@ import express, { type Request, type Response, type NextFunction, type Router } 
 import multer from "multer";
 import { z } from "zod";
 import crypto from "crypto";
+import { eq } from "drizzle-orm";
+import { db } from "../db";
+import { organizations } from "@shared/schema";
 import { storage } from "../storage";
 import { authorize, type AuthRequest } from "../middleware/auth";
 import { sendEmail } from "../services/emailService";
@@ -137,20 +140,44 @@ router.post("/:id/send", authorize(), async (req: AuthRequest, res: Response) =>
     const checkLabel = CHECK_LABELS[(assessment.assessmentType as CheckCategory) ?? "pre_employment"]
       ?? CHECK_LABELS.pre_employment;
 
+    // Look up the client org name so the email tells the candidate which
+    // company the check is for, instead of a generic "Preventli" sign-off.
+    // For partner-tier flows, organizationId is the client's id (e.g. Alpine
+    // Health) because partner JWT-swap puts it on the assessment record.
+    let orgName: string | null = null;
+    if (assessment.organizationId) {
+      const [org] = await db
+        .select({ name: organizations.name })
+        .from(organizations)
+        .where(eq(organizations.id, assessment.organizationId))
+        .limit(1);
+      orgName = org?.name ?? null;
+    }
+
+    const sender = orgName ?? "Preventli Health";
+    const subject = orgName
+      ? `${orgName} — ${checkLabel} for ${assessment.positionTitle}`
+      : `${checkLabel} — ${assessment.positionTitle}`;
+    const intro = orgName
+      ? `${orgName} has invited you to complete a ${checkLabel.toLowerCase()} as part of your application for the ${assessment.positionTitle} role.`
+      : `Please complete your ${checkLabel.toLowerCase()} for the ${assessment.positionTitle} role.`;
+
     const emailResult = await sendEmail({
       to: assessment.candidateEmail,
-      subject: `${checkLabel} — ${assessment.positionTitle}`,
+      subject,
       body: `Hi ${assessment.candidateName},
 
-Please complete your ${checkLabel.toLowerCase()} using the secure link below:
+${intro}
+
+Use the secure link below to complete your check:
 
 ${link}
 
 This link is personal to you. Please do not share it.
 
-If you have any questions, please contact us.
+If you have any questions, please contact ${sender}.
 
-— Preventli Health Team`,
+— The ${sender} team`,
     });
 
     if (!emailResult.success) {
