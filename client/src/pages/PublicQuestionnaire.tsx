@@ -14,13 +14,44 @@ interface AssessmentInfo {
 const QUESTIONS = [
   { id: "general_health", label: "How would you rate your overall health?", type: "radio", options: ["Excellent", "Good", "Fair", "Poor"] },
   { id: "current_conditions", label: "Do you have any current medical conditions or injuries?", type: "radio", options: ["No", "Yes"] },
-  { id: "current_conditions_detail", label: "If yes, please describe:", type: "textarea" },
+  { id: "current_conditions_detail", label: "Please describe your current medical conditions or injuries:", type: "textarea" },
   { id: "medications", label: "Are you currently taking any medications?", type: "radio", options: ["No", "Yes"] },
-  { id: "medications_detail", label: "If yes, please list medications:", type: "textarea" },
+  { id: "medications_detail", label: "Please list your current medications:", type: "textarea" },
   { id: "physical_limitations", label: "Do you have any physical limitations that may affect your work?", type: "radio", options: ["No", "Yes"] },
-  { id: "physical_limitations_detail", label: "If yes, please describe:", type: "textarea" },
+  { id: "physical_limitations_detail", label: "Please describe your physical limitations:", type: "textarea" },
   { id: "mental_health", label: "How would you rate your mental health and wellbeing?", type: "radio", options: ["Excellent", "Good", "Fair", "Poor"] },
-];
+] as const;
+
+type QuestionId = typeof QUESTIONS[number]["id"];
+
+// Detail questions only appear when their parent is answered "Yes"
+const DETAIL_PARENT: Partial<Record<QuestionId, string>> = {
+  current_conditions_detail: "current_conditions",
+  medications_detail: "medications",
+  physical_limitations_detail: "physical_limitations",
+};
+
+function isVisible(questionId: QuestionId, responses: Record<string, string>): boolean {
+  const parent = DETAIL_PARENT[questionId];
+  if (!parent) return true;
+  return responses[parent] === "Yes";
+}
+
+function getVisibleQuestions(responses: Record<string, string>) {
+  return QUESTIONS.filter(q => isVisible(q.id, responses));
+}
+
+function nextIndex(from: number, responses: Record<string, string>): number {
+  let next = from + 1;
+  while (next < QUESTIONS.length && !isVisible(QUESTIONS[next].id, responses)) next++;
+  return next;
+}
+
+function prevIndex(from: number, responses: Record<string, string>): number {
+  let prev = from - 1;
+  while (prev >= 0 && !isVisible(QUESTIONS[prev].id, responses)) prev--;
+  return prev;
+}
 
 export default function PublicQuestionnaire() {
   const { token } = useParams<{ token: string }>();
@@ -30,6 +61,7 @@ export default function PublicQuestionnaire() {
   const [responses, setResponses] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [currentStep, setCurrentStep] = useState(0);
 
   useEffect(() => {
     if (!token) return;
@@ -70,7 +102,7 @@ export default function PublicQuestionnaire() {
     );
   }
 
-  if (error) {
+  if (error && !submitting) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 p-6">
         <div className="bg-white rounded-xl shadow p-8 max-w-md w-full text-center">
@@ -109,6 +141,34 @@ export default function PublicQuestionnaire() {
     );
   }
 
+  const q = QUESTIONS[currentStep];
+  const visibleQuestions = getVisibleQuestions(responses);
+  const visibleIndex = visibleQuestions.findIndex(vq => vq.id === q.id);
+  const totalSteps = visibleQuestions.length;
+  const progress = ((visibleIndex + 1) / totalSteps) * 100;
+  const isFirst = prevIndex(currentStep, responses) < 0;
+  const nextIdx = nextIndex(currentStep, responses);
+  const isLast = nextIdx >= QUESTIONS.length;
+  const currentAnswer = responses[q.id] ?? "";
+  const canAdvance = q.type === "radio" ? currentAnswer !== "" : true;
+
+  function handleNext() {
+    if (isLast) {
+      handleSubmit();
+    } else {
+      setCurrentStep(nextIdx);
+    }
+  }
+
+  function handleBack() {
+    const prev = prevIndex(currentStep, responses);
+    if (prev >= 0) setCurrentStep(prev);
+  }
+
+  function handleAnswer(value: string) {
+    setResponses(prev => ({ ...prev, [q.id]: value }));
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 py-10 px-4">
       <div className="max-w-xl mx-auto">
@@ -130,54 +190,88 @@ export default function PublicQuestionnaire() {
           </p>
         </div>
 
-        {/* Questions */}
-        <div className="bg-white rounded-xl shadow-sm p-6 space-y-6">
-          {QUESTIONS.map((q) => (
-            <div key={q.id}>
-              <label className="block text-sm font-medium text-gray-800 mb-2">{q.label}</label>
-              {q.type === "radio" && q.options && (
-                <div className="flex flex-wrap gap-2">
-                  {q.options.map((opt) => (
-                    <button
-                      key={opt}
-                      type="button"
-                      onClick={() => setResponses((prev) => ({ ...prev, [q.id]: opt }))}
-                      className={`px-4 py-2 rounded-full text-sm border transition-colors ${
-                        responses[q.id] === opt
-                          ? "bg-blue-600 text-white border-blue-600"
-                          : "border-gray-300 text-gray-700 hover:border-blue-400"
-                      }`}
-                    >
-                      {opt}
-                    </button>
-                  ))}
-                </div>
-              )}
-              {q.type === "textarea" && (
-                <textarea
-                  rows={3}
-                  value={responses[q.id] ?? ""}
-                  onChange={(e) => setResponses((prev) => ({ ...prev, [q.id]: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-                  placeholder="Type your answer here…"
-                />
-              )}
+        {/* Step card */}
+        <div className="bg-white rounded-xl shadow-sm p-6">
+          {/* Progress */}
+          <div className="mb-6">
+            <div className="flex justify-between text-xs text-gray-500 mb-2">
+              <span>Question {visibleIndex + 1} of {totalSteps}</span>
+              <span>{Math.round(progress)}% complete</span>
             </div>
-          ))}
+            <div className="w-full bg-gray-100 rounded-full h-1.5">
+              <div
+                className="bg-blue-600 h-1.5 rounded-full transition-all duration-300"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+          </div>
 
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {/* Question */}
+          <div className="mb-8">
+            <label className="block text-base font-semibold text-gray-900 mb-4">{q.label}</label>
 
-          <button
-            onClick={handleSubmit}
-            disabled={submitting}
-            className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold rounded-lg px-6 py-3 text-sm transition-colors"
-          >
-            {submitting ? "Submitting…" : "Submit Health Questionnaire"}
-          </button>
+            {q.type === "radio" && "options" in q && (
+              <div className="flex flex-col gap-3">
+                {q.options.map((opt) => (
+                  <button
+                    key={opt}
+                    type="button"
+                    onClick={() => handleAnswer(opt)}
+                    className={`w-full text-left px-4 py-3 rounded-lg border-2 text-sm font-medium transition-colors ${
+                      currentAnswer === opt
+                        ? "bg-blue-50 border-blue-600 text-blue-700"
+                        : "border-gray-200 text-gray-700 hover:border-blue-300 hover:bg-gray-50"
+                    }`}
+                  >
+                    {opt}
+                  </button>
+                ))}
+              </div>
+            )}
 
-          <p className="text-xs text-center text-gray-400">
-            By submitting, you confirm the information provided is accurate and complete.
-          </p>
+            {q.type === "textarea" && (
+              <textarea
+                rows={4}
+                value={currentAnswer}
+                onChange={(e) => handleAnswer(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                placeholder="Type your answer here…"
+                autoFocus
+              />
+            )}
+          </div>
+
+          {/* Submission error */}
+          {error && submitting === false && (
+            <p className="text-sm text-red-600 mb-4">{error}</p>
+          )}
+
+          {/* Navigation */}
+          <div className="flex gap-3">
+            {!isFirst && (
+              <button
+                type="button"
+                onClick={handleBack}
+                className="flex-1 border border-gray-300 text-gray-700 font-semibold rounded-lg px-6 py-3 text-sm hover:bg-gray-50 transition-colors"
+              >
+                Back
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={handleNext}
+              disabled={!canAdvance || submitting}
+              className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold rounded-lg px-6 py-3 text-sm transition-colors"
+            >
+              {submitting ? "Submitting…" : isLast ? "Submit" : "Next"}
+            </button>
+          </div>
+
+          {isLast && (
+            <p className="text-xs text-center text-gray-400 mt-4">
+              By submitting, you confirm the information provided is accurate and complete.
+            </p>
+          )}
         </div>
       </div>
     </div>

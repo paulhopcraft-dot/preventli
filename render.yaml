@@ -18,14 +18,14 @@ services:
       - key: SESSION_SECRET
         sync: false
       - key: FRONTEND_URL
-        value: https://preventli-site.vercel.app
+        value: https://app.preventli.ai
       - key: CLIENT_URL
-        value: https://preventli-site.vercel.app
-      # APP_URL is the public URL of THIS server — used to build worker-facing
+        value: https://app.preventli.ai
+      # APP_URL is the public URL of the frontend app — used to build worker-facing
       # links emailed to candidates (e.g. /check/:token for pre-employment checks).
       # Must be the app host, NOT the marketing site, or the link 404s.
       - key: APP_URL
-        value: https://gpnet3.onrender.com
+        value: https://app.preventli.ai
       - key: PORT
         value: 10000
       - key: ANTHROPIC_API_KEY
