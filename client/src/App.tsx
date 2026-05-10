@@ -71,7 +71,6 @@ const ExitProcessingPage = lazy(() => import("./pages/ExitProcessingPage"));
 const MarketingDocsPage = lazy(() => import("./pages/MarketingDocsPage"));
 const AgentJobsPage = lazy(() => import("./pages/AgentJobsPage"));
 const ControlTowerPage = lazy(() => import("./pages/ControlTowerPage"));
-const PublicQuestionnaire = lazy(() => import("./pages/PublicQuestionnaire"));
 const WorkerProfile = lazy(() => import("./pages/WorkerProfile"));
 const WorkersListPage = lazy(() => import("./pages/WorkersListPage"));
 const NewAssessmentPage = lazy(() => import("./pages/NewAssessmentPage"));
@@ -149,7 +148,7 @@ export default function App() {
                     path="/check/:token"
                     element={
                       <Suspense fallback={<PageLoader />}>
-                        <PublicQuestionnaire />
+                        <PreEmploymentForm />
                       </Suspense>
                     }
                   />

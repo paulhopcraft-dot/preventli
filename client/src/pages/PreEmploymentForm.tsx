@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { fetchWithCsrf } from '@/lib/queryClient';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -249,22 +249,59 @@ const formSteps = [
 
 export default function PreEmploymentForm() {
   const navigate = useNavigate();
+  const { token } = useParams<{ token?: string }>();
+  const isTokenMode = Boolean(token);
+
   const [currentStep, setCurrentStep] = useState(1);
   const [formData, setFormData] = useState<FormData>(initialFormData);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [submitted, setSubmitted] = useState(false);
+  const [tokenError, setTokenError] = useState<string | null>(null);
 
-  // Auto-save to localStorage
+  // Token mode: pre-populate name/role from magic link token
   useEffect(() => {
+    if (!isTokenMode || !token) return;
+    fetch(`/api/public/check/${token}`, { credentials: 'include' })
+      .then((res) => {
+        if (res.status === 404) throw new Error('Invalid or expired link');
+        if (res.status === 410) throw new Error('This questionnaire has already been submitted');
+        if (!res.ok) throw new Error('Failed to load assessment');
+        return res.json();
+      })
+      .then((data: { candidateName?: string; positionTitle?: string }) => {
+        if (data.candidateName) {
+          const parts = data.candidateName.trim().split(' ');
+          const firstName = parts[0] ?? '';
+          const lastName = parts.slice(1).join(' ');
+          setFormData((prev) => ({
+            ...prev,
+            firstName,
+            lastName,
+            roleAppliedFor: data.positionTitle ?? prev.roleAppliedFor,
+          }));
+        }
+      })
+      .catch((err: Error) => setTokenError(err.message));
+  }, [isTokenMode, token]);
+
+  // Auto-save to localStorage (auth mode only — don't cache health data in public browser)
+  useEffect(() => {
+    if (isTokenMode) return;
     const savedData = localStorage.getItem('preEmploymentFormData');
     if (savedData) {
-      setFormData(JSON.parse(savedData));
+      try {
+        setFormData(JSON.parse(savedData));
+      } catch {
+        // ignore corrupt cached data
+      }
     }
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
+    if (isTokenMode) return;
     localStorage.setItem('preEmploymentFormData', JSON.stringify(formData));
-  }, [formData]);
+  }, [isTokenMode, formData]);
 
   // Progress calculation
   const progress = (currentStep / formSteps.length) * 100;
@@ -363,29 +400,43 @@ export default function PreEmploymentForm() {
 
     setIsSubmitting(true);
     try {
-      // Create pre-employment assessment
-      const response = await fetchWithCsrf('/api/pre-employment/assessments', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          candidateName: `${formData.firstName} ${formData.lastName}`,
-          candidateEmail: formData.email,
-          positionTitle: formData.roleAppliedFor,
-          departmentName: formData.companyName,
-          assessmentType: 'comprehensive_health_screening',
-          status: 'completed',
-          clearanceLevel: calculateClearanceLevel(),
-          notes: `Risk score: ${calculateRiskScore()}/10. Comprehensive health screening completed via self-assessment form.`
-        }),
-      });
-
-      if (response.ok) {
-        localStorage.removeItem('preEmploymentFormData');
-        navigate('/checks', {
-          state: { message: 'Pre-employment assessment submitted successfully!' }
+      if (isTokenMode && token) {
+        // Public magic-link path — no auth / CSRF needed
+        const response = await fetch(`/api/public/check/${token}`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ responses: formData }),
         });
+        if (!response.ok) {
+          const body = await response.json().catch(() => ({}));
+          throw new Error((body as { error?: string }).error ?? 'Failed to submit assessment');
+        }
+        setSubmitted(true);
       } else {
-        throw new Error('Failed to submit assessment');
+        // Authenticated path — creates a new assessment record
+        const response = await fetchWithCsrf('/api/pre-employment/assessments', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            candidateName: `${formData.firstName} ${formData.lastName}`,
+            candidateEmail: formData.email,
+            positionTitle: formData.roleAppliedFor,
+            departmentName: formData.companyName,
+            assessmentType: 'comprehensive_health_screening',
+            status: 'completed',
+            clearanceLevel: calculateClearanceLevel(),
+            notes: `Risk score: ${calculateRiskScore()}/10. Comprehensive health screening completed via self-assessment form.`
+          }),
+        });
+        if (response.ok) {
+          localStorage.removeItem('preEmploymentFormData');
+          navigate('/checks', {
+            state: { message: 'Pre-employment assessment submitted successfully!' }
+          });
+        } else {
+          throw new Error('Failed to submit assessment');
+        }
       }
     } catch (error) {
       console.error('Submission error:', error);
@@ -418,6 +469,42 @@ export default function PreEmploymentForm() {
         return null;
     }
   };
+
+  if (tokenError) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+        <Card className="max-w-md w-full mx-4">
+          <CardHeader>
+            <CardTitle className="text-red-600">Link Error</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-gray-600">{tokenError}</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (submitted) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+        <Card className="max-w-md w-full mx-4">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-green-600">
+              <CheckCircle className="h-6 w-6" />
+              Assessment Submitted
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-gray-600">
+              Thank you — your responses have been submitted successfully.
+              You may now close this page.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-8">
