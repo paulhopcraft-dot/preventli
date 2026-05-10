@@ -1998,7 +1998,7 @@ export const rtwRoles = pgTable("rtw_roles", {
 });
 
 export type RTWRoleDB = typeof rtwRoles.$inferSelect;
-export type InsertRTWRole = typeof rtwRoles.$inferInsert;
+export type InsertRTWRole = typeof rtwRoles.$inferInsert & Partial<typeof rtwRoles.$inferSelect>;
 
 // DB-02: Duties Table - Duties for each role with modifiable flag
 export const rtwDuties = pgTable("rtw_duties", {
@@ -2149,7 +2149,7 @@ export const rtwPlanDuties = pgTable("rtw_plan_duties", {
 });
 
 export type RTWPlanDutyDB = typeof rtwPlanDuties.$inferSelect;
-export type InsertRTWPlanDuty = typeof rtwPlanDuties.$inferInsert;
+export type InsertRTWPlanDuty = typeof rtwPlanDuties.$inferInsert & Partial<typeof rtwPlanDuties.$inferSelect>;
 
 // DB-08: RTW Plan Schedule Table - Week-by-week schedule
 export const rtwPlanSchedule = pgTable("rtw_plan_schedule", {

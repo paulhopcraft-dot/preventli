@@ -141,7 +141,7 @@ export async function registerRoutes(app: Express): Promise<void> {
           .map(c => c.organizationId)
           .filter((id): id is string => !!id)
       );
-      for (const orgId of staleOrgs) {
+      for (const orgId of Array.from(staleOrgs)) {
         storage.autoAssignLifecycleStages(orgId).catch(() => {});
       }
 
@@ -956,7 +956,7 @@ Keep responses concise but comprehensive (2-3 paragraphs max). If suggesting act
       const lowRiskCases = cases.filter(c => c.complianceIndicator === 'Low').length;
 
       // Get unique companies
-      const companies = [...new Set(cases.map(c => c.company))].sort();
+      const companies = Array.from(new Set(cases.map(c => c.company))).sort();
 
       // Check if user is asking about a specific case
       const caseMentioned = cases.find(c =>
