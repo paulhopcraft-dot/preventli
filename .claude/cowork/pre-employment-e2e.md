@@ -50,16 +50,17 @@ S3 — Create pre-employment check with file attachment
 S4 — Email branding
 1. Open the test candidate's Gmail inbox. Find the pre-employment check email.
 2. Capture: From name, subject line, full body.
-3. Verify subject mentions "Alpine Health". Verify body sign-off references "Alpine Health", NOT "— Preventli Health Team".
-4. Verify the body explicitly tells the candidate which company the check is for (e.g. "Alpine Health has invited you to complete a pre-employment health check"). The candidate should be able to tell who it's for without external context.
-5. Verify the link in the email points to https://app.preventli.ai/check/<token> (or gpnet3.onrender.com if app.preventli.ai is not yet live — note which).
+3. Verify subject is in the form "Alpine Health — Pre-Employment Health Check for <Position Title>" (was "Pre-Employment Health Check — <Position>").
+4. Verify body opens with "Alpine Health has invited you to complete a pre-employment health check..." (was generic "Please complete your pre-employment health check...").
+5. Verify body sign-off is "— The Alpine Health team" (was "— Preventli Health Team").
+6. Verify the link in the email points to https://app.preventli.ai/check/<token> (or gpnet3.onrender.com if app.preventli.ai is not yet live — note which).
 
 S5 — Form click-through and completion
 1. Click the secure link in the email. Confirm URL.
-2. Verify the form has multi-page navigation (Next / Back across multiple pages) — NOT a single-page form.
-3. Verify the Company Name field is pre-populated with "Alpine Health".
-4. Fill minimum required fields on every page. Expected pages: Personal Information, Work History, Occupational Health, Medical Conditions, Functional Capacity, Psychological Wellbeing, Family & Vaccination, Lifestyle & Review.
-5. Submit on the final page. Verify a success state.
+2. Verify the page header (avatar + label at top) shows "Alpine Health" (or the client org name), not "Preventli". The first letter avatar should be the org's first letter, not "P".
+3. Verify the welcome line says "Alpine Health has invited you to complete a health questionnaire as part of your application for the <Position> role."
+4. (Bug #5 — until that ships, the form will be the short single-page PublicQuestionnaire. Once #5 ships, the form should have multi-page navigation across 8 pages: Personal Information, Work History, Occupational Health, Medical Conditions, Functional Capacity, Psychological Wellbeing, Family & Vaccination, Lifestyle & Review. Note in the report which form variant you saw.)
+5. Fill minimum required fields. Submit. Verify a success state.
 
 S6 — Assessment status reflects completion
 1. Log back in as partner. Navigate to the assessment created in S3.
@@ -71,6 +72,7 @@ EDGE CASES — run after S1–S6
 - E2. Try uploading a file >10MB. Expect HTTP 400 with a size-limit message — NOT 500.
 - E3. After completing the form in S5, click the same email link again. Note what happens. Informational only.
 - E4. While filling the form mid-page, reload the page. Verify auto-save (form data persists). Informational only.
+- E5. (Tests fix #57.) If S3 returned 500 before this PR landed, capture the full response body now. Expected after fix: a 502 (not 500) with a specific message naming the storage provider and underlying error (e.g. "File storage is misconfigured: AWS_S3_BUCKET not set (provider: s3)"). If you see 500, fix #57 has not deployed; flag in the report.
 
 REPORTING — STRICT FORMAT (this is what gets consumed downstream)
 
