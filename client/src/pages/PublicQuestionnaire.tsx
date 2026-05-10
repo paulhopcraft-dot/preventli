@@ -195,6 +195,141 @@ const PREVENTION_QUESTIONS: Question[] = [
   { id: "work_environment", label: "Work environment considerations:", type: "textarea" },
 ];
 
+const EXIT_QUESTIONS: Question[] = [
+  // Section 1: Personal Information
+  { id: "company_name", label: "Company name", type: "text", section: "Personal Information" },
+  { id: "employer_email", label: "Employer email", type: "text" },
+  { id: "ticket_id", label: "Ticket ID (if provided)", type: "text" },
+  { id: "first_name", label: "First name", type: "text" },
+  { id: "last_name", label: "Last name", type: "text" },
+  { id: "email", label: "Your email", type: "text" },
+  { id: "job_title", label: "What is your job title?", type: "text" },
+  { id: "gender", label: "Gender: How do you identify?", type: "radio", options: ["Man", "Non-binary", "Woman", "Prefer to self-describe"] },
+  { id: "self_describe_gender", label: "If self-describe, please specify:", type: "text" },
+
+  // Section 2: Exit Reasons
+  { id: "why_leaving", label: "Why are you leaving?", type: "textarea", section: "Exit Reasons" },
+  { id: "could_do_better", label: "Could we have done anything better?", type: "radio", options: ["Yes", "No"] },
+  { id: "could_do_better_comment", label: "Please comment:", type: "textarea" },
+  { id: "would_return", label: "Would you ever consider returning?", type: "radio", options: ["Yes", "No"] },
+  { id: "would_return_comment", label: "Please comment:", type: "textarea" },
+  { id: "felt_valued", label: "Did you feel like a valuable team member?", type: "radio", options: ["Yes", "No"] },
+  { id: "felt_valued_comment", label: "Please comment:", type: "textarea" },
+  { id: "had_tools", label: "Did you have the necessary tools to succeed?", type: "radio", options: ["Yes", "No"] },
+  { id: "had_tools_comment", label: "Please comment:", type: "textarea" },
+  { id: "best_part", label: "What was the best part of your job?", type: "textarea" },
+  { id: "worst_part", label: "What was the worst part of your job?", type: "textarea" },
+
+  // Section 3: Health & Wellbeing
+  { id: "pain_injury", label: "Did you experience any pain or injury related to your job role?", type: "radio", options: ["Yes", "No"], section: "Health & Wellbeing" },
+  { id: "pain_injury_comment", label: "Please comment:", type: "textarea" },
+  { id: "psych_tired", label: "Tired out for no good reason", type: "radio", options: FREQ_5 },
+  { id: "psych_nervous", label: "Nervous", type: "radio", options: FREQ_5 },
+  { id: "psych_nervous_no_calm", label: "So nervous that nothing could calm you down", type: "radio", options: FREQ_5 },
+  { id: "psych_hopeless", label: "Hopeless", type: "radio", options: FREQ_5 },
+  { id: "psych_restless", label: "Restless or fidgety", type: "radio", options: FREQ_5 },
+  { id: "psych_too_restless", label: "So restless you could not sit still", type: "radio", options: FREQ_5 },
+  { id: "psych_depressed", label: "Sad or depressed", type: "radio", options: FREQ_5 },
+  { id: "psych_effort", label: "Everything was an effort", type: "radio", options: FREQ_5 },
+  { id: "psych_sad", label: "So sad nothing could cheer you up", type: "radio", options: FREQ_5 },
+  { id: "psych_worthless", label: "Worthless", type: "radio", options: FREQ_5 },
+  { id: "awareness_job_performance", label: "Describe any awareness affecting your job performance:", type: "textarea" },
+
+  // Section 4: Capacity Assessment
+  { id: "can_sit", label: "Sit", type: "radio", options: CAPACITY, section: "Capacity Assessment" },
+  { id: "can_stand_walk", label: "Stand/Walk", type: "radio", options: CAPACITY },
+  { id: "can_bend", label: "Bend", type: "radio", options: CAPACITY },
+  { id: "can_squat", label: "Squat", type: "radio", options: CAPACITY },
+  { id: "can_kneel", label: "Kneel", type: "radio", options: CAPACITY },
+  { id: "can_reach_above_shoulder", label: "Reach above shoulder", type: "radio", options: CAPACITY },
+  { id: "can_use_arms_hands", label: "Use arms/hands", type: "radio", options: CAPACITY },
+  { id: "can_lift", label: "Lift", type: "radio", options: CAPACITY },
+  { id: "can_neck_movement", label: "Neck movement", type: "radio", options: CAPACITY },
+  { id: "physical_function_comments", label: "Physical function comments:", type: "textarea" },
+  { id: "attention_concentration", label: "Attention/Concentration", type: "radio", options: ["Not Affected", "Affected"] },
+  { id: "memory", label: "Memory", type: "radio", options: ["Not Affected", "Affected"] },
+  { id: "judgement", label: "Judgement", type: "radio", options: ["Not Affected", "Affected"] },
+  { id: "mental_health_comments", label: "Mental health comments:", type: "textarea" },
+  { id: "additional_comments", label: "Additional comments:", type: "textarea" },
+  { id: "work_environment", label: "Work environment considerations:", type: "textarea" },
+];
+
+const MENTAL_HEALTH_QUESTIONS: Question[] = [
+  // Section 1: Personal Information
+  { id: "company_name", label: "Company name", type: "text", section: "Personal Information" },
+  { id: "first_name", label: "First name", type: "text" },
+  { id: "last_name", label: "Last name", type: "text" },
+  { id: "age", label: "Age", type: "text" },
+  { id: "email", label: "Your email", type: "text" },
+  { id: "gender", label: "Gender", type: "radio", options: ["Man", "Woman", "Prefer not to say"] },
+
+  // Section 2: Psychological Distress (K10) — past 4 weeks
+  { id: "psych_tired", label: "Tired out for no good reason", type: "radio", options: FREQ_5, section: "Psychological Distress (Past 4 Weeks)" },
+  { id: "psych_nervous", label: "Nervous", type: "radio", options: FREQ_5 },
+  { id: "psych_nervous_no_calm", label: "So nervous that nothing could calm you down", type: "radio", options: FREQ_5 },
+  { id: "psych_hopeless", label: "Hopeless", type: "radio", options: FREQ_5 },
+  { id: "psych_restless", label: "Restless or fidgety", type: "radio", options: FREQ_5 },
+  { id: "psych_too_restless", label: "So restless you could not sit still", type: "radio", options: FREQ_5 },
+  { id: "psych_sad", label: "Sad or depressed", type: "radio", options: FREQ_5 },
+  { id: "psych_effort", label: "Everything was an effort", type: "radio", options: FREQ_5 },
+  { id: "psych_nothing_cheer", label: "So sad that nothing could cheer you up", type: "radio", options: FREQ_5 },
+  { id: "psych_worthless", label: "Worthless", type: "radio", options: FREQ_5 },
+
+  // Section 3: Mental Health & Vitality — past 4 weeks
+  { id: "vitality_full_of_life", label: "Have you felt full of life?", type: "radio", options: FREQ_5, section: "Mental Health & Vitality (Past 4 Weeks)" },
+  { id: "vitality_happy", label: "Have you been a happy person?", type: "radio", options: FREQ_5 },
+  { id: "vitality_calm", label: "Have you felt calm and peaceful?", type: "radio", options: FREQ_5 },
+  { id: "vitality_energy", label: "Have you had a lot of energy?", type: "radio", options: FREQ_5 },
+  { id: "vitality_worn_out", label: "Have you felt worn out or fatigued?", type: "radio", options: FREQ_5 },
+  { id: "vitality_social", label: "Has physical or emotional health interfered with social activities?", type: "radio", options: FREQ_5 },
+  { id: "vitality_work", label: "Have emotional problems caused difficulties with work or daily tasks?", type: "radio", options: FREQ_5 },
+
+  // Section 4: Workplace Wellbeing
+  { id: "mh_raise_concerns", label: "Do you feel comfortable raising mental health concerns at work?", type: "radio", options: ["Yes", "No", "Unsure"], section: "Workplace Wellbeing" },
+  { id: "mh_raise_concerns_why", label: "If no, why not?", type: "textarea" },
+  { id: "mh_stress", label: "Are you experiencing stress that affects your work, sleep, or personal life?", type: "radio", options: ["Yes", "No", "Unsure"] },
+  { id: "mh_stress_contributing", label: "If yes, what's contributing to this?", type: "textarea" },
+  { id: "mh_supported", label: "Do you feel supported by your manager or team when you're struggling?", type: "radio", options: ["Always", "Usually", "Sometimes", "Rarely"] },
+  { id: "mh_aware_support", label: "Are you aware of available support services (e.g. EAP or counselling)?", type: "radio", options: ["Yes", "No", "Unsure"] },
+  { id: "mh_want_resources", label: "Would you like to receive confidential support resources?", type: "radio", options: ["Yes", "No"] },
+  { id: "mh_workload_reasonable", label: "Do you believe your current workload is reasonable and sustainable?", type: "radio", options: ["Yes", "No", "Sometimes"] },
+  { id: "mh_workload_unsustainable", label: "If no, please describe what's making it unsustainable:", type: "textarea" },
+
+  // Section 5: Psychosocial Risks
+  { id: "risk_workload_manageable", label: "In the past 4 weeks, how manageable has your workload been?", type: "radio", options: ["Always manageable", "Sometimes overwhelming", "Often excessive", "Constantly overwhelming"], section: "Psychosocial Risks" },
+  { id: "risk_unrealistic", label: "Do you feel expected to complete more than is reasonably achievable?", type: "radio", options: ["No", "Occasionally", "Often", "Always"] },
+  { id: "risk_unrealistic_example", label: "Can you give an example or explain why?", type: "textarea" },
+  { id: "risk_safe_to_ask", label: "When you're struggling, do you feel safe to ask for help at work?", type: "radio", options: ["Yes", "No", "Unsure"] },
+  { id: "risk_acknowledged", label: "Do you feel your contributions are acknowledged or appreciated at work?", type: "radio", options: ["Always", "Sometimes", "Rarely", "Never"] },
+  { id: "risk_bullying", label: "Have you experienced or witnessed bullying or exclusion at work?", type: "radio", options: ["No", "Yes, I witnessed it", "Yes, I experienced it", "Prefer not to say"] },
+  { id: "risk_bullying_detail", label: "If you experienced it, would you like to share about it?", type: "textarea" },
+  { id: "risk_concern_heard", label: "If you raised a workplace concern, do you believe it would be taken seriously?", type: "radio", options: ["Yes", "No", "Unsure"] },
+  { id: "risk_traumatic", label: "Does your job expose you to emotionally distressing or traumatic situations?", type: "radio", options: ["No", "Occasionally", "Often", "Always"] },
+  { id: "risk_recovery_time", label: "If yes, are you given time/space to recover?", type: "textarea" },
+  { id: "risk_emotionally_drained", label: "Do you feel emotionally drained by your work?", type: "radio", options: ["Never", "Sometimes", "Often", "Always"] },
+  { id: "risk_drained_cause", label: "What contributes most to this?", type: "textarea" },
+  { id: "risk_breaks", label: "Are you able to take regular breaks during your workday?", type: "radio", options: ["Yes", "Sometimes", "No"] },
+  { id: "risk_recovery_between", label: "Do you feel you have enough time to recover between workdays?", type: "radio", options: ["Always", "Sometimes", "Rarely", "Never"] },
+
+  // Section 6: Personal Stress & Coping
+  { id: "personal_stress", label: "Are you dealing with personal stress (e.g. health, financial, family) that affects your wellbeing?", type: "radio", options: ["Yes", "No", "Prefer not to say"], section: "Personal Stress & Coping" },
+  { id: "personal_stress_detail", label: "Describe if you'd like help around this:", type: "textarea" },
+  { id: "coping_strategies", label: "What do you usually do to cope with stress or pressure? (select all that apply)", type: "checkbox", options: ["Talk to someone", "Exercise", "Sleep/rest", "Withdraw", "Work more", "Other"] },
+  { id: "coping_working", label: "Are these strategies working for you? Why or why not?", type: "textarea" },
+  { id: "someone_to_talk", label: "Do you feel you have someone to talk to when things are hard?", type: "radio", options: ["Yes", "No"] },
+
+  // Section 7: Growth, Meaning & Fulfillment
+  { id: "work_meaningful", label: "Do you find your work meaningful or personally fulfilling?", type: "radio", options: ["Always", "Sometimes", "Rarely", "Never"], section: "Growth, Meaning & Fulfillment" },
+  { id: "using_strengths", label: "Do you feel you're using your strengths at work?", type: "radio", options: ["Yes", "No", "Not sure"] },
+  { id: "growth_opportunities", label: "Are there growth or learning opportunities in your current role?", type: "radio", options: ["Yes", "No", "Not sure"] },
+  { id: "mh_changed", label: "Over the past 3 months, has your mental health, energy, or motivation changed?", type: "radio", options: ["Improved", "Declined", "Stayed the same"] },
+  { id: "mh_changed_cause", label: "What contributed to this?", type: "textarea" },
+  { id: "one_change", label: "What is one thing we could change at work to support your wellbeing?", type: "textarea" },
+
+  // Section 8: Optional Feedback
+  { id: "additional_feedback", label: "Is there anything else you would like to share about your wellbeing, stress levels, or support needs? (Confidential — not shared with your employer)", type: "textarea", section: "Optional Feedback" },
+];
+
 const FORM_CONFIG: Record<string, { title: string; intro: string; questions: Question[] }> = {
   injury: {
     title: "Injury Assessment",
@@ -213,8 +348,8 @@ const FORM_CONFIG: Record<string, { title: string; intro: string; questions: Que
   },
   exit: {
     title: "Exit Health Check",
-    intro: "Please complete this exit health questionnaire for the",
-    questions: PRE_EMPLOYMENT_QUESTIONS,
+    intro: "Please complete this exit assessment as accurately as possible.",
+    questions: EXIT_QUESTIONS,
   },
   wellness: {
     title: "General Wellness Assessment",
@@ -222,9 +357,9 @@ const FORM_CONFIG: Record<string, { title: string; intro: string; questions: Que
     questions: PRE_EMPLOYMENT_QUESTIONS,
   },
   mental_health: {
-    title: "Mental Health Assessment",
-    intro: "Please complete this mental health assessment for the",
-    questions: PRE_EMPLOYMENT_QUESTIONS,
+    title: "Mental Health Check",
+    intro: "Please complete this mental health assessment as accurately as possible. Your responses are confidential.",
+    questions: MENTAL_HEALTH_QUESTIONS,
   },
   prevention: {
     title: "Prevention & Safety Check",
@@ -329,7 +464,8 @@ export default function PublicQuestionnaire() {
   }
 
   const config = getFormConfig(info?.assessmentType ?? "baseline_health");
-  const isRoleCheck = info?.assessmentType !== "injury" && info?.assessmentType !== "prevention";
+  const roleCheckTypes = new Set(["baseline_health", "pre_employment", "wellness"]);
+  const isRoleCheck = roleCheckTypes.has(info?.assessmentType ?? "");
 
   return (
     <div className="min-h-screen bg-gray-50 py-10 px-4">
