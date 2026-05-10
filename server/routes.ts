@@ -43,6 +43,7 @@ import rtwPlansRouter from "./routes/rtwPlans";
 import { employerDashboardRouter } from "./routes/employer-dashboard";
 import complianceDashboardRouter from "./routes/compliance-dashboard";
 import preEmploymentRoutes from "./routes/preEmployment";
+import exitProcessingRoutes from "./routes/exitProcessing";
 import memoryRoutes from "./routes/memory";
 import intelligenceRoutes from "./routes/intelligence";
 import agentRoutes from "./routes/agents";
@@ -212,6 +213,9 @@ export async function registerRoutes(app: Express): Promise<void> {
 
   // Pre-Employment Health Checks routes (JWT-protected)
   app.use("/api/pre-employment", preEmploymentRoutes);
+
+  // Exit Processing routes (JWT-protected)
+  app.use("/api/exit-processing", exitProcessingRoutes);
 
   // Assessments CRUD + send-to-worker (JWT-protected)
   app.use("/api/assessments", assessmentRoutes);
