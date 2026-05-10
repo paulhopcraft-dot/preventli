@@ -37,6 +37,7 @@ router.get("/check/:token", async (req: Request, res: Response) => {
       candidateName: assessment.candidateName,
       positionTitle: assessment.positionTitle,
       assessmentId: assessment.id,
+      assessmentType: assessment.assessmentType ?? "baseline_health",
       organizationName: null, // populated below if we expose it
     });
   } catch (error) {

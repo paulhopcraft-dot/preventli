@@ -9,9 +9,18 @@ interface AssessmentInfo {
   candidateName: string;
   positionTitle: string;
   assessmentId: string;
+  assessmentType: string;
 }
 
-const QUESTIONS = [
+type Question = {
+  id: string;
+  label: string;
+  type: "radio" | "textarea" | "text" | "date" | "dropdown";
+  options?: string[];
+  section?: string;
+};
+
+const PRE_EMPLOYMENT_QUESTIONS: Question[] = [
   { id: "general_health", label: "How would you rate your overall health?", type: "radio", options: ["Excellent", "Good", "Fair", "Poor"] },
   { id: "current_conditions", label: "Do you have any current medical conditions or injuries?", type: "radio", options: ["No", "Yes"] },
   { id: "current_conditions_detail", label: "If yes, please describe:", type: "textarea" },
@@ -21,6 +30,125 @@ const QUESTIONS = [
   { id: "physical_limitations_detail", label: "If yes, please describe:", type: "textarea" },
   { id: "mental_health", label: "How would you rate your mental health and wellbeing?", type: "radio", options: ["Excellent", "Good", "Fair", "Poor"] },
 ];
+
+const PAIN_SCALE = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10"];
+const CAPACITY = ["Can", "With Modification", "Cannot"];
+
+const INJURY_QUESTIONS: Question[] = [
+  // Section 1: Personal Information
+  { id: "company_name", label: "Company name", type: "text", section: "Personal Information" },
+  { id: "employer_email", label: "Employer email", type: "text" },
+  { id: "first_name", label: "First name", type: "text" },
+  { id: "last_name", label: "Last name", type: "text" },
+  { id: "email", label: "Your email", type: "text" },
+  { id: "job_title", label: "What is your job title?", type: "text" },
+  { id: "age", label: "Age", type: "text" },
+  { id: "height", label: "Height", type: "text" },
+  { id: "weight", label: "Weight", type: "text" },
+  { id: "gender", label: "Gender", type: "radio", options: ["Man", "Non-binary", "Woman", "Prefer to self-describe"] },
+  { id: "self_describe_gender", label: "If self-describe, please specify:", type: "text" },
+
+  // Section 2: Incident Details
+  { id: "what_happened", label: "What happened?", type: "textarea", section: "Incident Details" },
+  { id: "when_happened", label: "When did it happen?", type: "date" },
+  { id: "where_happened", label: "Where did it happen?", type: "text" },
+  { id: "what_doing", label: "What were you doing?", type: "textarea" },
+  { id: "why_doing", label: "Why were you doing that?", type: "textarea" },
+  { id: "who_told_you", label: "Who told you to do that?", type: "textarea" },
+  { id: "normally_do_that", label: "Do you normally do that?", type: "textarea" },
+  { id: "how_happened", label: "How did it happen?", type: "textarea" },
+  { id: "who_witnessed", label: "Who witnessed it?", type: "textarea" },
+  { id: "reported_to", label: "Who did you report it to?", type: "textarea" },
+  { id: "ppe_used", label: "What PPE was used?", type: "textarea" },
+  { id: "treatment_sought", label: "What treatment did you seek?", type: "textarea" },
+  { id: "when_treated", label: "When was it treated/provided?", type: "date" },
+  { id: "offsite_treatment", label: "Any off site treatment?", type: "textarea" },
+  { id: "first_treatment_date", label: "When did you first receive treatment?", type: "date" },
+  { id: "current_treatment_plan", label: "Do you have a current treatment plan?", type: "radio", options: ["Yes", "No"] },
+  { id: "treatment_plan_description", label: "Please describe your current treatment plan:", type: "textarea" },
+  { id: "time_off", label: "Did you have any time off?", type: "textarea" },
+  { id: "time_off_hours", label: "How long (hours)?", type: "text" },
+  { id: "medical_restrictions", label: "Any medical restrictions?", type: "textarea" },
+  { id: "prevent_normal_duties", label: "Did the injury prevent you from carrying on with your normal duties?", type: "radio", options: ["Yes", "No"] },
+  { id: "prevention_details", label: "In what way?", type: "textarea" },
+  { id: "how_managed_work", label: "How did you manage it?", type: "textarea" },
+  { id: "rest_of_shift_management", label: "How did you manage the rest of the shift?", type: "textarea" },
+  { id: "work_restrictions", label: "Does it restrict you at work?", type: "textarea" },
+  { id: "home_management", label: "How did you manage at home?", type: "textarea" },
+  { id: "home_restrictions", label: "Does it restrict you at home?", type: "textarea" },
+  { id: "previous_injuries", label: "Have you had any previous injuries to the same location?", type: "radio", options: ["Yes", "No"] },
+  { id: "previous_injury_details", label: "Please give details:", type: "textarea" },
+
+  // Section 3: Pain Assessment
+  { id: "arms_pain", label: "Pain in arm(s) (0 = none, 10 = worst)", type: "dropdown", options: PAIN_SCALE, section: "Pain Assessment" },
+  { id: "shoulders_pain", label: "Pain in shoulder(s) (0 = none, 10 = worst)", type: "dropdown", options: PAIN_SCALE },
+  { id: "upper_back_pain", label: "Pain in upper back (0 = none, 10 = worst)", type: "dropdown", options: PAIN_SCALE },
+  { id: "lower_back_pain", label: "Pain in lower back (0 = none, 10 = worst)", type: "dropdown", options: PAIN_SCALE },
+  { id: "legs_pain", label: "Pain in leg(s) (0 = none, 10 = worst)", type: "dropdown", options: PAIN_SCALE },
+  { id: "knees_pain", label: "Pain in knee(s) (0 = none, 10 = worst)", type: "dropdown", options: PAIN_SCALE },
+  { id: "feet_pain", label: "Pain in feet (0 = none, 10 = worst)", type: "dropdown", options: PAIN_SCALE },
+  { id: "pain_elsewhere", label: "Have you experienced pain anywhere else?", type: "radio", options: ["Yes", "No"] },
+  { id: "other_pain_details", label: "Level and location of pain elsewhere:", type: "text" },
+
+  // Section 4: Work Capacity & Restrictions
+  { id: "can_sit", label: "Sit", type: "radio", options: CAPACITY, section: "Work Capacity & Restrictions" },
+  { id: "can_stand_walk", label: "Stand/Walk", type: "radio", options: CAPACITY },
+  { id: "can_bend", label: "Bend", type: "radio", options: CAPACITY },
+  { id: "can_squat", label: "Squat", type: "radio", options: CAPACITY },
+  { id: "can_kneel", label: "Kneel", type: "radio", options: CAPACITY },
+  { id: "can_reach_above_shoulder", label: "Reach above shoulder", type: "radio", options: CAPACITY },
+  { id: "can_use_arms_hands", label: "Use arms/hands", type: "radio", options: CAPACITY },
+  { id: "can_lift", label: "Lift", type: "radio", options: CAPACITY },
+  { id: "can_neck_movement", label: "Neck movement", type: "radio", options: CAPACITY },
+  { id: "physical_function_comments", label: "Physical function comments:", type: "textarea" },
+  { id: "attention_concentration", label: "Attention/Concentration", type: "radio", options: ["Not Affected", "Affected"] },
+  { id: "memory", label: "Memory", type: "radio", options: ["Not Affected", "Affected"] },
+  { id: "judgement", label: "Judgement", type: "radio", options: ["Not Affected", "Affected"] },
+  { id: "mental_health_function_comments", label: "Mental health function comments:", type: "textarea" },
+  { id: "other_functional_considerations", label: "Other physical or mental functional considerations:", type: "textarea" },
+];
+
+const FORM_CONFIG: Record<string, { title: string; intro: string; questions: Question[] }> = {
+  injury: {
+    title: "Injury Assessment",
+    intro: "Please complete this injury assessment as accurately as possible. Your responses help us support your recovery and return to work.",
+    questions: INJURY_QUESTIONS,
+  },
+  baseline_health: {
+    title: "Pre-Employment Health Check",
+    intro: "Please complete this health questionnaire for the",
+    questions: PRE_EMPLOYMENT_QUESTIONS,
+  },
+  pre_employment: {
+    title: "Pre-Employment Health Check",
+    intro: "Please complete this health questionnaire for the",
+    questions: PRE_EMPLOYMENT_QUESTIONS,
+  },
+  exit: {
+    title: "Exit Health Check",
+    intro: "Please complete this exit health questionnaire for the",
+    questions: PRE_EMPLOYMENT_QUESTIONS,
+  },
+  wellness: {
+    title: "General Wellness Assessment",
+    intro: "Please complete this wellness assessment for the",
+    questions: PRE_EMPLOYMENT_QUESTIONS,
+  },
+  mental_health: {
+    title: "Mental Health Assessment",
+    intro: "Please complete this mental health assessment for the",
+    questions: PRE_EMPLOYMENT_QUESTIONS,
+  },
+  prevention: {
+    title: "Prevention & Safety Check",
+    intro: "Please complete this prevention and safety check for the",
+    questions: PRE_EMPLOYMENT_QUESTIONS,
+  },
+};
+
+function getFormConfig(assessmentType: string) {
+  return FORM_CONFIG[assessmentType] ?? FORM_CONFIG.baseline_health;
+}
 
 export default function PublicQuestionnaire() {
   const { token } = useParams<{ token: string }>();
@@ -44,6 +172,10 @@ export default function PublicQuestionnaire() {
       .catch((e: Error) => setError(e.message))
       .finally(() => setLoading(false));
   }, [token]);
+
+  function set(id: string, value: string) {
+    setResponses((prev) => ({ ...prev, [id]: value }));
+  }
 
   async function handleSubmit() {
     setSubmitting(true);
@@ -70,7 +202,7 @@ export default function PublicQuestionnaire() {
     );
   }
 
-  if (error) {
+  if (error && !submitting) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 p-6">
         <div className="bg-white rounded-xl shadow p-8 max-w-md w-full text-center">
@@ -109,6 +241,9 @@ export default function PublicQuestionnaire() {
     );
   }
 
+  const config = getFormConfig(info?.assessmentType ?? "baseline_health");
+  const isRoleCheck = info?.assessmentType !== "injury";
+
   return (
     <div className="min-h-screen bg-gray-50 py-10 px-4">
       <div className="max-w-xl mx-auto">
@@ -120,10 +255,12 @@ export default function PublicQuestionnaire() {
             </div>
             <span className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Preventli</span>
           </div>
-          <h1 className="text-xl font-bold text-gray-900 mt-3">Pre-Employment Health Check</h1>
+          <h1 className="text-xl font-bold text-gray-900 mt-3">{config.title}</h1>
           <p className="text-gray-600 mt-1">
-            Hello {info?.candidateName} — please complete this health questionnaire for the{" "}
-            <strong>{info?.positionTitle}</strong> role.
+            Hello {info?.candidateName} —{" "}
+            {isRoleCheck
+              ? <>{config.intro} <strong>{info?.positionTitle}</strong> role.</>
+              : config.intro}
           </p>
           <p className="text-xs text-gray-400 mt-3">
             Your responses are confidential and used only for workplace health assessment purposes.
@@ -132,16 +269,22 @@ export default function PublicQuestionnaire() {
 
         {/* Questions */}
         <div className="bg-white rounded-xl shadow-sm p-6 space-y-6">
-          {QUESTIONS.map((q) => (
+          {config.questions.map((q) => (
             <div key={q.id}>
+              {q.section && (
+                <h2 className="text-base font-semibold text-gray-900 border-b border-gray-200 pb-2 mb-4 -mt-2">
+                  {q.section}
+                </h2>
+              )}
               <label className="block text-sm font-medium text-gray-800 mb-2">{q.label}</label>
+
               {q.type === "radio" && q.options && (
                 <div className="flex flex-wrap gap-2">
                   {q.options.map((opt) => (
                     <button
                       key={opt}
                       type="button"
-                      onClick={() => setResponses((prev) => ({ ...prev, [q.id]: opt }))}
+                      onClick={() => set(q.id, opt)}
                       className={`px-4 py-2 rounded-full text-sm border transition-colors ${
                         responses[q.id] === opt
                           ? "bg-blue-600 text-white border-blue-600"
@@ -153,14 +296,46 @@ export default function PublicQuestionnaire() {
                   ))}
                 </div>
               )}
+
               {q.type === "textarea" && (
                 <textarea
                   rows={3}
                   value={responses[q.id] ?? ""}
-                  onChange={(e) => setResponses((prev) => ({ ...prev, [q.id]: e.target.value }))}
+                  onChange={(e) => set(q.id, e.target.value)}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-blue-500 resize-none"
                   placeholder="Type your answer here…"
                 />
+              )}
+
+              {q.type === "text" && (
+                <input
+                  type="text"
+                  value={responses[q.id] ?? ""}
+                  onChange={(e) => set(q.id, e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              )}
+
+              {q.type === "date" && (
+                <input
+                  type="date"
+                  value={responses[q.id] ?? ""}
+                  onChange={(e) => set(q.id, e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              )}
+
+              {q.type === "dropdown" && q.options && (
+                <select
+                  value={responses[q.id] ?? ""}
+                  onChange={(e) => set(q.id, e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                >
+                  <option value="">Select…</option>
+                  {q.options.map((opt) => (
+                    <option key={opt} value={opt}>{opt}</option>
+                  ))}
+                </select>
               )}
             </div>
           ))}
