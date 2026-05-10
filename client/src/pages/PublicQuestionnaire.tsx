@@ -9,6 +9,7 @@ interface AssessmentInfo {
   candidateName: string;
   positionTitle: string;
   assessmentId: string;
+  organizationName: string | null;
 }
 
 const QUESTIONS = [
@@ -116,14 +117,27 @@ export default function PublicQuestionnaire() {
         <div className="bg-white rounded-xl shadow-sm p-6 mb-6">
           <div className="flex items-center gap-3 mb-1">
             <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-bold text-lg">
-              P
+              {(info?.organizationName ?? "P").charAt(0).toUpperCase()}
             </div>
-            <span className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Preventli</span>
+            <span className="text-sm font-semibold text-gray-500 uppercase tracking-wide">
+              {info?.organizationName ?? "Preventli"}
+            </span>
           </div>
           <h1 className="text-xl font-bold text-gray-900 mt-3">Pre-Employment Health Check</h1>
           <p className="text-gray-600 mt-1">
-            Hello {info?.candidateName} — please complete this health questionnaire for the{" "}
-            <strong>{info?.positionTitle}</strong> role.
+            Hello {info?.candidateName} —{" "}
+            {info?.organizationName ? (
+              <>
+                <strong>{info.organizationName}</strong> has invited you to complete a health
+                questionnaire as part of your application for the{" "}
+                <strong>{info.positionTitle}</strong> role.
+              </>
+            ) : (
+              <>
+                please complete this health questionnaire for the{" "}
+                <strong>{info?.positionTitle}</strong> role.
+              </>
+            )}
           </p>
           <p className="text-xs text-gray-400 mt-3">
             Your responses are confidential and used only for workplace health assessment purposes.
