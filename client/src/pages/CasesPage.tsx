@@ -29,9 +29,12 @@ export default function CasesPage() {
   });
   const cases = paginatedData?.cases ?? [];
 
+  const isOpenCase = (c: WorkerCase) => c.caseStatus !== "closed";
+
   const filteredCases = useMemo(() => {
     return cases.filter((c) => {
       if (!isLegitimateCase(c)) return false;
+      if (!isOpenCase(c)) return false;
 
       const matchesSearch =
         !searchQuery ||
@@ -48,12 +51,12 @@ export default function CasesPage() {
   }, [cases, searchQuery, statusFilter]);
 
   const stats = useMemo(() => {
-    const legitimate = cases.filter(isLegitimateCase);
+    const active = cases.filter((c) => isLegitimateCase(c) && isOpenCase(c));
     return {
-      total: legitimate.length,
-      atWork: legitimate.filter((c) => c.workStatus === "At work").length,
-      offWork: legitimate.filter((c) => c.workStatus === "Off work").length,
-      highRisk: legitimate.filter((c) => c.riskLevel === "High").length,
+      total: active.length,
+      atWork: active.filter((c) => c.workStatus === "At work").length,
+      offWork: active.filter((c) => c.workStatus === "Off work").length,
+      highRisk: active.filter((c) => c.riskLevel === "High").length,
     };
   }, [cases]);
 
@@ -187,7 +190,12 @@ export default function CasesPage() {
                     <TableRow
                       key={workerCase.id}
                       className="cursor-pointer hover:bg-muted/50"
-                      onClick={() => navigate(user?.role === "employer" ? `/employer/case/${workerCase.id}` : `/summary/${workerCase.id}`)}
+                      onClick={() => {
+                        const id = workerCase.id;
+                        if (user?.role === "employer") navigate(`/employer/case/${id}`);
+                        else if (user?.role === "partner") navigate(`/partner/cases/${id}`);
+                        else navigate(`/summary/${id}`);
+                      }}
                     >
                       <TableCell className="font-medium">{workerCase.workerName}</TableCell>
                       <TableCell>{workerCase.company}</TableCell>
@@ -206,7 +214,7 @@ export default function CasesPage() {
                         {workerCase.nextStep}
                       </TableCell>
                       <TableCell className="text-right">
-                        <Link to={user?.role === "employer" ? `/employer/case/${workerCase.id}` : `/summary/${workerCase.id}`}>
+                        <Link to={user?.role === "employer" ? `/employer/case/${workerCase.id}` : user?.role === "partner" ? `/partner/cases/${workerCase.id}` : `/summary/${workerCase.id}`}>
                           <Button variant="ghost" size="sm">
                             <span className="material-symbols-outlined text-sm">visibility</span>
                           </Button>
