@@ -190,15 +190,160 @@ function EmployerDashboardContent() {
 
         <Card className="bg-card shadow-lg border-0 hover:shadow-xl transition-all duration-300">
           <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground mb-1">High Risk Cases</p>
-                <p className="text-3xl font-bold text-red-700">{highRiskCount}</p>
-                <p className="text-xs text-red-600 mt-1">Requiring close attention</p>
-              </div>
-              <div className="p-3 bg-red-100 rounded-xl">
-                <AlertTriangle className="w-6 h-6 text-red-600" />
-              </div>
+            {(() => {
+              const activePlans = (allCasesData?.cases ?? []).filter(c => c.rtwPlanStatus === "in_progress" || c.rtwPlanStatus === "working_well").length;
+              const hasCritical = criticalActions.length > 0;
+              return activePlans > 0 ? (
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground mb-1">RTW Plans Active</p>
+                    <p className="text-3xl font-bold text-emerald-700">{activePlans}</p>
+                    <p className="text-xs text-emerald-600 mt-1">{hasCritical ? `${criticalActions.length} critical action${criticalActions.length !== 1 ? "s" : ""} pending` : "No critical actions"}</p>
+                  </div>
+                  <div className="p-3 bg-emerald-100 rounded-xl">
+                    <CheckCircle className="w-6 h-6 text-emerald-600" />
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground mb-1">Critical Actions</p>
+                    <p className="text-3xl font-bold text-red-700">{criticalActions.length}</p>
+                    <p className="text-xs text-red-600 mt-1">Immediate attention</p>
+                  </div>
+                  <div className="p-3 bg-red-100 rounded-xl">
+                    <AlertTriangle className="w-6 h-6 text-red-600" />
+                  </div>
+                </div>
+              );
+            })()}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Priority Actions — flat sorted list (critical → urgent → routine, then by days overdue) */}
+      <Card className="bg-card shadow-lg border-0">
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2">
+            <AlertTriangle className="w-5 h-5 text-muted-foreground" />
+            Priority Actions
+            {actions.length > 0 && (
+              <Badge variant="secondary" className="ml-1">{actions.length}</Badge>
+            )}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          {actions.length === 0 ? (
+            <div className="py-12 text-center">
+              <CheckCircle className="w-10 h-10 text-emerald-500 mx-auto mb-3" />
+              <p className="font-medium text-foreground">All clear</p>
+              <p className="text-sm text-muted-foreground mt-1">No actions require attention right now.</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-border">
+              {actions.map((action) => (
+                <div
+                  key={action.id}
+                  className="flex items-center gap-3 px-5 py-3.5 hover:bg-accent/40 transition-colors cursor-pointer group focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  {...clickableRowProps(() => navigate(`/employer/case/${action.caseId}`))}
+                >
+                  {/* Priority badge */}
+                  <Badge className={`shrink-0 capitalize w-16 justify-center ${getPriorityColor(action.priority)}`}>
+                    {action.priority}
+                  </Badge>
+                  {/* Type icon */}
+                  <span className="shrink-0 text-muted-foreground">{getPriorityIcon(action.type)}</span>
+                  {/* Worker + action description */}
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-foreground truncate leading-snug">{action.workerName}</p>
+                    <p className="text-sm text-muted-foreground truncate">{action.action}</p>
+                  </div>
+                  {/* Days overdue pill */}
+                  {!!action.daysOverdue && (
+                    <Badge
+                      variant={action.priority === 'critical' ? 'destructive' : 'warning'}
+                      className="shrink-0 whitespace-nowrap"
+                    >
+                      {action.daysOverdue}d overdue
+                    </Badge>
+                  )}
+                  <ArrowRight className="w-4 h-4 text-muted-foreground shrink-0 group-hover:translate-x-0.5 transition-transform" />
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* All Workers Roster */}
+      {allCasesData && allCasesData.cases.length > 0 && (
+        <Card className="bg-card shadow-lg border-0">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Users className="w-5 h-5 text-muted-foreground" />
+              All Workers
+              <Badge variant="secondary" className="ml-1">{allCasesData.cases.length}</Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="divide-y divide-border">
+              {[...allCasesData.cases]
+                .sort((a, b) => {
+                  // RTW approval needed first, then Off work (longest first), then At work
+                  const aPending = a.rtwPlanStatus === "pending_employer_review";
+                  const bPending = b.rtwPlanStatus === "pending_employer_review";
+                  if (aPending !== bPending) return aPending ? -1 : 1;
+                  if (a.workStatus !== b.workStatus) return a.workStatus === "Off work" ? -1 : 1;
+                  return new Date(a.dateOfInjury).getTime() - new Date(b.dateOfInjury).getTime();
+                })
+                .map(c => {
+                  const weeksOff = Math.max(0, Math.floor((Date.now() - new Date(c.dateOfInjury).getTime()) / (7 * 24 * 60 * 60 * 1000)));
+                  const needsApproval = c.rtwPlanStatus === "pending_employer_review";
+                  const planActive = c.rtwPlanStatus === "in_progress" || c.rtwPlanStatus === "working_well";
+                  return (
+                    <div
+                      key={c.id}
+                      className={`flex items-center justify-between px-4 py-3 hover:bg-muted/50 cursor-pointer group focus:outline-none focus-visible:ring-2 focus-visible:ring-ring${needsApproval ? " bg-yellow-50 dark:bg-yellow-950/20 border-l-4 border-l-yellow-400" : planActive ? " bg-emerald-50/40 dark:bg-emerald-950/20 border-l-4 border-l-emerald-400" : ""}`}
+                      aria-label={`Open case for ${c.workerName}`}
+                      {...clickableRowProps(() => navigate(`/employer/case/${c.id}`))}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold ${needsApproval ? "bg-yellow-200 text-yellow-800" : planActive ? "bg-emerald-200 text-emerald-800" : "bg-muted text-muted-foreground"}`}>
+                          {c.workerName.split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-foreground group-hover:text-blue-700">{c.workerName}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {c.workStatus === "Off work" ? `Week ${weeksOff} off work` : `Week ${weeksOff} post-injury · At work`}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {needsApproval && (
+                          <Badge variant="warning" className="text-xs">RTW approval needed</Badge>
+                        )}
+                        {planActive && (
+                          <Badge variant="success" className="text-xs">✓ RTW plan active</Badge>
+                        )}
+                        <Badge
+                          variant={c.workStatus === "Off work" ? "warning" : "success"}
+                          className="text-xs"
+                        >{c.workStatus}</Badge>
+                        <Badge
+                          variant={
+                            (c.riskLevel || "").toLowerCase() === "high"
+                              ? "critical"
+                              : (c.riskLevel || "").toLowerCase() === "medium"
+                              ? "warning"
+                              : "success"
+                          }
+                          className="text-xs"
+                        >{c.riskLevel || "Unknown"}</Badge>
+                        <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:text-blue-500" />
+                      </div>
+                    </div>
+                  );
+                })}
             </div>
           </CardContent>
         </Card>
