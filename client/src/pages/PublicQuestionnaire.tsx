@@ -15,7 +15,7 @@ interface AssessmentInfo {
 type Question = {
   id: string;
   label: string;
-  type: "radio" | "textarea" | "text" | "date" | "dropdown";
+  type: "radio" | "textarea" | "text" | "date" | "dropdown" | "checkbox";
   options?: string[];
   section?: string;
 };
@@ -33,6 +33,7 @@ const PRE_EMPLOYMENT_QUESTIONS: Question[] = [
 
 const PAIN_SCALE = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10"];
 const CAPACITY = ["Can", "With Modification", "Cannot"];
+const FREQ_5 = ["None of the time", "A little of the time", "Some of the time", "Most of the time", "All of the time"];
 
 const INJURY_QUESTIONS: Question[] = [
   // Section 1: Personal Information
@@ -108,6 +109,92 @@ const INJURY_QUESTIONS: Question[] = [
   { id: "other_functional_considerations", label: "Other physical or mental functional considerations:", type: "textarea" },
 ];
 
+const PREVENTION_QUESTIONS: Question[] = [
+  // Section 1: Personal Information
+  { id: "company_name", label: "Company name", type: "text", section: "Personal Information" },
+  { id: "employer_email", label: "Employer email", type: "text" },
+  { id: "first_name", label: "First name", type: "text" },
+  { id: "last_name", label: "Last name", type: "text" },
+  { id: "email", label: "Your email", type: "text" },
+  { id: "job_title", label: "What is your job title?", type: "text" },
+  { id: "age", label: "Age", type: "text" },
+  { id: "weight", label: "Weight", type: "text" },
+  { id: "gender", label: "Gender: How do you identify?", type: "radio", options: ["Man", "Non-binary", "Woman", "Prefer to self-describe"] },
+  { id: "self_describe_gender", label: "If self-describe, please specify:", type: "text" },
+
+  // Section 2: Physical Pain Assessment
+  { id: "neck_pain", label: "Neck pain level (0 = none, 10 = worst)", type: "dropdown", options: PAIN_SCALE, section: "Physical Pain Assessment" },
+  { id: "arms_pain", label: "Arm(s) pain level (0 = none, 10 = worst)", type: "dropdown", options: PAIN_SCALE },
+  { id: "shoulders_pain", label: "Shoulder(s) pain level (0 = none, 10 = worst)", type: "dropdown", options: PAIN_SCALE },
+  { id: "upper_back_pain", label: "Upper back pain level (0 = none, 10 = worst)", type: "dropdown", options: PAIN_SCALE },
+  { id: "lower_back_pain", label: "Lower back pain level (0 = none, 10 = worst)", type: "dropdown", options: PAIN_SCALE },
+  { id: "legs_pain", label: "Legs pain level (0 = none, 10 = worst)", type: "dropdown", options: PAIN_SCALE },
+  { id: "knees_pain", label: "Knees pain level (0 = none, 10 = worst)", type: "dropdown", options: PAIN_SCALE },
+  { id: "feet_pain", label: "Feet pain level (0 = none, 10 = worst)", type: "dropdown", options: PAIN_SCALE },
+  { id: "pain_elsewhere", label: "Have you experienced pain anywhere else?", type: "radio", options: ["Yes", "No"] },
+  { id: "other_pain_location", label: "Other pain location:", type: "text" },
+  { id: "other_pain_level", label: "Other pain level (0 = none, 10 = worst)", type: "dropdown", options: PAIN_SCALE },
+  { id: "pain_last_week", label: "Pain in last week (0 = none, 10 = worst)", type: "dropdown", options: PAIN_SCALE },
+  { id: "average_pain_3mo", label: "Average pain over last 3 months (0 = none, 10 = worst)", type: "dropdown", options: PAIN_SCALE },
+  { id: "risk_persistent_pain", label: "Risk of persistent pain", type: "radio", options: ["Highly likely", "Likely", "No risk"] },
+  { id: "lifting_capacity", label: "Lifting capacity", type: "radio", options: ["Heavy weights (20kg+)", "Moderate weights (10–20kg)", "Light weights (5–10kg)", "Very light (under 5kg)", "Cannot lift"] },
+  { id: "walking_capacity", label: "Walking capacity", type: "radio", options: ["More than 1km", "500m–1km", "Less than 500m", "Cannot walk"] },
+  { id: "sitting_capacity", label: "Sitting capacity", type: "radio", options: ["More than 4 hours", "2–4 hours", "1–2 hours", "Less than 1 hour", "Cannot sit"] },
+  { id: "standing_capacity", label: "Standing capacity", type: "radio", options: ["More than 4 hours", "2–4 hours", "1–2 hours", "Less than 1 hour", "Cannot stand"] },
+  { id: "sleeping_impact", label: "How does pain affect your sleep?", type: "radio", options: ["Not affected", "Slightly affected", "Moderately affected", "Significantly affected", "Cannot sleep"] },
+  { id: "social_life_impact", label: "How does pain affect your social life?", type: "radio", options: ["Not affected", "Slightly affected", "Moderately affected", "Significantly affected", "No social life due to pain"] },
+
+  // Section 3: Psychological Wellbeing (Last 4 Weeks)
+  { id: "psych_tired", label: "Tired out for no reason", type: "radio", options: FREQ_5, section: "Psychological Wellbeing (Last 4 Weeks)" },
+  { id: "psych_nervous", label: "Felt nervous", type: "radio", options: FREQ_5 },
+  { id: "psych_nervous_no_calm", label: "So nervous that nothing could calm you down", type: "radio", options: FREQ_5 },
+  { id: "psych_hopeless", label: "Felt hopeless", type: "radio", options: FREQ_5 },
+  { id: "psych_restless", label: "Restless or fidgety", type: "radio", options: FREQ_5 },
+  { id: "psych_too_restless", label: "So restless you could not sit still", type: "radio", options: FREQ_5 },
+  { id: "psych_depressed", label: "Felt depressed", type: "radio", options: FREQ_5 },
+  { id: "psych_effort", label: "Everything was an effort", type: "radio", options: FREQ_5 },
+  { id: "psych_sad", label: "So sad nothing could cheer you up", type: "radio", options: FREQ_5 },
+  { id: "psych_worthless", label: "Felt worthless", type: "radio", options: FREQ_5 },
+  { id: "psych_depressed_week", label: "Felt depressed in the past week", type: "radio", options: FREQ_5 },
+  { id: "psych_tense_week", label: "Felt tense or anxious in the past week", type: "radio", options: FREQ_5 },
+  { id: "workplace_challenges", label: "Are there workplace challenges affecting your wellbeing?", type: "radio", options: ["Yes", "No"] },
+  { id: "workplace_challenges_detail", label: "Describe workplace challenges:", type: "textarea" },
+  { id: "factors_job_performance", label: "Factors affecting your job performance:", type: "textarea" },
+
+  // Section 4: Personal Health & Wellbeing
+  { id: "smoke", label: "Do you smoke?", type: "radio", options: ["Yes", "No"], section: "Personal Health & Wellbeing" },
+  { id: "smoking_duration", label: "How long have you smoked?", type: "dropdown", options: ["Less than a month", "1–6 months", "6–12 months", "1–2 years", "2–5 years", "5+ years"] },
+  { id: "veg_servings", label: "Vegetable servings daily", type: "dropdown", options: ["0", "1–2", "3–4", "5+"] },
+  { id: "fruit_servings", label: "Fruit servings daily", type: "dropdown", options: ["0", "1–2", "3–4", "5+"] },
+  { id: "junk_food_freq", label: "Junk food consumption frequency", type: "dropdown", options: ["Never", "1–2 times/week", "3–4 times/week", "Daily"] },
+  { id: "fast_food_reasons", label: "Reasons for choosing fast food (select all that apply)", type: "checkbox", options: ["Never eat fast food", "Cheaper", "Convenient", "Tastes better", "Availability"] },
+  { id: "alcohol_weekly", label: "Weekly alcohol consumption", type: "dropdown", options: ["None", "1–5 drinks", "6–10 drinks", "11–20 drinks", "20+ drinks"] },
+  { id: "vigorous_activity", label: "Vigorous physical activity days/week", type: "dropdown", options: ["0", "1–3", "4–7", "7+"] },
+  { id: "walking_freq", label: "Walking 30+ min days/week", type: "dropdown", options: ["0", "1–3", "4–7", "7+"] },
+  { id: "moderate_activity", label: "Moderate activity 30+ min days/week", type: "dropdown", options: ["0", "1–3", "4–7", "7+"] },
+  { id: "activity_at_work", label: "Physical activity during work time", type: "dropdown", options: ["None", "Some", "Most", "All"] },
+  { id: "low_activity_reasons", label: "Reasons for low physical activity (select all that apply)", type: "checkbox", options: ["Too tired", "No time", "Lack of facilities", "Shift work", "Out on the road"] },
+
+  // Section 5: Job Capacity Assessment
+  { id: "can_sit", label: "Sit", type: "radio", options: CAPACITY, section: "Job Capacity Assessment" },
+  { id: "can_stand_walk", label: "Stand and Walk", type: "radio", options: CAPACITY },
+  { id: "can_bend", label: "Bend", type: "radio", options: CAPACITY },
+  { id: "can_squat", label: "Squat", type: "radio", options: CAPACITY },
+  { id: "can_kneel", label: "Kneel", type: "radio", options: CAPACITY },
+  { id: "can_reach_above_shoulder", label: "Reach above shoulder", type: "radio", options: CAPACITY },
+  { id: "can_use_arms_hands", label: "Use arms/hands", type: "radio", options: CAPACITY },
+  { id: "can_lift", label: "Lift", type: "radio", options: CAPACITY },
+  { id: "can_neck_movement", label: "Neck movement", type: "radio", options: CAPACITY },
+  { id: "physical_function_comments", label: "Physical function comments:", type: "textarea" },
+  { id: "attention_concentration", label: "Attention/Concentration", type: "radio", options: ["Not Affected", "Affected"] },
+  { id: "memory", label: "Memory", type: "radio", options: ["Not Affected", "Affected"] },
+  { id: "judgement", label: "Judgement", type: "radio", options: ["Not Affected", "Affected"] },
+  { id: "additional_functions", label: "Additional mental/physical functional considerations:", type: "textarea" },
+  { id: "mental_health_comments", label: "Mental health challenges comments:", type: "textarea" },
+  { id: "general_comments", label: "General additional comments:", type: "textarea" },
+  { id: "work_environment", label: "Work environment considerations:", type: "textarea" },
+];
+
 const FORM_CONFIG: Record<string, { title: string; intro: string; questions: Question[] }> = {
   injury: {
     title: "Injury Assessment",
@@ -141,8 +228,8 @@ const FORM_CONFIG: Record<string, { title: string; intro: string; questions: Que
   },
   prevention: {
     title: "Prevention & Safety Check",
-    intro: "Please complete this prevention and safety check for the",
-    questions: PRE_EMPLOYMENT_QUESTIONS,
+    intro: "Please complete this prevention and safety assessment as accurately as possible.",
+    questions: PREVENTION_QUESTIONS,
   },
 };
 
@@ -242,7 +329,7 @@ export default function PublicQuestionnaire() {
   }
 
   const config = getFormConfig(info?.assessmentType ?? "baseline_health");
-  const isRoleCheck = info?.assessmentType !== "injury";
+  const isRoleCheck = info?.assessmentType !== "injury" && info?.assessmentType !== "prevention";
 
   return (
     <div className="min-h-screen bg-gray-50 py-10 px-4">
@@ -336,6 +423,31 @@ export default function PublicQuestionnaire() {
                     <option key={opt} value={opt}>{opt}</option>
                   ))}
                 </select>
+              )}
+
+              {q.type === "checkbox" && q.options && (
+                <div className="flex flex-col gap-2">
+                  {q.options.map((opt) => {
+                    const selected = (responses[q.id] ?? "").split("|").filter(Boolean);
+                    const checked = selected.includes(opt);
+                    return (
+                      <label key={opt} className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => {
+                            const next = checked
+                              ? selected.filter((v) => v !== opt)
+                              : [...selected, opt];
+                            set(q.id, next.join("|"));
+                          }}
+                          className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        />
+                        <span className="text-sm text-gray-700">{opt}</span>
+                      </label>
+                    );
+                  })}
+                </div>
               )}
             </div>
           ))}
