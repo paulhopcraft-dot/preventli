@@ -12,6 +12,7 @@ import { syncScheduler } from "./services/syncScheduler";
 import { complianceScheduler } from "./services/complianceScheduler";
 import { agentScheduler } from "./agent-runner/triggers";
 import { storage } from "./storage";
+import { checkStorageHealth } from "./services/storageService";
 import { logger } from "./lib/logger";
 import {
   validateSecurityEnvironment,
@@ -241,6 +242,24 @@ const startServer = async () => {
       logger.server.error("Unhandled error", { status }, err);
     }
   });
+
+  // Boot-time storage check — warn loudly if file uploads will fail at request
+  // time. Doesn't block startup (the server may be useful for read-only flows
+  // even with broken storage), but the log line tells ops exactly what to fix
+  // before the first partner attempts a JD upload.
+  try {
+    const health = await checkStorageHealth();
+    if (!health.ok) {
+      logger.server.error(
+        `[storage] Misconfigured at boot — file uploads will return 502. provider=${health.provider} error=${health.error ?? "unknown"}. ` +
+          `Fix: set AWS_S3_BUCKET / AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY, or set STORAGE_PROVIDER=local for ephemeral dev storage.`,
+      );
+    } else {
+      logger.server.info(`[storage] Provider ready: ${health.provider}`);
+    }
+  } catch (err) {
+    logger.server.error("[storage] Health check threw", {}, err);
+  }
 
   const port = parseInt(process.env.PORT || "5000", 10);
   const isDev = app.get("env") === "development";
