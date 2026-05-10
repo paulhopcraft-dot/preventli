@@ -1,6 +1,9 @@
 import { useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
+import type { CaseAction } from "@shared/schema";
+import { CaseActionPlanCard } from "@/components/CaseActionPlanCard";
+import { fetchWithCsrf } from "@/lib/queryClient";
 import {
   ArrowLeft,
   Building2,
@@ -90,6 +93,19 @@ export default function PartnerCaseDetailPage() {
     },
     enabled: !!id && user?.role === "partner",
   });
+
+  const { data: pendingActionsData, refetch: refetchActionsPartner } = useQuery<{ data: CaseAction[] }>({
+    queryKey: [`/api/actions/pending`, id],
+    queryFn: async () => {
+      const response = await fetchWithCsrf(`/api/actions/pending?limit=100`);
+      if (!response.ok) throw new Error("Failed to fetch actions");
+      return response.json();
+    },
+    enabled: !!id && user?.role === "partner",
+  });
+  const caseActions = pendingActionsData?.data?.filter((action: CaseAction) =>
+    action.caseId === id && action.status === "pending"
+  ) ?? [];
 
   if (detailQuery.isLoading) {
     return (
@@ -294,6 +310,13 @@ export default function PartnerCaseDetailPage() {
             </div>
           </CardContent>
         </Card>
+
+        <CaseActionPlanCard
+          caseId={id!}
+          actions={caseActions}
+          workerName={c.workerName}
+          onActionUpdate={() => refetchActionsPartner()}
+        />
       </main>
     </div>
   );
