@@ -120,8 +120,6 @@ function EmployerDashboardContent() {
   };
 
   const criticalActions = actions.filter(a => a.priority === 'critical');
-  const urgentActions = actions.filter(a => a.priority === 'urgent');
-  const routineActions = actions.filter(a => a.priority === 'routine');
 
   const pendingApprovals = allCasesData?.cases.filter(c => c.rtwPlanStatus === 'pending_employer_review') ?? [];
 
@@ -235,161 +233,71 @@ function EmployerDashboardContent() {
         </Card>
       </div>
 
-      {/* Actions Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Critical Actions */}
-        <Card className="lg:col-span-1 bg-card shadow-xl border-0">
-          <CardHeader className="bg-destructive/10 text-destructive border-b border-destructive/20 rounded-t-lg">
-            <CardTitle className="flex items-center space-x-2">
-              <AlertTriangle className="w-5 h-5" />
-              <span>Critical Actions</span>
-              <Badge variant="destructive" className="ml-auto">{criticalActions.length}</Badge>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            {criticalActions.length === 0 ? (
-              <div className="p-8 text-center">
-                <CheckCircle className="w-10 h-10 text-emerald-500 mx-auto mb-2" />
-                <p className="text-sm font-medium text-foreground">All clear</p>
-                <p className="text-xs text-muted-foreground mt-1">No critical actions right now.</p>
-              </div>
-            ) : (
-              <div className="max-h-96 overflow-y-auto">
-                {criticalActions.map((action, index) => (
+      {/* Priority Actions — unified flat list */}
+      <Card className="bg-card shadow-xl border-0">
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2">
+            <AlertTriangle className="w-5 h-5 text-muted-foreground" />
+            Priority Actions
+            <Badge variant="secondary" className="ml-1">{actions.length}</Badge>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          {actions.length === 0 ? (
+            <div className="p-8 text-center">
+              <CheckCircle className="w-10 h-10 text-emerald-500 mx-auto mb-2" />
+              <p className="text-sm font-medium text-foreground">All clear</p>
+              <p className="text-xs text-muted-foreground mt-1">No actions required right now.</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-border max-h-[480px] overflow-y-auto">
+              {[...actions]
+                .sort((a, b) => {
+                  const order: Record<string, number> = { critical: 0, urgent: 1, routine: 2 };
+                  const po = (order[a.priority] ?? 3) - (order[b.priority] ?? 3);
+                  if (po !== 0) return po;
+                  return (b.daysOverdue ?? 0) - (a.daysOverdue ?? 0);
+                })
+                .map((action) => (
                   <div
                     key={action.id}
-                    className="p-4 border-b border-border hover:bg-red-50 dark:hover:bg-red-950/20 transition-all duration-200 cursor-pointer group focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className={`flex items-center justify-between px-4 py-3 cursor-pointer group focus:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors ${
+                      action.priority === 'critical'
+                        ? 'hover:bg-red-50 dark:hover:bg-red-950/20 border-l-4 border-l-red-500'
+                        : action.priority === 'urgent'
+                        ? 'hover:bg-amber-50 dark:hover:bg-amber-950/20 border-l-4 border-l-amber-400'
+                        : 'hover:bg-blue-50 dark:hover:bg-blue-950/20 border-l-4 border-l-blue-400'
+                    }`}
                     {...clickableRowProps(() => navigate(`/employer/case/${action.caseId}`))}
                   >
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center space-x-2 mb-2">
-                          {getPriorityIcon(action.type)}
-                          <p className="font-semibold text-foreground group-hover:text-red-700">
-                            {action.workerName}
-                          </p>
-                        </div>
-                        <p className="text-sm text-muted-foreground mb-2">{action.action}</p>
-                        {!!action.daysOverdue && (
-                          <Badge variant="critical">
-                            {action.daysOverdue} days overdue
-                          </Badge>
-                        )}
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <Badge className={`shrink-0 text-xs capitalize ${getPriorityColor(action.priority)}`}>
+                        {action.priority}
+                      </Badge>
+                      <span className="shrink-0 text-muted-foreground">
+                        {getPriorityIcon(action.type)}
+                      </span>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-foreground truncate group-hover:text-blue-700">
+                          {action.workerName}
+                        </p>
+                        <p className="text-xs text-muted-foreground truncate">{action.action}</p>
                       </div>
-                      <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:text-red-600 transition-colors" />
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0 ml-3">
+                      {!!action.daysOverdue && (
+                        <Badge variant={action.priority === 'critical' ? 'critical' : 'warning'} className="text-xs">
+                          {action.daysOverdue}d overdue
+                        </Badge>
+                      )}
+                      <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:text-blue-500 transition-colors" />
                     </div>
                   </div>
                 ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Urgent Actions */}
-        <Card className="lg:col-span-1 bg-card shadow-lg border-0">
-          <CardHeader className="bg-amber-500/10 text-amber-700 dark:text-amber-400 border-b border-amber-500/20 rounded-t-lg">
-            <CardTitle className="flex items-center space-x-2">
-              <Clock className="w-5 h-5" />
-              <span>Urgent Actions</span>
-              <Badge className="ml-auto bg-amber-500/20 text-amber-700 dark:text-amber-400 border-amber-500/30 hover:bg-amber-500/30">{urgentActions.length}</Badge>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            {urgentActions.length === 0 ? (
-              <div className="p-8 text-center">
-                <CheckCircle className="w-10 h-10 text-emerald-500 mx-auto mb-2" />
-                <p className="text-sm font-medium text-foreground">All clear</p>
-                <p className="text-xs text-muted-foreground mt-1">No urgent actions right now.</p>
-              </div>
-            ) : (
-              <div className="max-h-96 overflow-y-auto">
-              {urgentActions.slice(0, 8).map((action) => (
-                <div
-                  key={action.id}
-                  className="p-4 border-b border-border hover:bg-amber-50 dark:hover:bg-amber-950/20 transition-all duration-200 cursor-pointer group focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  {...clickableRowProps(() => navigate(`/employer/case/${action.caseId}`))}
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center space-x-2 mb-2">
-                        {getPriorityIcon(action.type)}
-                        <p className="font-semibold text-foreground group-hover:text-amber-700">
-                          {action.workerName}
-                        </p>
-                      </div>
-                      <p className="text-sm text-muted-foreground mb-2">{action.action}</p>
-                      {!!action.daysOverdue && (
-                        <Badge variant="warning">
-                          {action.daysOverdue} days overdue
-                        </Badge>
-                      )}
-                    </div>
-                    <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:text-amber-600 transition-colors" />
-                  </div>
-                </div>
-              ))}
-              {urgentActions.length > 8 && (
-                <div className="p-4 text-center">
-                  <Button variant="ghost" className="text-amber-600 hover:text-amber-700">
-                    View {urgentActions.length - 8} more urgent actions
-                  </Button>
-                </div>
-              )}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Routine Actions */}
-        <Card className="lg:col-span-1 bg-card shadow-lg border-0">
-          <CardHeader className="bg-primary/10 text-primary border-b border-primary/20 rounded-t-lg">
-            <CardTitle className="flex items-center space-x-2">
-              <CheckCircle className="w-5 h-5" />
-              <span>Routine Actions</span>
-              <Badge className="ml-auto bg-primary/20 text-primary border-primary/30 hover:bg-primary/30">{routineActions.length}</Badge>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            {routineActions.length === 0 ? (
-              <div className="p-8 text-center">
-                <CheckCircle className="w-10 h-10 text-emerald-500 mx-auto mb-2" />
-                <p className="text-sm font-medium text-foreground">All clear</p>
-                <p className="text-xs text-muted-foreground mt-1">No routine actions right now.</p>
-              </div>
-            ) : (
-              <div className="max-h-96 overflow-y-auto">
-              {routineActions.slice(0, 6).map((action) => (
-                <div
-                  key={action.id}
-                  className="p-4 border-b border-border hover:bg-blue-50 dark:hover:bg-blue-950/20 transition-all duration-200 cursor-pointer group focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  {...clickableRowProps(() => navigate(`/employer/case/${action.caseId}`))}
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center space-x-2 mb-2">
-                        {getPriorityIcon(action.type)}
-                        <p className="font-semibold text-foreground group-hover:text-blue-700">
-                          {action.workerName}
-                        </p>
-                      </div>
-                      <p className="text-sm text-muted-foreground">{action.action}</p>
-                    </div>
-                    <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:text-blue-600 transition-colors" />
-                  </div>
-                </div>
-              ))}
-              {routineActions.length > 6 && (
-                <div className="p-4 text-center">
-                  <Button variant="ghost" className="text-blue-600 hover:text-blue-700">
-                    View {routineActions.length - 6} more routine actions
-                  </Button>
-                </div>
-              )}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* All Workers Roster */}
       {allCasesData && allCasesData.cases.length > 0 && (
