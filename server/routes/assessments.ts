@@ -106,7 +106,7 @@ router.post("/", authorize(), uploadJd, async (req: AuthRequest, res: Response) 
       name: body.candidateName,
       email: body.candidateEmail,
       organizationId,
-    });
+    } as any);
 
     // Generate unique access token
     const accessToken = crypto.randomBytes(32).toString("hex");
@@ -147,7 +147,7 @@ router.post("/", authorize(), uploadJd, async (req: AuthRequest, res: Response) 
  */
 router.post("/:id/send", authorize(), async (req: AuthRequest, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const organizationId = req.user!.organizationId;
 
     const assessment = await storage.getPreEmploymentAssessmentById(id, organizationId);
@@ -244,7 +244,7 @@ router.get("/", authorize(), async (req: AuthRequest, res: Response) => {
  */
 router.get("/:id", authorize(), async (req: AuthRequest, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const organizationId = req.user!.organizationId;
     const assessment = await storage.getPreEmploymentAssessmentById(id, organizationId);
     if (!assessment) return res.status(404).json({ error: "Not found" });

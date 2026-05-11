@@ -25,7 +25,7 @@ export function registerTimelineRoutes(app: Express) {
   // Get timeline estimate for a case (legacy endpoint)
   app.get("/api/cases/:id/timeline-estimate", async (req: Request, res: Response) => {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
 
       // Fetch case with clinical evidence
       const cases = await db
@@ -64,7 +64,7 @@ export function registerTimelineRoutes(app: Express) {
   // Get comprehensive recovery chart data for a case
   app.get("/api/cases/:id/recovery-chart", async (req: Request, res: Response) => {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
 
       // Fetch case
       const cases = await db
@@ -177,9 +177,9 @@ export function registerTimelineRoutes(app: Express) {
 
   // POST /api/cases/:id/recovery-override — AHR clinical timeline adjustment (Phase 6.2)
   // Restricted to non-employer roles (coordinators, admins only)
-  app.post("/api/cases/:id/recovery-override", authorize(["admin", "coordinator", "clinician"]), async (req: Request, res: Response) => {
+  app.post("/api/cases/:id/recovery-override", authorize(["admin", "coordinator", "clinician"] as any), async (req: Request, res: Response) => {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const { adjustedEstimateWeeks, reason, factors } = req.body;
 
       if (!adjustedEstimateWeeks || typeof adjustedEstimateWeeks !== "number" || adjustedEstimateWeeks < 1) {
@@ -233,7 +233,7 @@ export function registerTimelineRoutes(app: Express) {
   // Get injury model details for a specific injury type
   app.get("/api/injury-models/:type", async (req: Request, res: Response) => {
     try {
-      const { type } = req.params;
+      const type = req.params.type as string;
       const model = getInjuryModel(type as any);
 
       if (!model) {

@@ -512,7 +512,7 @@ async function seed(): Promise<void> {
       contactName: "Test Contact",
       notificationEmails: "alert1@example.com, alert2@example.com, alert3@example.com",
     },
-  ]);
+  ] as any);
 
   // WorkBetter's real client roster — empty employer orgs so the sidebar looks
   // alive. Inserted in batches to keep query parameter counts under driver limits.
@@ -525,7 +525,7 @@ async function seed(): Promise<void> {
       slug: c.slug,
       kind: "employer" as const,
     }));
-    await db.insert(organizations).values(batch);
+    await db.insert(organizations).values(batch as any);
   }
 
   const passwordHash = await bcrypt.hash("workbetter123", 10);
@@ -552,7 +552,7 @@ async function seed(): Promise<void> {
       companyId: null,
       insurerId: null,
     },
-  ]);
+  ] as any);
 
   console.log("[seed-workbetter] Granting partner user access to client orgs...");
   // Primary user gets the Alpine fixtures plus every WorkBetter client.
@@ -607,7 +607,7 @@ async function seed(): Promise<void> {
       dueDate: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
       summary: "Preventative ergonomic assessment — back-saver review",
     },
-  ]);
+  ] as any);
 
   // Task G: demo cases — 5 per company across 3 tracks.
   if (!minimalOnly) {
@@ -629,7 +629,7 @@ async function seed(): Promise<void> {
         owner: "WorkBetter",
         dueDate: new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
         summary: c.injuryDescription,
-      }))
+      })) as any
     );
   }
 

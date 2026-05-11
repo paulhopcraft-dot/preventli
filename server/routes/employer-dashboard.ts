@@ -579,7 +579,7 @@ router.post('/cases', authorize(), upload.any(), async (req: Request, res: Respo
 router.post('/cases/:id/injury-check', authorize(), async (req: Request, res: Response) => {
   try {
     const organizationId = req.user?.organizationId;
-    const caseId = req.params.id;
+    const caseId = req.params.id as string;
 
     if (!organizationId) {
       return res.status(400).json({ error: 'Organization ID required' });

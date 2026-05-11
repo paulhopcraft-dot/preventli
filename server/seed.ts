@@ -430,7 +430,7 @@ async function seed() {
       contactEmail: "admin@harborclinic.local",
       insurerId: "ins-eml",
     },
-  ]);
+  ] as any);
 
   const passwordHash = await bcrypt.hash("ChangeMe123!", 10);
 
@@ -477,7 +477,7 @@ async function seed() {
       companyId: employers[0].id,
       insurerId: null,
     },
-  ]);
+  ] as any);
 
   // Seed cases for Org Alpha
   console.log("Seeding cases for Org Alpha (Symmetry Manufacturing)...");
@@ -516,7 +516,7 @@ async function seed() {
       clinicalStatusJson: (seedCase as any).clinicalStatusJson ?? null,
       createdAt: new Date(),
       updatedAt: new Date(),
-    });
+    } as any);
 
     if (seedCase.attachments.length > 0) {
       await db.insert(caseAttachments).values(
@@ -570,7 +570,7 @@ async function seed() {
       clinicalStatusJson: (seedCase as any).clinicalStatusJson ?? null,
       createdAt: new Date(),
       updatedAt: new Date(),
-    });
+    } as any);
 
     if (seedCase.attachments.length > 0) {
       await db.insert(caseAttachments).values(

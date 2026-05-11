@@ -94,7 +94,7 @@ router.post(
         });
       }
 
-      const draft = await generateEmailDraft(storage, workerCase.id, workerCase.organizationId, parseResult.data, userId);
+      const draft = await generateEmailDraft(storage, workerCase.id, workerCase.organizationId, parseResult.data as any, userId);
 
       res.json({
         success: true,
@@ -152,7 +152,7 @@ router.get(
   requireCaseOwnership(),
   async (req: AuthRequest, res: Response) => {
     try {
-      const { draftId } = req.params;
+      const draftId = req.params.draftId as string;
       const workerCase = req.workerCase!; // Populated by requireCaseOwnership middleware
 
       const draft = await getEmailDraftById(storage, draftId);
@@ -189,7 +189,7 @@ router.patch(
   requireCaseOwnership(),
   async (req: AuthRequest, res: Response) => {
     try {
-      const { draftId } = req.params;
+      const draftId = req.params.draftId as string;
       const workerCase = req.workerCase!; // Populated by requireCaseOwnership middleware
 
       // Validate draft exists and belongs to case
@@ -239,7 +239,7 @@ router.delete(
   requireCaseOwnership(),
   async (req: AuthRequest, res: Response) => {
     try {
-      const { draftId } = req.params;
+      const draftId = req.params.draftId as string;
       const workerCase = req.workerCase!; // Populated by requireCaseOwnership middleware
 
       // Validate draft exists and belongs to case
@@ -278,7 +278,7 @@ router.post(
   requireCaseOwnership(),
   async (req: AuthRequest, res: Response) => {
     try {
-      const { draftId } = req.params;
+      const draftId = req.params.draftId as string;
       const workerCase = req.workerCase!;
       const { recipientEmail, subject, body } = req.body;
 

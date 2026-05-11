@@ -121,7 +121,7 @@ async function recordAudit(caseId: string, eventType: string, metadata?: Record<
       resourceType: "worker_case",
       resourceId: caseId,
       metadata: metadata ?? null,
-    });
+    } as any);
   } catch (err) {
     logger.audit.warn("Failed to record termination audit event", { caseId, eventType }, err);
   }
@@ -156,14 +156,14 @@ export class TerminationService {
         workerCaseId,
         status: "NOT_STARTED",
         preInjuryRole: null,
-      })
+      } as any)
       .returning();
 
     const newProcess = inserted[0];
 
     await db
       .update(workerCases)
-      .set({ terminationProcessId: newProcess.id, employmentStatus: "ACTIVE" })
+      .set({ terminationProcessId: newProcess.id, employmentStatus: "ACTIVE" } as any)
       .where(eq(workerCases.id, workerCaseId));
 
     await recordAudit(workerCaseId, "termination_process_created", { processId: newProcess.id });
@@ -191,7 +191,7 @@ export class TerminationService {
         hasSustainableRole: false,
         alternativeRolesConsideredSummary: payload.alternativeRolesConsideredSummary,
         updatedAt: new Date(),
-      })
+      } as any)
       .where(eq(terminationProcesses.id, process.id))
       .returning();
 
@@ -202,7 +202,7 @@ export class TerminationService {
         terminationProcessId: process.id,
         terminationReason: "INCAPACITY",
         updatedAt: new Date(),
-      })
+      } as any)
       .where(eq(workerCases.id, workerCaseId));
 
     await recordAudit(workerCaseId, "termination_initiated", { processId: process.id });
@@ -221,7 +221,7 @@ export class TerminationService {
         hasSustainableRole: payload.hasSustainableRole ?? process.hasSustainableRole,
         status: process.status === "NOT_STARTED" ? "PREP_EVIDENCE" : process.status,
         updatedAt: new Date(),
-      })
+      } as any)
       .where(eq(terminationProcesses.id, process.id))
       .returning();
 
@@ -238,7 +238,7 @@ export class TerminationService {
         agentMeetingNotesId: payload.agentMeetingNotesId ?? process.agentMeetingNotesId,
         status: "AGENT_MEETING",
         updatedAt: new Date(),
-      })
+      } as any)
       .where(eq(terminationProcesses.id, process.id))
       .returning();
 
@@ -275,7 +275,7 @@ export class TerminationService {
           payload.canReturnPreInjuryRole !== undefined ? payload.canReturnPreInjuryRole : process.canReturnPreInjuryRole,
         status: "CONSULTANT_CONFIRMATION",
         updatedAt: new Date(),
-      })
+      } as any)
       .where(eq(terminationProcesses.id, process.id))
       .returning();
 
@@ -312,7 +312,7 @@ export class TerminationService {
         workerCaseId,
         templateCode: "PRE_TERMINATION_INVITE",
         content: inviteContent,
-      })
+      } as any)
       .returning();
 
     const [updated] = await db
@@ -329,7 +329,7 @@ export class TerminationService {
         preTerminationLetterDocId: doc.id,
         status: "PRE_TERMINATION_INVITE_SENT",
         updatedAt: new Date(),
-      })
+      } as any)
       .where(eq(terminationProcesses.id, process.id))
       .returning();
 
@@ -362,7 +362,7 @@ export class TerminationService {
         newMedicalDocsSummary: payload.newMedicalDocsSummary ?? process.newMedicalDocsSummary,
         status: "DECISION_PENDING",
         updatedAt: new Date(),
-      })
+      } as any)
       .where(eq(terminationProcesses.id, process.id))
       .returning();
 
@@ -470,7 +470,7 @@ export class TerminationService {
           workerCaseId,
           templateCode: TERMINATION_TEMPLATE_CODE,
           content,
-        })
+        } as any)
         .returning();
       terminationLetterDocId = doc.id;
 
@@ -502,7 +502,7 @@ export class TerminationService {
         terminationLetterDocId,
         status: payload.decision === "TERMINATE" ? "TERMINATED" : "TERMINATION_ABORTED",
         updatedAt: new Date(),
-      })
+      } as any)
       .where(eq(terminationProcesses.id, process.id))
       .returning();
 
@@ -516,7 +516,7 @@ export class TerminationService {
         terminationReason: payload.decision === "TERMINATE" ? "INCAPACITY" : null,
         terminationAuditFlag: terminationAuditFlag ?? workerCase.terminationAuditFlag ?? null,
         updatedAt: new Date(),
-      })
+      } as any)
       .where(eq(workerCases.id, workerCaseId));
 
     await recordAudit(workerCaseId, "termination_decision", { processId: process.id, decision: payload.decision });
@@ -543,7 +543,7 @@ export class TerminationService {
       .set({
         status: "WORKSAFE_NOTIFIED",
         updatedAt: new Date(),
-      })
+      } as any)
       .where(eq(terminationProcesses.id, process.id))
       .returning();
 

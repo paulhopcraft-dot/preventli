@@ -375,7 +375,7 @@ router.get("/alerts", (_req: AuthRequest, res) => {
 
 // Resolve (dismiss) an alert
 router.post("/alerts/:id/resolve", (req: AuthRequest, res) => {
-  const resolved = resolveAlert(req.params.id);
+  const resolved = resolveAlert(req.params.id as string);
   res.json({ resolved });
 });
 

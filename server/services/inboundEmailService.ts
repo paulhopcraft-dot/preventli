@@ -92,7 +92,7 @@ export async function processInboundEmail(payload: InboundEmailPayload): Promise
     processingStatus: "received",
     source,
     receivedAt: effectiveDate,
-  };
+  } as any;
 
   const savedEmail = await storage.createCaseEmail(emailData);
   log.info("Email stored", { emailId: savedEmail.id, subject });
@@ -106,7 +106,7 @@ export async function processInboundEmail(payload: InboundEmailPayload): Promise
       sizeBytes: att.sizeBytes,
       base64Data: att.base64Data || null,
       isCertificate: isCertificateAttachment(att.filename, att.contentType),
-    };
+    } as any;
     await storage.createEmailAttachment(attachmentData);
   }
 
@@ -161,7 +161,7 @@ export async function processInboundEmail(payload: InboundEmailPayload): Promise
     processingStatus,
     matchMethod: match.method,
     matchConfidence: match.confidence ? String(match.confidence) : null,
-  });
+  } as any);
 
   // 6. Create discussion note from email body
   let discussionNoteCreated = false;
@@ -183,7 +183,7 @@ export async function processInboundEmail(payload: InboundEmailPayload): Promise
         riskFlags: null,
         updatesCompliance: false,
         updatesRecoveryTimeline: detectsCertificateContent(subject, bodyText),
-      }]);
+      } as any]);
       discussionNoteCreated = true;
     } catch (err) {
       log.error("Failed to create discussion note", {}, err);
@@ -390,7 +390,7 @@ async function createCertificateFromEmail(
     sourceReference: `inbound-email`,
     certificateType: "medical_certificate",
     treatingPractitioner: fromName || null,
-  });
+  } as any);
 
   log.info("Certificate created from email", { caseId, capacity, startDate: startDate.toISOString(), endDate: endDate.toISOString() });
 }

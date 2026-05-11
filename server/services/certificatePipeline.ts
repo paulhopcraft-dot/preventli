@@ -104,7 +104,7 @@ export async function processCertificatesFromTicket(
         rawExtractedData: extractedData,
         extractionConfidence: String(extractedData.confidence.overall),
         requiresReview: needsReview,
-      };
+      } as any;
 
       const certificate = await storage.createCertificate(certificateData);
 

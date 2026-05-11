@@ -20,7 +20,6 @@ import actionRoutes from "./routes/actions";
 import smartSummaryRoutes from "./routes/smartSummary";
 import emailDraftRoutes from "./routes/emailDrafts";
 import discordRoutes from "./routes/discord";
-import discordAnalyticsRoutes from "./routes/discord-analytics";
 import notificationRoutes from "./routes/notifications";
 import adminOrganizationRoutes from "./routes/admin/organizations";
 import adminInsurerRoutes from "./routes/admin/insurers";
@@ -232,8 +231,6 @@ export async function registerRoutes(app: Express): Promise<void> {
   // Discord Integration routes (JWT-protected)
   app.use("/api/discord", discordRoutes);
 
-  // Discord Analytics routes (JWT-protected) - Real business data
-  app.use("/api/discord-analytics", discordAnalyticsRoutes);
 
   // Memory API routes (JWT-protected) - Infinite context system
   app.use("/api/v1/memory", memoryRoutes);
@@ -1337,7 +1334,7 @@ User question: ${message}`;
     }
 
     try {
-      const workerName = req.params.workerName.toLowerCase();
+      const workerName = (req.params.workerName as string).toLowerCase();
       const freshdesk = new FreshdeskService();
       const tickets = await freshdesk.fetchTickets();
 
@@ -1583,7 +1580,7 @@ User question: ${message}`;
   // Evaluate a single case against compliance rules
   app.get("/api/cases/:id/compliance/evaluate", authorize(), requireCaseOwnership(), async (req: AuthRequest, res) => {
     try {
-      const caseId = req.params.id;
+      const caseId = req.params.id as string;
       const { evaluateCase } = await import("./services/complianceEngine");
 
       logger.compliance.info("Evaluating case compliance", {
@@ -2078,7 +2075,7 @@ User question: ${message}`;
   // Accept AI suggestion for injury date (admin only)
   app.post("/api/injury-dates/:caseId/accept", authorize(["admin"]), async (req: AuthRequest, res) => {
     try {
-      const { caseId } = req.params;
+      const caseId = req.params.caseId as string;
       const userId = req.user!.id;
       const organizationId = req.user!.organizationId;
 
@@ -2151,7 +2148,7 @@ User question: ${message}`;
   // Correct injury date with manual input (admin only)
   app.post("/api/injury-dates/:caseId/correct", authorize(["admin"]), async (req: AuthRequest, res) => {
     try {
-      const { caseId } = req.params;
+      const caseId = req.params.caseId as string;
       const { newDate, reason } = req.body;
       const userId = req.user!.id;
       const organizationId = req.user!.organizationId;

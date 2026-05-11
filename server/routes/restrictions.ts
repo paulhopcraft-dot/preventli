@@ -29,7 +29,7 @@ router.get(
   requireCaseOwnership(),
   async (req: AuthRequest, res) => {
     try {
-      const caseId = req.params.id;
+      const caseId = req.params.id as string;
       const organizationId = req.user!.organizationId;
 
       const result = await storage.getCurrentRestrictions(caseId, organizationId);

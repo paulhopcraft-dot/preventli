@@ -313,7 +313,7 @@ router.post("/", async (req: AuthRequest, res) => {
       startDate: new Date(planData.startDate),
       restrictionReviewDate,
       createdBy: userId,
-      schedule: planData.schedule,
+      schedule: planData.schedule as any,
       duties: filteredDuties,
     });
 
@@ -388,7 +388,7 @@ router.get("/", async (req: AuthRequest, res) => {
  */
 router.get("/:planId", async (req: AuthRequest, res) => {
   try {
-    const { planId } = req.params;
+    const planId = req.params.planId as string;
     const organizationId = req.user!.organizationId;
 
     const plan = await storage.getRTWPlanById(planId, organizationId);
@@ -428,7 +428,7 @@ router.get("/:planId", async (req: AuthRequest, res) => {
  */
 router.get("/:planId/details", async (req: AuthRequest, res) => {
   try {
-    const { planId } = req.params;
+    const planId = req.params.planId as string;
     const organizationId = req.user!.organizationId;
 
     const details = await storage.getRTWPlanFullDetails(planId, organizationId);
@@ -572,7 +572,7 @@ function buildEmailContext(details: Awaited<ReturnType<typeof storage.getRTWPlan
  */
 router.get("/:planId/email", async (req: AuthRequest, res) => {
   try {
-    const { planId } = req.params;
+    const planId = req.params.planId as string;
     const organizationId = req.user!.organizationId;
 
     // Check for existing email draft
@@ -636,7 +636,7 @@ router.get("/:planId/email", async (req: AuthRequest, res) => {
  */
 router.post("/:planId/email/regenerate", async (req: AuthRequest, res) => {
   try {
-    const { planId } = req.params;
+    const planId = req.params.planId as string;
     const organizationId = req.user!.organizationId;
 
     // Get plan details
@@ -694,7 +694,7 @@ router.post("/:planId/email/regenerate", async (req: AuthRequest, res) => {
  */
 router.post("/:planId/email/send", async (req: AuthRequest, res) => {
   try {
-    const { planId } = req.params;
+    const planId = req.params.planId as string;
     const { recipientEmail, subject, body } = req.body;
 
     if (!recipientEmail || !subject || !body) {

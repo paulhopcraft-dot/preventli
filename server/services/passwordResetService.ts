@@ -61,7 +61,7 @@ export async function requestPasswordReset(email: string): Promise<{ success: tr
   // Invalidate any existing reset tokens for this user
   await db
     .update(passwordResetTokens)
-    .set({ usedAt: new Date() })
+    .set({ usedAt: new Date() } as any)
     .where(and(
       eq(passwordResetTokens.userId, userId),
       isNull(passwordResetTokens.usedAt)
@@ -191,7 +191,7 @@ export async function resetPassword(
   // Mark token as used
   await db
     .update(passwordResetTokens)
-    .set({ usedAt: new Date() })
+    .set({ usedAt: new Date() } as any)
     .where(eq(passwordResetTokens.id, resetToken.id));
 
   // Revoke all refresh tokens (logout from all devices)
