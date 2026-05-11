@@ -359,14 +359,14 @@ router.post("/clients", requirePartner, async (req: AuthRequest, res: Response) 
           notificationEmails: data.notificationEmails ?? null,
           employeeCount: data.employeeCount ?? null,
           notes: data.notes ?? null,
-        })
+        } as any)
         .returning();
 
       await tx.insert(partnerUserOrganizations).values({
         userId,
         organizationId: inserted.id,
         grantedBy: userId,
-      });
+      } as any);
 
       return inserted;
     });
@@ -404,7 +404,7 @@ router.post("/clients", requirePartner, async (req: AuthRequest, res: Response) 
 router.get("/clients/:id", requirePartner, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
-    const { id } = req.params;
+    const id = req.params.id as string;
 
     const access = await db
       .select({ orgId: partnerUserOrganizations.organizationId })
@@ -446,7 +446,7 @@ router.get("/clients/:id", requirePartner, async (req: AuthRequest, res: Respons
 router.patch("/clients/:id", requirePartner, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
-    const { id } = req.params;
+    const id = req.params.id as string;
 
     const parsed = updatePartnerClientSchema.safeParse(req.body);
     if (!parsed.success) {
