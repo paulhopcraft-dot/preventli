@@ -347,7 +347,7 @@ function EmployerDashboardContent() {
             </div>
           </CardContent>
         </Card>
-      </div>
+      )}
 
       {/* All Cases — flat list sorted by risk level */}
       <Card className="bg-card shadow-lg border-0">
