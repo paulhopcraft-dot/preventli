@@ -38,12 +38,59 @@ interface ReviewFormData {
   reason: string;
 }
 
+const CONFIDENCE_VALUES: Record<string, number> = { high: 0.9, medium: 0.7, low: 0.3 };
+
+const SOURCE_LABELS: Record<string, string> = {
+  verified: "Custom Field",
+  extracted: "Text Extraction",
+  ai_extracted: "AI Analysis",
+  fallback: "Ticket Date",
+};
+
+const METHOD_LABELS: Record<string, string> = {
+  custom_field: "Field",
+  regex: "Regex",
+  ai_nlp: "AI",
+  fallback: "Fallback",
+};
+
+const formatDate = (date: string | Date | null | undefined): string => {
+  if (!date) return "";
+  const d = typeof date === "string" ? new Date(date) : date;
+  return d.toISOString().split("T")[0];
+};
+
+const formatDisplayDate = (date: string | Date | null | undefined): string => {
+  if (!date) return "Not set";
+  const d = typeof date === "string" ? new Date(date) : date;
+  return d.toLocaleDateString("en-AU", { day: "2-digit", month: "short", year: "numeric" });
+};
+
+const getConfidenceBadge = (confidence: "high" | "medium" | "low") => {
+  const config = {
+    high: { cls: "bg-emerald-100 text-emerald-800", label: "High Confidence" },
+    medium: { cls: "bg-amber-100 text-amber-800", label: "Medium Confidence" },
+    low: { cls: "bg-red-100 text-red-800", label: "Low Confidence" },
+  }[confidence];
+  return <Badge className={config.cls}>{config.label}</Badge>;
+};
+
+const getSourceBadge = (source: string, method: string) => (
+  <Badge variant="outline" className="text-xs">
+    {SOURCE_LABELS[source] || source} ({METHOD_LABELS[method] || method})
+  </Badge>
+);
+
+const calcAvgConfidence = (cases: InjuryDateReviewItem[]): string => {
+  if (cases.length === 0) return "N/A";
+  const avg =
+    cases.reduce((acc, c) => acc + (CONFIDENCE_VALUES[c.confidence] ?? 0.3), 0) / cases.length;
+  return Math.round(avg * 100) + "%";
+};
+
 export default function InjuryDateReviewPage() {
   const [selectedCase, setSelectedCase] = useState<InjuryDateReviewItem | null>(null);
-  const [formData, setFormData] = useState<ReviewFormData>({
-    newDate: "",
-    reason: "",
-  });
+  const [formData, setFormData] = useState<ReviewFormData>({ newDate: "", reason: "" });
   const [reviewAction, setReviewAction] = useState<"accept" | "correct" | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -54,21 +101,18 @@ export default function InjuryDateReviewPage() {
 
   const cases = response?.data || [];
 
+  const invalidateQueue = () =>
+    queryClient.invalidateQueries({ queryKey: ["/api/injury-dates/review-queue"] });
+
   const acceptMutation = useMutation({
-    mutationFn: (caseId: string) =>
-      apiRequest('POST', `/api/injury-dates/${caseId}/accept`),
+    mutationFn: (caseId: string) => apiRequest("POST", `/api/injury-dates/${caseId}/accept`),
     onSuccess: () => {
       toast({ title: "Date accepted", description: "The extracted date has been approved." });
-      queryClient.invalidateQueries({ queryKey: ["/api/injury-dates/review-queue"] });
+      invalidateQueue();
       setSelectedCase(null);
     },
-    onError: (error) => {
-      toast({
-        title: "Failed to accept date",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
+    onError: (error: Error) =>
+      toast({ title: "Failed to accept date", description: error.message, variant: "destructive" }),
   });
 
   const correctMutation = useMutation({
@@ -76,27 +120,19 @@ export default function InjuryDateReviewPage() {
       apiRequest("POST", `/api/injury-dates/${caseId}/correct`, { newDate, reason }),
     onSuccess: () => {
       toast({ title: "Date corrected", description: "The injury date has been updated successfully." });
-      queryClient.invalidateQueries({ queryKey: ["/api/injury-dates/review-queue"] });
+      invalidateQueue();
       setSelectedCase(null);
       setFormData({ newDate: "", reason: "" });
     },
-    onError: (error) => {
-      toast({
-        title: "Failed to correct date",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
+    onError: (error: Error) =>
+      toast({ title: "Failed to correct date", description: error.message, variant: "destructive" }),
   });
 
   const openReviewDialog = (reviewCase: InjuryDateReviewItem, action: "accept" | "correct") => {
     setSelectedCase(reviewCase);
     setReviewAction(action);
     if (action === "correct") {
-      setFormData({
-        newDate: formatDate(reviewCase.currentDate),
-        reason: "",
-      });
+      setFormData({ newDate: formatDate(reviewCase.currentDate), reason: "" });
     }
   };
 
@@ -105,79 +141,23 @@ export default function InjuryDateReviewPage() {
 
     if (reviewAction === "accept") {
       await acceptMutation.mutateAsync(selectedCase.caseId);
-    } else if (reviewAction === "correct") {
-      if (!formData.newDate) {
-        toast({
-          title: "Date required",
-          description: "Please enter a new injury date.",
-          variant: "destructive",
-        });
-        return;
-      }
-      if (!formData.reason.trim()) {
-        toast({
-          title: "Reason required",
-          description: "Please provide a reason for the correction.",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      await correctMutation.mutateAsync({
-        caseId: selectedCase.caseId,
-        newDate: formData.newDate,
-        reason: formData.reason,
-      });
+      return;
     }
-  };
 
-  const formatDate = (date: string | Date | null | undefined): string => {
-    if (!date) return "";
-    const d = typeof date === "string" ? new Date(date) : date;
-    return d.toISOString().split("T")[0];
-  };
+    if (!formData.newDate) {
+      toast({ title: "Date required", description: "Please enter a new injury date.", variant: "destructive" });
+      return;
+    }
+    if (!formData.reason.trim()) {
+      toast({ title: "Reason required", description: "Please provide a reason for the correction.", variant: "destructive" });
+      return;
+    }
 
-  const formatDisplayDate = (date: string | Date | null | undefined): string => {
-    if (!date) return "Not set";
-    const d = typeof date === "string" ? new Date(date) : date;
-    return d.toLocaleDateString("en-AU", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
+    await correctMutation.mutateAsync({
+      caseId: selectedCase.caseId,
+      newDate: formData.newDate,
+      reason: formData.reason,
     });
-  };
-
-  const getConfidenceBadge = (confidence: "high" | "medium" | "low") => {
-    switch (confidence) {
-      case "high":
-        return <Badge className="bg-emerald-100 text-emerald-800">High Confidence</Badge>;
-      case "medium":
-        return <Badge className="bg-amber-100 text-amber-800">Medium Confidence</Badge>;
-      case "low":
-        return <Badge className="bg-red-100 text-red-800">Low Confidence</Badge>;
-    }
-  };
-
-  const getSourceBadge = (source: string, method: string) => {
-    const sourceLabels: Record<string, string> = {
-      verified: "Custom Field",
-      extracted: "Text Extraction",
-      ai_extracted: "AI Analysis",
-      fallback: "Ticket Date"
-    };
-
-    const methodLabels: Record<string, string> = {
-      custom_field: "Field",
-      regex: "Regex",
-      ai_nlp: "AI",
-      fallback: "Fallback"
-    };
-
-    return (
-      <Badge variant="outline" className="text-xs">
-        {sourceLabels[source] || source} ({methodLabels[method] || method})
-      </Badge>
-    );
   };
 
   if (isLoading) {
@@ -192,16 +172,15 @@ export default function InjuryDateReviewPage() {
     );
   }
 
+  const isPending = acceptMutation.isPending || correctMutation.isPending;
+
   return (
     <PageLayout title="Injury Date Review" subtitle="Review injury dates with uncertain extraction confidence">
       <div className="space-y-6">
-        {/* Stats */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Pending Review
-              </CardTitle>
+              <CardTitle className="text-sm font-medium text-muted-foreground">Pending Review</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-amber-600">{cases.length}</div>
@@ -209,34 +188,15 @@ export default function InjuryDateReviewPage() {
           </Card>
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Avg Confidence
-              </CardTitle>
+              <CardTitle className="text-sm font-medium text-muted-foreground">Avg Confidence</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">
-                {cases.length > 0
-                  ? (() => {
-                      const confidenceValues = cases.map(c => {
-                        switch (c.confidence) {
-                          case "high": return 0.9;
-                          case "medium": return 0.7;
-                          case "low": return 0.3;
-                          default: return 0.3;
-                        }
-                      });
-                      const avg = confidenceValues.reduce((acc, val) => acc + val, 0) / confidenceValues.length;
-                      return Math.round(avg * 100) + "%";
-                    })()
-                  : "N/A"}
-              </div>
+              <div className="text-2xl font-bold">{calcAvgConfidence(cases)}</div>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Review Queue Status
-              </CardTitle>
+              <CardTitle className="text-sm font-medium text-muted-foreground">Review Queue Status</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-emerald-600">
@@ -246,7 +206,6 @@ export default function InjuryDateReviewPage() {
           </Card>
         </div>
 
-        {/* Cases List */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -271,9 +230,7 @@ export default function InjuryDateReviewPage() {
                     className="flex items-start gap-4 p-4 border rounded-lg hover:bg-accent/50 transition-colors"
                   >
                     <div className="flex-shrink-0 w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center">
-                      <span className="material-symbols-outlined text-amber-600 text-lg">
-                        event
-                      </span>
+                      <span className="material-symbols-outlined text-amber-600 text-lg">event</span>
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
@@ -314,17 +271,10 @@ export default function InjuryDateReviewPage() {
                       </div>
                     </div>
                     <div className="flex gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => openReviewDialog(reviewCase, "accept")}
-                      >
+                      <Button variant="outline" size="sm" onClick={() => openReviewDialog(reviewCase, "accept")}>
                         Accept
                       </Button>
-                      <Button
-                        size="sm"
-                        onClick={() => openReviewDialog(reviewCase, "correct")}
-                      >
+                      <Button size="sm" onClick={() => openReviewDialog(reviewCase, "correct")}>
                         Correct
                       </Button>
                     </div>
@@ -336,7 +286,6 @@ export default function InjuryDateReviewPage() {
         </Card>
       </div>
 
-      {/* Review Dialog */}
       <Dialog open={!!selectedCase} onOpenChange={(open) => !open && setSelectedCase(null)}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
@@ -352,21 +301,12 @@ export default function InjuryDateReviewPage() {
 
           {selectedCase && (
             <div className="space-y-4 py-4">
-              {/* Case Summary */}
               <div className="bg-muted/30 p-4 rounded-lg">
                 <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <span className="font-medium">Worker:</span> {selectedCase.workerName}
-                  </div>
-                  <div>
-                    <span className="font-medium">Company:</span> {selectedCase.company}
-                  </div>
-                  <div>
-                    <span className="font-medium">Current Date:</span> {formatDisplayDate(selectedCase.currentDate)}
-                  </div>
-                  <div>
-                    <span className="font-medium">Confidence:</span> {selectedCase.confidence}
-                  </div>
+                  <div><span className="font-medium">Worker:</span> {selectedCase.workerName}</div>
+                  <div><span className="font-medium">Company:</span> {selectedCase.company}</div>
+                  <div><span className="font-medium">Current Date:</span> {formatDisplayDate(selectedCase.currentDate)}</div>
+                  <div><span className="font-medium">Confidence:</span> {selectedCase.confidence}</div>
                 </div>
                 {selectedCase.sourceText && (
                   <div className="mt-3">
@@ -386,7 +326,6 @@ export default function InjuryDateReviewPage() {
                 )}
               </div>
 
-              {/* Correction Form */}
               {reviewAction === "correct" && (
                 <div className="space-y-4">
                   <div className="space-y-2">
@@ -417,15 +356,12 @@ export default function InjuryDateReviewPage() {
             <Button variant="outline" onClick={() => setSelectedCase(null)}>
               Cancel
             </Button>
-            <Button
-              onClick={handleSubmit}
-              disabled={acceptMutation.isPending || correctMutation.isPending}
-            >
-              {acceptMutation.isPending || correctMutation.isPending ? (
+            <Button onClick={handleSubmit} disabled={isPending}>
+              {isPending && (
                 <span className="material-symbols-outlined animate-spin text-sm mr-1">
                   progress_activity
                 </span>
-              ) : null}
+              )}
               {reviewAction === "accept" ? "Accept Date" : "Save Correction"}
             </Button>
           </DialogFooter>
