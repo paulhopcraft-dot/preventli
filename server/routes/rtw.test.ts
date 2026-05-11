@@ -9,9 +9,8 @@ import type { RTWPlanStatus } from "@shared/schema";
 // Valid RTW plan status transitions (copied from rtw.ts for testing)
 const VALID_TRANSITIONS: Record<RTWPlanStatus, RTWPlanStatus[]> = {
   not_planned: ["planned_not_started"],
-  pending_employer_review: ["in_progress", "not_planned", "on_hold"],
-  planned_not_started: ["in_progress", "on_hold", "not_planned", "pending_employer_review"],
-  in_progress: ["working_well", "failing", "on_hold", "completed", "pending_employer_review"],
+  planned_not_started: ["in_progress", "on_hold", "not_planned"],
+  in_progress: ["working_well", "failing", "on_hold", "completed"],
   working_well: ["in_progress", "completed", "on_hold"],
   failing: ["in_progress", "on_hold", "not_planned"],
   on_hold: ["planned_not_started", "in_progress", "not_planned"],
