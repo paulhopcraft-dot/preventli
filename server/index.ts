@@ -4,7 +4,6 @@ import express, { type Request, Response, NextFunction } from "express";
 import cors from "cors";
 import path from "path";
 import { registerRoutes } from "./routes";
-import { autoSeedPartnerIfMissing } from "./auto-seed-partner";
 import { setupVite, serveStatic } from "./vite";
 import { TranscriptIngestionModule } from "./services/transcripts";
 import { NotificationScheduler } from "./services/notificationScheduler";
@@ -192,10 +191,6 @@ const startServer = async () => {
   }
 
   await registerRoutes(app);
-
-  // Demo-only: kick off the WorkBetter partner-tier seed if it hasn't run yet.
-  // Self-gating via canary org id; remove this call + module after the demo.
-  await autoSeedPartnerIfMissing();
 
   // API docs — registered after all routes so it wins over the catch-all below.
   // Override CSP: Swagger UI requires 'unsafe-inline' for its bundled scripts/styles.

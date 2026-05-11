@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { PageLayout } from "@/components/PageLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,8 +12,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { WorkerCase, PaginatedCasesResponse } from "@shared/schema";
-import { isLegitimateCase } from "@shared/schema";
 
 interface AuditEntry {
   id: string;
@@ -26,115 +24,64 @@ interface AuditEntry {
   category: string;
 }
 
+interface AuditResponse {
+  entries: AuditEntry[];
+  total: number;
+}
+
+/**
+ * Convert a dateRange shorthand ("1d", "7d", "30d", "90d", "all") to an ISO
+ * date string suitable for the ?dateFrom query parameter, or undefined for "all".
+ */
+function dateFromRange(range: string): string | undefined {
+  const daysMap: Record<string, number> = {
+    "1d": 1,
+    "7d": 7,
+    "30d": 30,
+    "90d": 90,
+  };
+  const days = daysMap[range];
+  if (!days) return undefined;
+  return new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+}
+
+async function fetchAuditEvents(
+  category: string,
+  dateRange: string,
+  search: string
+): Promise<AuditResponse> {
+  const params = new URLSearchParams();
+  if (category !== "all") params.set("category", category);
+  const dateFrom = dateFromRange(dateRange);
+  if (dateFrom) params.set("dateFrom", dateFrom);
+  if (search.trim()) params.set("search", search.trim());
+  params.set("limit", "200");
+
+  const res = await fetch(`/api/audit-events?${params.toString()}`, {
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error("Failed to fetch audit events");
+  return res.json();
+}
+
 export default function AuditLogPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [dateRange, setDateRange] = useState("7d");
 
-  const { data: paginatedData, isLoading } = useQuery<PaginatedCasesResponse>({
-    queryKey: ["/api/cases"],
+  const { data, isLoading, error } = useQuery<AuditResponse>({
+    queryKey: ["/api/audit-events", categoryFilter, dateRange, searchQuery],
+    queryFn: () => fetchAuditEvents(categoryFilter, dateRange, searchQuery),
   });
-  const cases = paginatedData?.cases ?? [];
 
-  // Generate mock audit entries based on case data
-  const auditEntries = useMemo(() => {
-    const legitimate = cases.filter(isLegitimateCase);
-    const entries: AuditEntry[] = [];
-    const users = ["System", "CLC Team", "Case Manager", "Admin"];
-    const now = new Date();
+  const entries = data?.entries ?? [];
+  const total = data?.total ?? 0;
 
-    legitimate.forEach((c, index) => {
-      // Case created
-      entries.push({
-        id: `audit-${c.id}-created`,
-        timestamp: c.dateOfInjury,
-        action: "Case Created",
-        user: "System",
-        caseId: c.id,
-        workerName: c.workerName,
-        details: `New case created for ${c.workerName} at ${c.company}`,
-        category: "case",
-      });
+  const caseCount = entries.filter((e) => e.category === "case").length;
+  const aiCount = entries.filter((e) => e.category === "ai").length;
+  const complianceCount = entries.filter((e) => e.category === "compliance").length;
 
-      // Status updates
-      if (c.ticketLastUpdatedAt) {
-        entries.push({
-          id: `audit-${c.id}-updated`,
-          timestamp: c.ticketLastUpdatedAt,
-          action: "Case Updated",
-          user: users[index % users.length],
-          caseId: c.id,
-          workerName: c.workerName,
-          details: `Case status updated: ${c.currentStatus}`,
-          category: "status",
-        });
-      }
-
-      // AI summary generated
-      if (c.aiSummary) {
-        const summaryDate = new Date(c.ticketLastUpdatedAt || now);
-        summaryDate.setHours(summaryDate.getHours() + 1);
-        entries.push({
-          id: `audit-${c.id}-summary`,
-          timestamp: summaryDate.toISOString(),
-          action: "AI Summary Generated",
-          user: "System",
-          caseId: c.id,
-          workerName: c.workerName,
-          details: "AI case summary was generated using Claude",
-          category: "ai",
-        });
-      }
-
-      // Compliance check
-      if (c.compliance) {
-        entries.push({
-          id: `audit-${c.id}-compliance`,
-          timestamp: c.compliance.lastChecked,
-          action: "Compliance Check",
-          user: "System",
-          caseId: c.id,
-          workerName: c.workerName,
-          details: `Compliance: ${c.compliance.indicator} - ${c.compliance.reason}`,
-          category: "compliance",
-        });
-      }
-    });
-
-    // Sort by timestamp descending
-    return entries.sort((a, b) =>
-      new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-    );
-  }, [cases]);
-
-  const filteredEntries = useMemo(() => {
-    const now = new Date();
-    const daysMap: Record<string, number> = {
-      "1d": 1,
-      "7d": 7,
-      "30d": 30,
-      "90d": 90,
-      "all": 365 * 10,
-    };
-    const days = daysMap[dateRange] || 7;
-    const cutoff = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
-
-    return auditEntries.filter((entry) => {
-      const entryDate = new Date(entry.timestamp);
-      const withinDateRange = entryDate >= cutoff;
-      const matchesSearch =
-        !searchQuery ||
-        entry.workerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        entry.action.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        entry.details.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesCategory =
-        categoryFilter === "all" || entry.category === categoryFilter;
-
-      return withinDateRange && matchesSearch && matchesCategory;
-    });
-  }, [auditEntries, searchQuery, categoryFilter, dateRange]);
-
-  const categoryColor = (category: string) => {
+  const categoryColor = (category: string): string => {
     switch (category) {
       case "case":
         return "bg-blue-100 text-blue-800";
@@ -149,7 +96,22 @@ export default function AuditLogPage() {
     }
   };
 
-  const formatTimestamp = (timestamp: string) => {
+  const categoryIcon = (category: string): string => {
+    switch (category) {
+      case "case":
+        return "folder";
+      case "status":
+        return "sync";
+      case "ai":
+        return "psychology";
+      case "compliance":
+        return "verified";
+      default:
+        return "history";
+    }
+  };
+
+  const formatTimestamp = (timestamp: string): string => {
     const date = new Date(timestamp);
     return date.toLocaleString("en-AU", {
       day: "2-digit",
@@ -180,7 +142,7 @@ export default function AuditLogPage() {
           <CardContent className="pt-6">
             <div className="flex flex-col sm:flex-row gap-4">
               <Input
-                placeholder="Search by worker name, action, or details..."
+                placeholder="Search by action, resource, or details..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="max-w-sm"
@@ -232,7 +194,12 @@ export default function AuditLogPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{filteredEntries.length}</div>
+              <div className="text-2xl font-bold">{total}</div>
+              {entries.length < total && (
+                <p className="text-xs text-muted-foreground">
+                  showing {entries.length}
+                </p>
+              )}
             </CardContent>
           </Card>
           <Card>
@@ -242,9 +209,7 @@ export default function AuditLogPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-blue-600">
-                {filteredEntries.filter((e) => e.category === "case").length}
-              </div>
+              <div className="text-2xl font-bold text-blue-600">{caseCount}</div>
             </CardContent>
           </Card>
           <Card>
@@ -254,9 +219,7 @@ export default function AuditLogPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-purple-600">
-                {filteredEntries.filter((e) => e.category === "ai").length}
-              </div>
+              <div className="text-2xl font-bold text-purple-600">{aiCount}</div>
             </CardContent>
           </Card>
           <Card>
@@ -267,7 +230,7 @@ export default function AuditLogPage() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-emerald-600">
-                {filteredEntries.filter((e) => e.category === "compliance").length}
+                {complianceCount}
               </div>
             </CardContent>
           </Card>
@@ -282,27 +245,30 @@ export default function AuditLogPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {filteredEntries.length === 0 ? (
+            {error ? (
+              <div className="text-center py-12 text-destructive">
+                <span className="material-symbols-outlined text-4xl mb-4">
+                  error
+                </span>
+                <p>Failed to load audit events. Please try again.</p>
+              </div>
+            ) : entries.length === 0 ? (
               <div className="text-center py-12 text-muted-foreground">
-                <span className="material-symbols-outlined text-4xl mb-4">search_off</span>
+                <span className="material-symbols-outlined text-4xl mb-4">
+                  search_off
+                </span>
                 <p>No audit entries found matching your filters.</p>
               </div>
             ) : (
               <div className="space-y-4">
-                {filteredEntries.slice(0, 50).map((entry) => (
+                {entries.map((entry) => (
                   <div
                     key={entry.id}
                     className="flex items-start gap-4 p-4 border rounded-lg hover:bg-accent/50 transition-colors"
                   >
                     <div className="flex-shrink-0 w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
                       <span className="material-symbols-outlined text-primary text-lg">
-                        {entry.category === "case"
-                          ? "folder"
-                          : entry.category === "status"
-                            ? "sync"
-                            : entry.category === "ai"
-                              ? "psychology"
-                              : "verified"}
+                        {categoryIcon(entry.category)}
                       </span>
                     </div>
                     <div className="flex-1 min-w-0">
@@ -316,16 +282,19 @@ export default function AuditLogPage() {
                         {entry.details}
                       </p>
                       <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
-                        <span>Worker: {entry.workerName}</span>
+                        {entry.workerName && (
+                          <span>Worker: {entry.workerName}</span>
+                        )}
                         <span>By: {entry.user}</span>
                         <span>{formatTimestamp(entry.timestamp)}</span>
                       </div>
                     </div>
                   </div>
                 ))}
-                {filteredEntries.length > 50 && (
+                {total > entries.length && (
                   <p className="text-center text-sm text-muted-foreground pt-4">
-                    Showing first 50 entries. Refine your filters to see more specific results.
+                    Showing {entries.length} of {total} entries. Refine your
+                    filters to see more specific results.
                   </p>
                 )}
               </div>

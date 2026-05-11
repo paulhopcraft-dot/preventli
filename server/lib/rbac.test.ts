@@ -11,7 +11,7 @@ const baseCase: WorkerCase = {
   riskLevel: "Medium",
   workStatus: "Off work",
   hasCertificate: true,
-  complianceIndicator: "Green",
+  complianceIndicator: "Medium",
   currentStatus: "Active",
   nextStep: "Review certificate",
   owner: "admin",
@@ -20,8 +20,8 @@ const baseCase: WorkerCase = {
   ticketIds: ["T-1"],
   ticketCount: 1,
   // Clinical fields
-  specialistStatus: { hasBeenReferred: true, hasAttended: false, hasReport: false },
-  specialistReportSummary: { id: "sr-1", caseId: "case-1", summary: "MRI pending", createdAt: "2025-01-20", updatedAt: "2025-01-20" },
+  specialistStatus: "referred",
+  specialistReportSummary: { diagnosisSummary: "MRI pending" },
   aiSummary: "Worker has chronic lumbar disc injury requiring specialist care",
   aiSummaryGeneratedAt: "2025-01-22T10:00:00Z",
   aiSummaryModel: "claude-opus",
@@ -32,16 +32,16 @@ const baseCase: WorkerCase = {
     hasCurrentCertificate: true,
     isImprovingOnExpectedTimeline: null,
     dutySafetyStatus: "unknown",
-    specialistStatus: { hasBeenReferred: true, hasAttended: false, hasReport: false },
+    specialistStatus: "referred",
     specialistReportPresent: false,
     specialistReportCurrent: null,
     flags: [],
   },
   // Non-clinical fields
-  medicalConstraints: { description: "No lifting > 5kg", restrictions: ["no-lifting"] },
-  functionalCapacity: { overallCapacity: "partial", workHoursPerDay: 4 },
-  rtwPlanStatus: { status: "in_progress", planId: "rtw-1", startDate: "2025-02-01", targetReturnDate: "2025-03-01" },
-  complianceStatus: { isCompliant: true, checks: [] },
+  medicalConstraints: { noLiftingOverKg: 5 },
+  functionalCapacity: { maxWorkHoursPerDay: 4 },
+  rtwPlanStatus: "in_progress",
+  complianceStatus: "compliant",
 };
 
 describe("isEmployerRole", () => {
@@ -141,7 +141,7 @@ describe("filterCaseByRole", () => {
     });
 
     it("retains compliance indicator", () => {
-      expect(filtered.complianceIndicator).toBe("Green");
+      expect(filtered.complianceIndicator).toBe("Medium");
     });
 
     it("retains medicalConstraints (RTW coordination)", () => {

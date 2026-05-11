@@ -1,3 +1,138 @@
+## Session 128 (May 10, 2026) — Partial TS fix for feat/timeline-graph (2/14 errors fixed)
+
+### Completed
+- Fixed `server/services/auditLogger.ts`: Added USER_PASSWORD_CHANGE_FAILED and USER_PASSWORD_CHANGE entries to AuditEventTypes const
+- Fixed `server/agent-runner/triggers.ts`: Added `type InsertAgentJob` import; cast both `.values({...})` calls as `InsertAgentJob` to satisfy drizzle 0.38.3 excess property check
+- Committed as `22002bf` on feat/timeline-graph
+
+### In Progress
+- 12 TypeScript errors remain in feat/timeline-graph CI (PR #49)
+
+### Next Steps — EXACT fixes needed (in order)
+
+**auth.ts (5 errors):**
+1. Line ~181: `.values({...})` — cast as `typeof users.$inferInsert` (subrole excluded from strict type)
+2. Line ~747: `revokeSession(req.user.id, sessionId)` → `revokeSession(req.user.id, sessionId as string)`
+3. Line ~762: `resourceId: sessionId,` → `resourceId: sessionId as string,`
+4. Line ~842: `eventType: "user.password_change_failed"` → `eventType: AuditEventTypes.USER_PASSWORD_CHANGE_FAILED`
+5. Line ~864: `eventType: "user.password_change"` → `eventType: AuditEventTypes.USER_PASSWORD_CHANGE`
+
+**invites.ts (2 errors):**
+6. Line ~218: `cancelInvite(inviteId)` → `cancelInvite(inviteId as string)`
+7. Line ~270: `resendInvite(inviteId)` → `resendInvite(inviteId as string)`
+
+**webhooks.ts (5 errors):**
+8. Line 5 (import): Add `type InsertMedicalCertificate` to import from `@shared/schema`
+9. Line ~110: `.values({...workerCase fields...})` — cast as `typeof workerCases.$inferInsert` (id excluded, has default)
+10. Line ~234: `storage.createCertificate({...})` argument — cast as `InsertMedicalCertificate` (notes + other optional fields excluded)
+11. Line ~433: `.values({ formId, organizationId, formType, webhookPassword, isActive: true })` — cast as `typeof webhookFormMappings.$inferInsert`
+12. Line ~535: `.set({ isActive: false, updatedAt: new Date() })` — cast as `Partial<typeof webhookFormMappings.$inferInsert>`
+13. Line ~536: `eq(webhookFormMappings.id, id)` → `eq(webhookFormMappings.id, id as string)`
+
+Then: `npx tsc --noEmit -p tsconfig.server.json` via PowerShell → verify 0 errors → commit → push → check CI.
+
+### Blockers
+- Context kept getting compacted mid-session, breaking momentum. Use `/gsd:fast` directly next session.
+- PowerShell MUST be used (not Bash) — node not recognized in Bash tool on this machine.
+
+### Notes
+- drizzle-orm 0.38.3 `$inferInsert` excludes columns with `.default()` and nullable columns → excess property check fails on object literals. Fix = cast as the insert type.
+- `string | string[]` from Express params → add `as string` after truthiness guard already in place.
+- AuditEventTypes entries must go in `server/services/auditLogger.ts`, NOT `shared/schema.ts`.
+- Worktree: `D:\dev\preventli\.claude\worktrees\dreamy-banach-306719`
+
+---
+
+## Session 124 (May 9, 2026) — E2E smoke suite green against production
+
+### Completed
+- **17/17 smoke tests passing** against https://gpnet3.onrender.com
+  - Root cause of prior failure: PowerShell `$env:` syntax used inside bash tool —
+    env var never set, Playwright tried to spin up local dev server, timed out.
+  - Fix: `PLAYWRIGHT_BASE_URL=https://gpnet3.onrender.com npx playwright test ...`
+  - PROD-1 through PROD-5 + INFRA all green. Runtime ~2.3 minutes.
+  - PROD-3 case-detail navigation gracefully `[SKIP]`s when admin has no cases —
+    expected, not a failure.
+- **Pre-deploy gate command** (save this):
+  ```bash
+  PLAYWRIGHT_BASE_URL=https://gpnet3.onrender.com npx playwright test tests/e2e/smoke/production-readiness.spec.ts --reporter=list
+  ```
+
+### Pending
+- **Cowork UI verification** (manual): login workbetter@workbetter.net.au / workbetter123,
+  create assessment, Send to Worker, confirm email from checks@preventli.ai arrives.
+  Required to tick PR #49 test-plan checkbox.
+- **Merge PR #49** — awaiting CI green + cowork verification checkbox.
+- **Optional DB cleanup**: test assessment id `19a2a3bd-320b-484b-bac4-b5172cf72d47`
+  (candidateName "Paul Test") — needs Render psql, no DELETE endpoint exists.
+
+### Blockers
+- None. System working end-to-end.
+
+---
+
+## Session 123 (May 8–9, 2026) — preventli.ai email send live + dead-code cleanup
+
+### Completed
+- **preventli.ai verified in Resend** (Tokyo / ap-northeast-1)
+  - Root cause of "Records point to multiple regions" failure: stale us-east-1
+    MX + old DKIM TXT from prior April attempt still in Vercel DNS
+  - Fix: deleted both old records via Vercel UI; Resend re-checked, flipped
+    Failed → Pending → Verified within ~2 minutes
+- **Render `EMAIL_FROM` updated** on `preventli` service (srv-d6oe74paae7s73a77kpg,
+  gpnet3.onrender.com): `Preventli <onboarding@resend.dev>` → `Preventli <checks@preventli.ai>`
+  Redeployed Live ~21:08 May 8.
+- **End-to-end send test PASSED**:
+  POST /api/auth/login → POST /api/assessments → POST /api/assessments/:id/send
+  → 200 OK, sentTo paul.hopcraft@gmail.com (an arbitrary new recipient, not
+  Paul's resend-verified email — proves sandbox restriction lifted).
+- **Cleanup commit `b8c45dd`** on feat/timeline-graph: 7 files, 619 deletions
+  - Deleted `server/auto-seed-partner.ts` + boot call (demo gate, canary org now in DB)
+  - Deleted `client/src/pages/PartnerCaseDetailPage.tsx` + lazy import + `/partner/cases/:id` route
+  - Deleted matching `GET /api/partner/cases/:id` endpoint in routes/partner.ts (~174 lines)
+  - Removed misleading `organizationName: null` placeholder in routes/public.ts
+  - Deleted `.github/workflows/railway-deploy.yml` (Preventli is on Render)
+- **`npm run build` verified** — passes in 30.92s, no broken imports from cleanup
+- **Render housekeeping**: suspended unused `GPNET3-1` and `preventli-backend`
+  services via dashboard — now only `preventli` (prod) is Active. Future
+  env-var tasks can't accidentally land on the wrong service.
+- **Security cleanup**: deleted local JWT artifacts (login.json, login-fresh.json,
+  swap.json) and send-test.mjs (had hardcoded password)
+- **PR runbook**: `.planning/partner-tier/PR-CLEANUP-DESCRIPTION.md` has the
+  exact `git push` + `gh pr create` commands ready to copy-paste
+
+### In Progress
+- Cowork was sent a UI verification brief (login → create assessment → Send
+  to Worker → confirm Gmail arrival). Status unknown — may have been done.
+
+### Next Steps
+1. **Push `b8c45dd`** — branch is 1 commit ahead of origin/feat/timeline-graph,
+   0 behind. Use commands in `.planning/partner-tier/PR-CLEANUP-DESCRIPTION.md`.
+   The block-dangerous-git.sh hook prevents Claude from pushing autonomously.
+2. **Open PR** for the cleanup commit (description in same runbook)
+3. **Optional**: clean test assessment from prod DB
+   (id `19a2a3bd-320b-484b-bac4-b5172cf72d47`, candidateName "Paul Test").
+   No DELETE endpoint exists — needs SQL via Render psql.
+4. **Optional**: confirm cowork ran the UI verification
+
+### Blockers
+- None. Email pipeline is fully working end-to-end. Cleanup commit is local-only
+  but committed (durable on disk). Push is a one-step manual action.
+
+### Notes
+- **WorkBetter partner login** (prod): workbetter@workbetter.net.au / workbetter123
+- **Service IDs**: `preventli` = srv-d6oe74paae7s73a77kpg (URL gpnet3.onrender.com)
+- **Resend domain status**: preventli.ai Verified, region Tokyo ap-northeast-1
+- **EMAIL_FROM canonical value**: `Preventli <checks@preventli.ai>` (sandbox
+  fallback `Preventli <onboarding@resend.dev>` no longer needed but kept in
+  code as default if env var is unset)
+- **Worktree**: `D:\dev\preventli\.claude\worktrees\dreamy-banach-306719` on
+  `feat/timeline-graph` at `b8c45dd`. 14 worktrees total — see `git worktree list`.
+- **Pre-existing TS errors** in auth/controllers/agent-runner are NOT from this
+  session; they predate the cleanup and are unrelated to the deletion scope.
+
+---
+
 ## Session 113 (May 1, 2026) — GitHub repo rename + rebrand Tier 1/2
 
 ### Completed

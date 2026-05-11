@@ -154,12 +154,12 @@ export interface PerformanceSnapshot {
 
 export function getPerformanceSnapshot(): PerformanceSnapshot {
   const byRoute: Record<string, { avg: number; p95: number; count: number }> = {};
-  for (const [route, buf] of apiLatencies.entries()) {
+  for (const [route, buf] of Array.from(apiLatencies.entries())) {
     byRoute[route] = { avg: buf.avg(), p95: buf.p95(), count: buf.count() };
   }
 
   const byType: Record<string, { avg: number; count: number }> = {};
-  for (const [type, buf] of agentLatencyByType.entries()) {
+  for (const [type, buf] of Array.from(agentLatencyByType.entries())) {
     byType[type] = { avg: buf.avg(), count: buf.count() };
   }
 
