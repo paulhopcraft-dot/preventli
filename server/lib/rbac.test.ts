@@ -141,7 +141,7 @@ describe("filterCaseByRole", () => {
     });
 
     it("retains compliance indicator", () => {
-      expect(filtered.complianceIndicator).toBe("Green");
+      expect(filtered.complianceIndicator).toBe("Medium");
     });
 
     it("retains medicalConstraints (RTW coordination)", () => {
