@@ -1087,6 +1087,40 @@ User question: ${message}`;
     }
   });
 
+  // Convert health-check case to injury case
+  app.post(
+    "/api/cases/:id/convert-to-injury",
+    authorize(),
+    requireCaseOwnership(),
+    async (req: AuthRequest, res) => {
+      try {
+        const caseId = req.params.id;
+        const organizationId = req.user!.organizationId;
+
+        // Promote to injury type; the assessment link is preserved for audit trail
+        const updated = await storage.updateWorkerCaseType(caseId, organizationId, "injury");
+        if (!updated) {
+          return res.status(404).json({ error: "Case not found" });
+        }
+
+        await logAuditEvent({
+          userId: req.user!.id,
+          organizationId,
+          eventType: AuditEventTypes.CASE_UPDATE,
+          resourceType: "case",
+          resourceId: caseId,
+          metadata: { action: "convert-to-injury" },
+          ...getRequestMetadata(req),
+        });
+
+        res.json({ success: true, case: updated });
+      } catch (error) {
+        routeLogger.error("convert-to-injury failed", { error });
+        res.status(500).json({ error: "Failed to convert case" });
+      }
+    }
+  );
+
   // Close case endpoint
   const closeCaseSchema = z.object({
     reason: z.string().optional(),
