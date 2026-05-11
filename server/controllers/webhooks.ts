@@ -121,7 +121,7 @@ async function handleWorkerInjuryForm(formData: any, organizationId: string) {
     owner: "Unassigned",
     dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0], // 7 days from now
     summary,
-  });
+  } as any);
 
   logger.webhook.info("Worker injury case created", {
     workerName,
@@ -239,7 +239,7 @@ async function handleMedicalCertificateForm(formData: any, organizationId: strin
     organizationId,
     treatingPractitioner: practitioner,
     restrictions,
-  });
+  } as any);
 
   logger.webhook.info("Medical certificate created from webhook", {
     certificateId: certificate.id,
@@ -436,7 +436,7 @@ export async function registerWebhookForm(req: AuthRequest, res: Response) {
         formType,
         webhookPassword,
         isActive: true,
-      })
+      } as any)
       .returning();
 
     res.status(201).json({
@@ -528,11 +528,11 @@ export async function deactivateWebhookForm(req: AuthRequest, res: Response) {
       });
     }
 
-    const { id } = req.params;
+    const id = req.params.id as string;
 
     const [updated] = await db
       .update(webhookFormMappings)
-      .set({ isActive: false, updatedAt: new Date() })
+      .set({ isActive: false, updatedAt: new Date() } as any)
       .where(eq(webhookFormMappings.id, id))
       .returning();
 

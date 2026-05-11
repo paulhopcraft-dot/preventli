@@ -1337,7 +1337,7 @@ User question: ${message}`;
     }
 
     try {
-      const workerName = req.params.workerName.toLowerCase();
+      const workerName = (req.params.workerName as string).toLowerCase();
       const freshdesk = new FreshdeskService();
       const tickets = await freshdesk.fetchTickets();
 
@@ -1583,7 +1583,7 @@ User question: ${message}`;
   // Evaluate a single case against compliance rules
   app.get("/api/cases/:id/compliance/evaluate", authorize(), requireCaseOwnership(), async (req: AuthRequest, res) => {
     try {
-      const caseId = req.params.id;
+      const caseId = req.params.id as string;
       const { evaluateCase } = await import("./services/complianceEngine");
 
       logger.compliance.info("Evaluating case compliance", {
@@ -2078,7 +2078,7 @@ User question: ${message}`;
   // Accept AI suggestion for injury date (admin only)
   app.post("/api/injury-dates/:caseId/accept", authorize(["admin"]), async (req: AuthRequest, res) => {
     try {
-      const { caseId } = req.params;
+      const caseId = req.params.caseId as string;
       const userId = req.user!.id;
       const organizationId = req.user!.organizationId;
 
@@ -2151,7 +2151,7 @@ User question: ${message}`;
   // Correct injury date with manual input (admin only)
   app.post("/api/injury-dates/:caseId/correct", authorize(["admin"]), async (req: AuthRequest, res) => {
     try {
-      const { caseId } = req.params;
+      const caseId = req.params.caseId as string;
       const { newDate, reason } = req.body;
       const userId = req.user!.id;
       const organizationId = req.user!.organizationId;

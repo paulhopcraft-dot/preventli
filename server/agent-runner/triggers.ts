@@ -84,7 +84,7 @@ export class AgentScheduler {
               status: "queued",
               triggeredBy: "cron",
               context: { runDate: new Date().toISOString() },
-            })
+            } as any)
             .returning();
 
           jobQueue.push({ id: job.id, orgId: org.id });
@@ -157,7 +157,7 @@ export class AgentScheduler {
                   daysUntilExpiry,
                   runDate: new Date().toISOString(),
                 },
-              })
+              } as any)
               .returning();
 
             certJobs.push({ id: job.id, caseId: cert.caseId });

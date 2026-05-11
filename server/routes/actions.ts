@@ -34,7 +34,7 @@ interface ActionAuthRequest extends AuthRequest {
 function requireActionOwnership() {
   return async (req: ActionAuthRequest, res: Response, next: NextFunction) => {
     try {
-      const actionId = req.params.id;
+      const actionId = req.params.id as string;
       const user = req.user;
 
       if (!user) {
@@ -177,10 +177,10 @@ router.patch("/:id", requireAuth, requireActionOwnership(), async (req: ActionAu
     const updates = updateSchema.parse(req.body);
     // Action already validated by middleware
 
-    const updated = await storage.updateAction(req.params.id, {
+    const updated = await storage.updateAction(req.params.id as string, {
       ...updates,
       dueDate: updates.dueDate ? new Date(updates.dueDate) : undefined,
-    });
+    } as any);
 
     res.json({ success: true, data: updated });
   } catch (error: any) {
@@ -196,8 +196,8 @@ router.patch("/:id", requireAuth, requireActionOwnership(), async (req: ActionAu
 router.post("/:id/done", requireAuth, requireActionOwnership(), async (req: ActionAuthRequest, res: Response) => {
   try {
     // Action already validated by middleware
-    const updated = await storage.markActionDone(req.params.id);
-    logAuditEvent({ eventType: AuditEventTypes.ACTION_COMPLETE, userId: req.user?.id ?? null, organizationId: req.user?.organizationId ?? null, resourceType: 'case_action', resourceId: req.params.id, metadata: { newStatus: 'done' } });
+    const updated = await storage.markActionDone(req.params.id as string);
+    logAuditEvent({ eventType: AuditEventTypes.ACTION_COMPLETE, userId: req.user?.id ?? null, organizationId: req.user?.organizationId ?? null, resourceType: 'case_action', resourceId: req.params.id as string, metadata: { newStatus: 'done' } });
     res.json({ success: true, data: updated });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });
@@ -212,8 +212,8 @@ router.post("/:id/done", requireAuth, requireActionOwnership(), async (req: Acti
 router.post("/:id/cancel", requireAuth, requireActionOwnership(), async (req: ActionAuthRequest, res: Response) => {
   try {
     // Action already validated by middleware
-    const updated = await storage.markActionCancelled(req.params.id);
-    logAuditEvent({ eventType: AuditEventTypes.ACTION_UPDATE, userId: req.user?.id ?? null, organizationId: req.user?.organizationId ?? null, resourceType: 'case_action', resourceId: req.params.id, metadata: { newStatus: 'cancelled' } });
+    const updated = await storage.markActionCancelled(req.params.id as string);
+    logAuditEvent({ eventType: AuditEventTypes.ACTION_UPDATE, userId: req.user?.id ?? null, organizationId: req.user?.organizationId ?? null, resourceType: 'case_action', resourceId: req.params.id as string, metadata: { newStatus: 'cancelled' } });
     res.json({ success: true, data: updated });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });
@@ -262,7 +262,7 @@ router.post("/case/:caseId", requireAuth, requireCaseOwnership(), async (req: Au
       dueDate: data.dueDate ? new Date(data.dueDate) : undefined,
       priority: data.priority ?? 1,
       notes: data.notes,
-    });
+    } as any);
 
     res.json({ success: true, data: action });
   } catch (error: any) {
@@ -347,12 +347,12 @@ router.get("/case/:caseId/certificates-with-status", requireAuth, requireCaseOwn
  */
 router.post("/case/:caseId/actions/:actionId/complete", requireAuth, requireCaseOwnership(), async (req: AuthRequest, res: Response) => {
   try {
-    const { actionId } = req.params;
+    const actionId = req.params.actionId as string;
     const user = req.user!;
 
     // Verify action belongs to this case
     const action = await storage.getActionByIdAdmin(actionId);
-    if (!action || action.caseId !== req.params.caseId) {
+    if (!action || action.caseId !== (req.params.caseId as string)) {
       return res.status(404).json({ success: false, message: "Action not found" });
     }
 
@@ -372,11 +372,11 @@ router.post("/case/:caseId/actions/:actionId/complete", requireAuth, requireCase
  */
 router.post("/case/:caseId/actions/:actionId/uncomplete", requireAuth, requireCaseOwnership(), async (req: AuthRequest, res: Response) => {
   try {
-    const { actionId } = req.params;
+    const actionId = req.params.actionId as string;
 
     // Verify action belongs to this case
     const action = await storage.getActionByIdAdmin(actionId);
-    if (!action || action.caseId !== req.params.caseId) {
+    if (!action || action.caseId !== (req.params.caseId as string)) {
       return res.status(404).json({ success: false, message: "Action not found" });
     }
 
@@ -396,12 +396,12 @@ router.post("/case/:caseId/actions/:actionId/uncomplete", requireAuth, requireCa
  */
 router.post("/case/:caseId/actions/:actionId/fail", requireAuth, requireCaseOwnership(), async (req: AuthRequest, res: Response) => {
   try {
-    const { actionId } = req.params;
+    const actionId = req.params.actionId as string;
     const { reason } = req.body;
 
     // Verify action belongs to this case
     const action = await storage.getActionByIdAdmin(actionId);
-    if (!action || action.caseId !== req.params.caseId) {
+    if (!action || action.caseId !== (req.params.caseId as string)) {
       return res.status(404).json({ success: false, message: "Action not found" });
     }
 

@@ -35,7 +35,7 @@ export function requireCaseOwnership() {
   return async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
       // Extract case ID from route params (supports :id or :caseId)
-      const caseId = req.params.id || req.params.caseId;
+      const caseId = (req.params.id || req.params.caseId) as string;
 
       if (!caseId) {
         return res.status(400).json({
