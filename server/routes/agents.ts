@@ -53,7 +53,7 @@ router.post("/trigger", authorize(), async (req: AuthRequest, res) => {
         triggeredBy: "manual",
         triggeredByUserId: req.user!.id,
         context: context || {},
-      })
+      } as any)
       .returning();
 
     // Run async
@@ -107,7 +107,7 @@ router.get("/jobs", authorize(), async (req: AuthRequest, res) => {
 
 router.get("/jobs/:jobId", authorize(), async (req: AuthRequest, res) => {
   try {
-    const { jobId } = req.params;
+    const jobId = req.params.jobId as string;
 
     const [job] = await db
       .select()
@@ -175,7 +175,7 @@ router.post("/jobs/:jobId/approve-action", authorize(), async (req: AuthRequest,
         approvalStatus: "approved",
         approvedBy: req.user!.id,
         approvedAt: new Date(),
-      })
+      } as any)
       .where(eq(agentActions.id, parsed.data.actionId));
 
     logAuditEvent({ eventType: AuditEventTypes.ACTION_UPDATE, userId: req.user?.id ?? null, organizationId: req.user?.organizationId ?? null, resourceType: 'agent_action', resourceId: parsed.data.actionId, metadata: { approval: 'approved', jobId: req.params.jobId } });
@@ -199,7 +199,7 @@ router.post("/jobs/:jobId/reject-action", authorize(), async (req: AuthRequest, 
         approvalStatus: "rejected",
         approvedBy: req.user!.id,
         approvedAt: new Date(),
-      })
+      } as any)
       .where(eq(agentActions.id, parsed.data.actionId));
 
     logAuditEvent({ eventType: AuditEventTypes.ACTION_UPDATE, userId: req.user?.id ?? null, organizationId: req.user?.organizationId ?? null, resourceType: 'agent_action', resourceId: parsed.data.actionId, metadata: { approval: 'rejected', jobId: req.params.jobId } });

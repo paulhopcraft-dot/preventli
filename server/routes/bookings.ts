@@ -42,21 +42,22 @@ router.post("/", authorize(), async (req: AuthRequest, res: Response) => {
     logger.info("Telehealth booking created", { bookingId: booking.id, organizationId });
 
     // Notify Preventli team of new booking (fire-and-forget)
+    const vd = validatedData as any;
     const notifyEmail = process.env.BOOKING_NOTIFY_EMAIL ?? "jacinta@preventli.ai";
-    const serviceLabel = validatedData.serviceType ?? "telehealth consultation";
-    const appointmentLabel = (validatedData.appointmentType ?? "appointment").replace(/_/g, " ");
+    const serviceLabel = vd.serviceType ?? "telehealth consultation";
+    const appointmentLabel = (vd.appointmentType ?? "appointment").replace(/_/g, " ");
     sendEmail({
       to: notifyEmail,
-      subject: `New Telehealth Booking — ${validatedData.workerName}`,
+      subject: `New Telehealth Booking — ${vd.workerName}`,
       body: `A new telehealth booking has been submitted.
 
-Worker: ${validatedData.workerName}
-Email: ${validatedData.workerEmail ?? "not provided"}
-Employer: ${validatedData.employerName ?? "not provided"}
+Worker: ${vd.workerName}
+Email: ${vd.workerEmail ?? "not provided"}
+Employer: ${vd.employerName ?? "not provided"}
 Service: ${serviceLabel}
 Appointment type: ${appointmentLabel}
-Referral requested: ${validatedData.requestReferral ? "Yes" : "No"}
-Notes: ${validatedData.employerNotes ?? "none"}
+Referral requested: ${vd.requestReferral ? "Yes" : "No"}
+Notes: ${vd.employerNotes ?? "none"}
 
 Booking ID: ${booking.id}
 Submitted: ${new Date().toLocaleString("en-AU", { timeZone: "Australia/Melbourne" })}
@@ -81,7 +82,7 @@ Log in to Preventli to confirm or manage this booking.`,
  */
 router.patch("/:id", authorize(), async (req: AuthRequest, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const { status } = req.body as { status: TelehealthBookingStatus };
     const validStatuses: TelehealthBookingStatus[] = ["pending", "confirmed", "completed", "cancelled"];
     if (!validStatuses.includes(status)) {

@@ -20,7 +20,6 @@ import actionRoutes from "./routes/actions";
 import smartSummaryRoutes from "./routes/smartSummary";
 import emailDraftRoutes from "./routes/emailDrafts";
 import discordRoutes from "./routes/discord";
-import discordAnalyticsRoutes from "./routes/discord-analytics";
 import notificationRoutes from "./routes/notifications";
 import adminOrganizationRoutes from "./routes/admin/organizations";
 import adminInsurerRoutes from "./routes/admin/insurers";
@@ -232,8 +231,6 @@ export async function registerRoutes(app: Express): Promise<void> {
   // Discord Integration routes (JWT-protected)
   app.use("/api/discord", discordRoutes);
 
-  // Discord Analytics routes (JWT-protected) - Real business data
-  app.use("/api/discord-analytics", discordAnalyticsRoutes);
 
   // Memory API routes (JWT-protected) - Infinite context system
   app.use("/api/v1/memory", memoryRoutes);

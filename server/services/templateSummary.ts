@@ -125,8 +125,8 @@ export class TemplateSummaryService {
       sections.push(`**Plan Status:** ${workerCase.rtwPlanStatus}`);
       // RTW plan targetDate and planType live in the rtwPlans table, not on WorkerCase directly.
       // Access via workerCase.clinical_status_json?.rtwPlanTargetEndDate if populated.
-      if (workerCase.clinical_status_json?.rtwPlanTargetEndDate) {
-        sections.push(`**Target End Date:** ${format(new Date(workerCase.clinical_status_json.rtwPlanTargetEndDate), 'dd MMM yyyy')}`);
+      if ((workerCase.clinical_status_json as any)?.rtwPlanTargetEndDate) {
+        sections.push(`**Target End Date:** ${format(new Date((workerCase.clinical_status_json as any).rtwPlanTargetEndDate), 'dd MMM yyyy')}`);
       }
       sections.push("");
     }

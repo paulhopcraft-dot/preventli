@@ -122,7 +122,7 @@ router.put("/profile", async (req: AuthRequest, res: Response) => {
         contactName: data.contactName,
         contactPhone: data.contactPhone,
         updatedAt: new Date(),
-      })
+      } as any)
       .where(eq(organizations.id, organizationId))
       .returning();
 
@@ -193,7 +193,7 @@ router.post(
         .set({
           logoUrl,
           updatedAt: new Date(),
-        })
+        } as any)
         .where(eq(organizations.id, organizationId))
         .returning();
 

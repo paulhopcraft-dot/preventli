@@ -96,7 +96,7 @@ router.get("/", async (req: AuthRequest, res: Response) => {
  */
 router.get("/:id", async (req: AuthRequest, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const organizationId = req.user!.organizationId;
 
     // Get the role
@@ -224,7 +224,7 @@ router.post("/", async (req: AuthRequest, res: Response) => {
       });
     }
 
-    const data = validation.data;
+    const data = validation.data as any;
 
     // Create role
     const newRole = await db
@@ -234,7 +234,7 @@ router.post("/", async (req: AuthRequest, res: Response) => {
         description: data.description,
         organizationId,
         isActive: true,
-      })
+      } as any)
       .returning();
 
     res.status(201).json({
@@ -258,7 +258,7 @@ router.post("/", async (req: AuthRequest, res: Response) => {
  */
 router.put("/:id", async (req: AuthRequest, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const organizationId = req.user!.organizationId;
 
     // Check role exists and belongs to user's organization
@@ -292,7 +292,7 @@ router.put("/:id", async (req: AuthRequest, res: Response) => {
       });
     }
 
-    const data = validation.data;
+    const data = validation.data as any;
 
     // Update role
     const updated = await db
@@ -301,7 +301,7 @@ router.put("/:id", async (req: AuthRequest, res: Response) => {
         ...(data.name && { name: data.name }),
         ...(data.description !== undefined && { description: data.description }),
         updatedAt: new Date(),
-      })
+      } as any)
       .where(eq(rtwRoles.id, id))
       .returning();
 
@@ -326,7 +326,7 @@ router.put("/:id", async (req: AuthRequest, res: Response) => {
  */
 router.delete("/:id", async (req: AuthRequest, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const organizationId = req.user!.organizationId;
 
     // Check role exists and belongs to user's organization
@@ -373,7 +373,7 @@ router.delete("/:id", async (req: AuthRequest, res: Response) => {
       .set({
         isActive: false,
         updatedAt: new Date(),
-      })
+      } as any)
       .where(eq(rtwRoles.id, id));
 
     res.json({

@@ -47,7 +47,7 @@ export function registerTreatmentPlanRoutes(app: Express, storage: IStorage) {
     requireCaseOwnership(),
     async (req: AuthRequest, res: Response) => {
       try {
-        const { id: caseId } = req.params;
+        const caseId = req.params.id as string;
         const organizationId = (req.user as any)?.organizationId;
 
         if (!organizationId) {
@@ -95,7 +95,7 @@ export function registerTreatmentPlanRoutes(app: Express, storage: IStorage) {
     requireCaseOwnership(),
     async (req: AuthRequest, res: Response) => {
       try {
-        const { id: caseId } = req.params;
+        const caseId = req.params.id as string;
         const organizationId = (req.user as any)?.organizationId;
 
         if (!organizationId) {
@@ -133,7 +133,8 @@ export function registerTreatmentPlanRoutes(app: Express, storage: IStorage) {
     requireCaseOwnership(),
     async (req: Request, res: Response) => {
       try {
-        const { id: caseId, planId } = req.params;
+        const caseId = req.params.id as string;
+        const planId = req.params.planId as string;
         const organizationId = (req.user as any)?.organizationId;
 
         if (!organizationId) {
@@ -170,7 +171,7 @@ export function registerTreatmentPlanRoutes(app: Express, storage: IStorage) {
     requireCaseOwnership(),
     async (req: Request, res: Response) => {
       try {
-        const { id: caseId } = req.params;
+        const caseId = req.params.id as string;
         const organizationId = (req.user as any)?.organizationId;
 
         if (!organizationId) {

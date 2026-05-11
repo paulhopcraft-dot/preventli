@@ -81,7 +81,7 @@ router.get("/", async (req: AuthRequest, res: Response) => {
  */
 router.get("/:id", async (req: AuthRequest, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
 
     const result = await db
       .select({
@@ -146,7 +146,7 @@ router.post("/", async (req: AuthRequest, res: Response) => {
     const existingSlug = await db
       .select({ id: organizations.id })
       .from(organizations)
-      .where(eq(organizations.slug, data.slug))
+      .where(eq(organizations.slug, (data as any).slug))
       .limit(1);
 
     if (existingSlug.length > 0) {
@@ -157,11 +157,11 @@ router.post("/", async (req: AuthRequest, res: Response) => {
     }
 
     // If insurerId provided, verify it exists
-    if (data.insurerId) {
+    if ((data as any).insurerId) {
       const insurer = await db
         .select({ id: insurers.id })
         .from(insurers)
-        .where(eq(insurers.id, data.insurerId))
+        .where(eq(insurers.id, (data as any).insurerId))
         .limit(1);
 
       if (insurer.length === 0) {
@@ -175,7 +175,7 @@ router.post("/", async (req: AuthRequest, res: Response) => {
     // Create organization
     const newOrg = await db
       .insert(organizations)
-      .values(data)
+      .values(data as any)
       .returning();
 
     res.status(201).json({
@@ -198,7 +198,7 @@ router.post("/", async (req: AuthRequest, res: Response) => {
  */
 router.put("/:id", async (req: AuthRequest, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
 
     // Check organization exists
     const existing = await db
@@ -229,11 +229,11 @@ router.put("/:id", async (req: AuthRequest, res: Response) => {
     const data = validation.data;
 
     // Check for slug conflict if changing slug
-    if (data.slug && data.slug !== existing[0].slug) {
+    if ((data as any).slug && (data as any).slug !== existing[0].slug) {
       const slugConflict = await db
         .select({ id: organizations.id })
         .from(organizations)
-        .where(eq(organizations.slug, data.slug))
+        .where(eq(organizations.slug, (data as any).slug))
         .limit(1);
 
       if (slugConflict.length > 0) {
@@ -245,11 +245,11 @@ router.put("/:id", async (req: AuthRequest, res: Response) => {
     }
 
     // If insurerId provided, verify it exists
-    if (data.insurerId) {
+    if ((data as any).insurerId) {
       const insurer = await db
         .select({ id: insurers.id })
         .from(insurers)
-        .where(eq(insurers.id, data.insurerId))
+        .where(eq(insurers.id, (data as any).insurerId))
         .limit(1);
 
       if (insurer.length === 0) {
@@ -266,8 +266,8 @@ router.put("/:id", async (req: AuthRequest, res: Response) => {
       .set({
         ...data,
         updatedAt: new Date(),
-      })
-      .where(eq(organizations.id, id))
+      } as any)
+      .where(eq(organizations.id, id as string))
       .returning();
 
     res.json({
@@ -290,7 +290,7 @@ router.put("/:id", async (req: AuthRequest, res: Response) => {
  */
 router.delete("/:id", async (req: AuthRequest, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
 
     // Check organization exists
     const existing = await db
@@ -312,7 +312,7 @@ router.delete("/:id", async (req: AuthRequest, res: Response) => {
       .set({
         isActive: false,
         updatedAt: new Date(),
-      })
+      } as any)
       .where(eq(organizations.id, id));
 
     res.json({
@@ -337,7 +337,7 @@ router.post(
   logoUpload.single("logo"),
   async (req: AuthRequest, res: Response) => {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const file = req.file;
 
       if (!file) {
@@ -374,7 +374,7 @@ router.post(
         .set({
           logoUrl,
           updatedAt: new Date(),
-        })
+        } as any)
         .where(eq(organizations.id, id))
         .returning();
 
@@ -401,7 +401,7 @@ router.post(
  */
 router.delete("/:id/logo", async (req: AuthRequest, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
 
     // Check organization exists
     const existing = await db
@@ -429,7 +429,7 @@ router.delete("/:id/logo", async (req: AuthRequest, res: Response) => {
       .set({
         logoUrl: null,
         updatedAt: new Date(),
-      })
+      } as any)
       .where(eq(organizations.id, id));
 
     res.json({

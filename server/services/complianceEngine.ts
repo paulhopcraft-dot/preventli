@@ -122,7 +122,7 @@ export async function evaluateCase(caseId: string): Promise<CaseComplianceReport
       recommendation: result.recommendation,
       actionId,
       actionCreated,
-    });
+    } as any);
   }
 
   // Calculate overall status and score

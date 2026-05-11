@@ -240,7 +240,7 @@ function normalizeCertificateInput(
     sourceReference: cert.sourceReference ?? null,
     createdAt: new Date(),
     updatedAt: new Date(),
-  };
+  } as any as InsertMedicalCertificate;
 }
 
 function mapCertificateRow(row: MedicalCertificateDB): MedicalCertificate {
@@ -1252,7 +1252,7 @@ class DbStorage implements IStorage {
         summary: caseData.summary || `New claim for ${caseData.workerName}`,
         ticketIds: [],
         ticketCount: "1",
-      })
+      } as any)
       .returning();
 
     // Return the created case in WorkerCase format
@@ -1340,7 +1340,7 @@ class DbStorage implements IStorage {
       .values(notes)
       .onConflictDoUpdate({
         target: caseDiscussionNotes.id,
-        set: {
+        set: ({
           workerName: sql`excluded.worker_name`,
           timestamp: sql`excluded.timestamp`,
           rawText: sql`excluded.raw_text`,
@@ -1349,7 +1349,7 @@ class DbStorage implements IStorage {
           riskFlags: sql`excluded.risk_flags`,
           updatesCompliance: sql`excluded.updates_compliance`,
           updatesRecoveryTimeline: sql`excluded.updates_recovery_timeline`,
-        },
+        } as any),
       });
   }
 
@@ -1394,7 +1394,7 @@ class DbStorage implements IStorage {
       .values(insights)
       .onConflictDoUpdate({
         target: caseDiscussionInsights.id,
-        set: {
+        set: ({
           summary: sql`excluded.summary`,
           detail: sql`excluded.detail`,
           area: sql`excluded.area`,
@@ -1402,7 +1402,7 @@ class DbStorage implements IStorage {
           noteId: sql`excluded.note_id`,
           caseId: sql`excluded.case_id`,
           createdAt: sql`excluded.created_at`,
-        },
+        } as any),
       });
   }
 
@@ -1600,7 +1600,7 @@ class DbStorage implements IStorage {
           aiSummaryModel: existing.aiSummaryModel,
           aiWorkStatusClassification: existing.aiWorkStatusClassification,
           clinicalStatusJson: mergedClinicalStatus ?? existing.clinicalStatusJson ?? null,
-        })
+        } as any)
         .where(eq(workerCases.id, caseData.id));
     } else {
       await db.insert(workerCases).values(dbData);
@@ -1644,8 +1644,8 @@ class DbStorage implements IStorage {
     const newRows = normalized.filter((row) => {
       const start = row.startDate.toISOString();
       const end = row.endDate.toISOString();
-      const reference = row.sourceReference ?? "";
-      const doc = row.documentUrl ?? "";
+      const reference = (row as any).sourceReference ?? "";
+      const doc = (row as any).documentUrl ?? "";
       const key = `${start}|${end}|${row.capacity}|${reference}|${doc}`;
       if (seen.has(key)) {
         return false;
@@ -1693,7 +1693,7 @@ class DbStorage implements IStorage {
       .set({
         clinicalStatusJson: Object.keys(merged).length > 0 ? merged : null,
         updatedAt: new Date(),
-      })
+      } as any)
       .where(and(
         eq(workerCases.id, caseId),
         eq(workerCases.organizationId, organizationId)
@@ -1710,7 +1710,7 @@ class DbStorage implements IStorage {
         aiSummaryModel: model,
         aiWorkStatusClassification: workStatusClassification,
         updatedAt: new Date(),
-      })
+      } as any)
       .where(and(
         eq(workerCases.id, caseId),
         eq(workerCases.organizationId, organizationId)
@@ -1725,7 +1725,7 @@ class DbStorage implements IStorage {
         closedAt: new Date(),
         closedReason: reason || null,
         updatedAt: new Date(),
-      })
+      } as any)
       .where(and(
         eq(workerCases.id, caseId),
         eq(workerCases.organizationId, organizationId)
@@ -1774,7 +1774,7 @@ class DbStorage implements IStorage {
           lifecycleStageChangedBy: changedBy,
           lifecycleStageReason: reason ?? null,
           updatedAt: new Date(),
-        })
+        } as any)
         .where(and(eq(workerCases.id, caseId), eq(workerCases.organizationId, organizationId)));
 
       await tx.insert(caseLifecycleLogs).values({
@@ -1785,7 +1785,7 @@ class DbStorage implements IStorage {
         changedBy,
         reason: reason ?? null,
         automated,
-      } satisfies Omit<InsertCaseLifecycleLog, "id" | "changedAt">);
+      } as any);
     });
   }
 
@@ -1896,7 +1896,7 @@ class DbStorage implements IStorage {
             lifecycleStageChangedBy: "system:migration",
             lifecycleStageReason: "Auto-advanced by duration heuristic",
             updatedAt: now,
-          })
+          } as any)
           .where(and(eq(workerCases.id, c.id), eq(workerCases.organizationId, organizationId)));
 
         await db.insert(caseLifecycleLogs).values({
@@ -1907,7 +1907,7 @@ class DbStorage implements IStorage {
           changedBy: "system:migration",
           reason: "Auto-advanced by duration heuristic",
           automated: true,
-        } satisfies Omit<InsertCaseLifecycleLog, "id" | "changedAt">);
+        } as any);
 
         results.push({ caseId: c.id, stage });
       }
@@ -1961,7 +1961,7 @@ class DbStorage implements IStorage {
     // stage is now guaranteed to be a non-intake stage
     await db
       .update(workerCases)
-      .set({ lifecycleStage: stage, lifecycleStageChangedAt: new Date(), lifecycleStageChangedBy: "system:compliance", lifecycleStageReason: "Auto-advanced by compliance sync", updatedAt: new Date() })
+      .set({ lifecycleStage: stage, lifecycleStageChangedAt: new Date(), lifecycleStageChangedBy: "system:compliance", lifecycleStageReason: "Auto-advanced by compliance sync", updatedAt: new Date() } as any)
       .where(and(eq(workerCases.id, caseId), eq(workerCases.organizationId, organizationId)));
 
     await db.insert(caseLifecycleLogs).values({
@@ -1972,7 +1972,7 @@ class DbStorage implements IStorage {
       changedBy: "system:compliance",
       reason: "Auto-advanced by compliance sync",
       automated: true,
-    } satisfies Omit<InsertCaseLifecycleLog, "id" | "changedAt">);
+    } as any);
 
     return stage;
   }
@@ -1992,7 +1992,7 @@ class DbStorage implements IStorage {
         assignedAt: new Date(),
         secondaryAssigneeId: secondaryAssigneeId ?? null,
         updatedAt: new Date(),
-      })
+      } as any)
       .where(and(
         eq(workerCases.id, caseId),
         eq(workerCases.organizationId, organizationId)
@@ -2016,7 +2016,7 @@ class DbStorage implements IStorage {
         complianceOverrideAt: new Date(),
         complianceIndicator: overrideValue, // Also update the main indicator
         updatedAt: new Date(),
-      })
+      } as any)
       .where(and(
         eq(workerCases.id, caseId),
         eq(workerCases.organizationId, organizationId)
@@ -2033,7 +2033,7 @@ class DbStorage implements IStorage {
         complianceOverrideBy: null,
         complianceOverrideAt: null,
         updatedAt: new Date(),
-      })
+      } as any)
       .where(and(
         eq(workerCases.id, caseId),
         eq(workerCases.organizationId, organizationId)
@@ -2051,7 +2051,7 @@ class DbStorage implements IStorage {
         masterTicketId: masterTicketId,
         ticketCount: "1", // After merge, only master ticket counts
         updatedAt: new Date(),
-      })
+      } as any)
       .where(and(
         eq(workerCases.id, caseId),
         eq(workerCases.organizationId, organizationId)
@@ -2217,7 +2217,7 @@ class DbStorage implements IStorage {
 
   // User invite methods
   async createUserInvite(invite: InsertUserInvite): Promise<UserInviteDB> {
-    const [created] = await db.insert(userInvites).values(invite).returning();
+    const [created] = await db.insert(userInvites).values(invite as any).returning();
     return created;
   }
 
@@ -2242,7 +2242,7 @@ class DbStorage implements IStorage {
   async updateUserInvite(id: string, updates: Partial<UserInviteDB>): Promise<UserInviteDB> {
     const [updated] = await db
       .update(userInvites)
-      .set({ ...updates, updatedAt: new Date() })
+      .set({ ...updates, updatedAt: new Date() } as any)
       .where(eq(userInvites.id, id))
       .returning();
     return updated;
@@ -2315,7 +2315,7 @@ class DbStorage implements IStorage {
 
   async updateCertificate(id: string, organizationId: string, updates: Partial<InsertMedicalCertificate>): Promise<MedicalCertificateDB> {
     const [result] = await db.update(medicalCertificates)
-      .set({ ...updates, updatedAt: new Date() })
+      .set({ ...updates, updatedAt: new Date() } as any)
       .where(and(
         eq(medicalCertificates.id, id),
         eq(medicalCertificates.organizationId, organizationId)
@@ -2369,7 +2369,7 @@ class DbStorage implements IStorage {
 
   async markCertificateAsReviewed(id: string, organizationId: string, reviewDate: Date): Promise<MedicalCertificateDB> {
     const [result] = await db.update(medicalCertificates)
-      .set({ requiresReview: false, reviewDate, updatedAt: new Date() })
+      .set({ requiresReview: false, reviewDate, updatedAt: new Date() } as any)
       .where(and(
         eq(medicalCertificates.id, id),
         eq(medicalCertificates.organizationId, organizationId)
@@ -2382,7 +2382,7 @@ class DbStorage implements IStorage {
     // Update certificate with the base64 image data as documentUrl
     // Note: Not filtering by organization since recovery chart doesn't have org context
     const [result] = await db.update(medicalCertificates)
-      .set({ documentUrl: imageData, updatedAt: new Date() })
+      .set({ documentUrl: imageData, updatedAt: new Date() } as any)
       .where(eq(medicalCertificates.id, id))
       .returning();
     return result || null;
@@ -2414,7 +2414,7 @@ class DbStorage implements IStorage {
 
   async acknowledgeAlert(alertId: string, userId: string): Promise<CertificateExpiryAlertDB> {
     const [result] = await db.update(certificateExpiryAlerts)
-      .set({ acknowledged: true, acknowledgedBy: userId, acknowledgedAt: new Date() })
+      .set({ acknowledged: true, acknowledgedBy: userId, acknowledgedAt: new Date() } as any)
       .where(eq(certificateExpiryAlerts.id, alertId))
       .returning();
     return result;
@@ -2575,7 +2575,7 @@ class DbStorage implements IStorage {
 
   async updateAction(id: string, updates: Partial<InsertCaseAction>): Promise<CaseActionDB> {
     const [result] = await db.update(caseActions)
-      .set({ ...updates, updatedAt: new Date() })
+      .set({ ...updates, updatedAt: new Date() } as any)
       .where(eq(caseActions.id, id))
       .returning();
     return result;
@@ -2583,7 +2583,7 @@ class DbStorage implements IStorage {
 
   async markActionDone(id: string): Promise<CaseActionDB> {
     const [result] = await db.update(caseActions)
-      .set({ status: "done", updatedAt: new Date() })
+      .set({ status: "done", updatedAt: new Date() } as any)
       .where(eq(caseActions.id, id))
       .returning();
     return result;
@@ -2591,7 +2591,7 @@ class DbStorage implements IStorage {
 
   async markActionCancelled(id: string): Promise<CaseActionDB> {
     const [result] = await db.update(caseActions)
-      .set({ status: "cancelled", updatedAt: new Date() })
+      .set({ status: "cancelled", updatedAt: new Date() } as any)
       .where(eq(caseActions.id, id))
       .returning();
     return result;
@@ -2604,7 +2604,7 @@ class DbStorage implements IStorage {
         completedAt: new Date(),
         completedBy: userName,
         updatedAt: new Date()
-      })
+      } as any)
       .where(eq(caseActions.id, id))
       .returning();
     return result;
@@ -2617,7 +2617,7 @@ class DbStorage implements IStorage {
         completedAt: null,
         completedBy: null,
         updatedAt: new Date()
-      })
+      } as any)
       .where(eq(caseActions.id, id))
       .returning();
     return result;
@@ -2630,7 +2630,7 @@ class DbStorage implements IStorage {
         failed: true,
         failureReason: reason,
         updatedAt: new Date()
-      })
+      } as any)
       .where(eq(caseActions.id, id))
       .returning();
     return result;
@@ -2662,7 +2662,7 @@ class DbStorage implements IStorage {
           dueDate: dueDate ?? existing.dueDate ?? undefined,
           notes: notes ?? existing.notes ?? undefined,
           ...(newPriorityHigher ? { priorityLevel } : {}),
-        });
+        } as any);
       }
       return existing;
     }
@@ -2687,7 +2687,7 @@ class DbStorage implements IStorage {
       notes,
       priority: 1,
       priorityLevel: priorityLevel ?? "medium",
-    });
+    } as any);
   }
 
   // Email Drafter v1 - Email Draft management
@@ -2727,7 +2727,7 @@ class DbStorage implements IStorage {
 
   async updateEmailDraft(id: string, updates: Partial<InsertEmailDraft>): Promise<EmailDraftDB> {
     const [result] = await db.update(emailDrafts)
-      .set({ ...updates, updatedAt: new Date() })
+      .set({ ...updates, updatedAt: new Date() } as any)
       .where(eq(emailDrafts.id, id))
       .returning();
     return result;
@@ -2820,7 +2820,7 @@ class DbStorage implements IStorage {
 
   async markNotificationSent(id: string): Promise<NotificationDB> {
     const [result] = await db.update(notifications)
-      .set({ status: "sent", sentAt: new Date() })
+      .set({ status: "sent", sentAt: new Date() } as any)
       .where(eq(notifications.id, id))
       .returning();
     return result;
@@ -2948,7 +2948,7 @@ class DbStorage implements IStorage {
         ...data,
         createdAt: new Date(),
         updatedAt: new Date(),
-      })
+      } as any)
       .returning();
     return result;
   }
@@ -2962,7 +2962,7 @@ class DbStorage implements IStorage {
       .set({
         ...updates,
         updatedAt: new Date(),
-      })
+      } as any)
       .where(and(
         eq(caseContacts.id, contactId),
         eq(caseContacts.organizationId, organizationId)
@@ -2977,7 +2977,7 @@ class DbStorage implements IStorage {
       .set({
         isActive: false,
         updatedAt: new Date(),
-      })
+      } as any)
       .where(and(
         eq(caseContacts.id, contactId),
         eq(caseContacts.organizationId, organizationId)
@@ -3164,7 +3164,7 @@ class DbStorage implements IStorage {
         startDate: data.startDate,
         restrictionReviewDate: data.restrictionReviewDate,
         createdBy: data.createdBy,
-      }).returning();
+      } as any).returning();
 
       // 2. Create version record
       const [version] = await tx.insert(rtwPlanVersions).values({
@@ -3173,7 +3173,7 @@ class DbStorage implements IStorage {
         dataJson: data,
         createdBy: data.createdBy,
         changeReason: "Initial plan creation",
-      }).returning();
+      } as any).returning();
 
       // 3. Create schedule records
       if (data.schedule.length > 0) {
@@ -3478,7 +3478,7 @@ class DbStorage implements IStorage {
           subject: email.subject,
           body: email.body,
           updatedAt: new Date(),
-        })
+        } as any)
         .where(eq(emailDrafts.id, existing[0].id));
     } else {
       // Insert new draft
@@ -3493,7 +3493,7 @@ class DbStorage implements IStorage {
         status: "draft",
         caseContextSnapshot: { planId },
         createdBy: "system",
-      });
+      } as any);
     }
   }
 
@@ -3562,7 +3562,7 @@ class DbStorage implements IStorage {
         ...template,
         createdAt: new Date(),
         updatedAt: new Date(),
-      })
+      } as any)
       .returning();
 
     logger.db.info("Created email template", {
@@ -3582,7 +3582,7 @@ class DbStorage implements IStorage {
       .set({
         ...updates,
         updatedAt: new Date(),
-      })
+      } as any)
       .where(eq(emailTemplates.id, id))
       .returning();
 
@@ -3626,7 +3626,7 @@ class DbStorage implements IStorage {
         ...data,
         createdAt: new Date(),
         updatedAt: new Date(),
-      })
+      } as any)
       .returning();
 
     logger.db.info("Created pre-employment health requirement", {
@@ -3650,7 +3650,7 @@ class DbStorage implements IStorage {
       .set({
         ...updates,
         updatedAt: new Date(),
-      })
+      } as any)
       .where(and(
         eq(preEmploymentHealthRequirements.id, requirementId),
         eq(preEmploymentHealthRequirements.organizationId, organizationId)
@@ -3728,7 +3728,7 @@ class DbStorage implements IStorage {
         ...data,
         createdAt: new Date(),
         updatedAt: new Date(),
-      })
+      } as any)
       .returning();
 
     logger.db.info("Created pre-employment assessment", {
@@ -3847,7 +3847,7 @@ class DbStorage implements IStorage {
       .values({
         ...data,
         createdAt: new Date(),
-      })
+      } as any)
       .returning();
 
     logger.db.info("Created assessment component", {
@@ -3892,7 +3892,7 @@ class DbStorage implements IStorage {
         .set({
           ...data,
           updatedAt: new Date(),
-        })
+        } as any)
         .where(eq(preEmploymentHealthHistory.assessmentId, data.assessmentId))
         .returning();
 
@@ -3909,7 +3909,7 @@ class DbStorage implements IStorage {
           ...data,
           createdAt: new Date(),
           updatedAt: new Date(),
-        })
+        } as any)
         .returning();
 
       logger.db.info("Created pre-employment health history", {
@@ -3991,7 +3991,7 @@ class DbStorage implements IStorage {
         questionnaireResponses: responses,
         status: "in_progress",
         updatedAt: new Date(),
-      })
+      } as any)
       .where(eq(preEmploymentAssessments.id, id));
   }
 
@@ -4008,14 +4008,14 @@ class DbStorage implements IStorage {
         status: "completed",
         completedDate: new Date(),
         updatedAt: new Date(),
-      })
+      } as any)
       .where(eq(preEmploymentAssessments.id, id));
   }
 
   async markAssessmentEmployerNotified(id: string): Promise<void> {
     await db
       .update(preEmploymentAssessments)
-      .set({ employerNotifiedAt: new Date(), updatedAt: new Date() })
+      .set({ employerNotifiedAt: new Date(), updatedAt: new Date() } as any)
       .where(eq(preEmploymentAssessments.id, id));
   }
 
@@ -4105,7 +4105,7 @@ class DbStorage implements IStorage {
     if (existing) return existing.id;
     const [created] = await db
       .insert(workers)
-      .values({ name, organizationId })
+      .values({ name, organizationId } as any)
       .returning({ id: workers.id });
     return created.id;
   }
@@ -4121,12 +4121,12 @@ class DbStorage implements IStorage {
   }
 
   async upsertWorkerByEmail(data: InsertWorker): Promise<WorkerDB> {
-    if (!data.email) return this.createWorker(data);
-    const existing = await this.getWorkerByEmail(data.email);
+    if (!(data as any).email) return this.createWorker(data);
+    const existing = await this.getWorkerByEmail((data as any).email);
     if (existing) {
       const [updated] = await db
         .update(workers)
-        .set({ name: data.name, phone: data.phone, updatedAt: new Date() })
+        .set({ name: data.name, phone: (data as any).phone, updatedAt: new Date() } as any)
         .where(eq(workers.id, existing.id))
         .returning();
       return updated;
@@ -4270,7 +4270,7 @@ class DbStorage implements IStorage {
   async updateTelehealthBookingStatus(id: string, status: TelehealthBookingStatus): Promise<TelehealthBookingDB> {
     const [updated] = await db
       .update(telehealthBookings)
-      .set({ status, updatedAt: new Date() })
+      .set({ status, updatedAt: new Date() } as any)
       .where(eq(telehealthBookings.id, id))
       .returning();
     return updated;

@@ -75,7 +75,7 @@ router.get('/health', authorize(), async (req, res) => {
  */
 router.post('/analyze/case/:caseId', authorize(), requireCaseOwnership(), async (req, res) => {
   try {
-    const caseId = req.params.caseId;
+    const caseId = req.params.caseId as string;
 
     if (!caseId || caseId.trim().length === 0) {
       return res.status(400).json({ error: 'Invalid case ID' });
@@ -268,7 +268,7 @@ router.get('/agents', authorize(), async (req, res) => {
  */
 router.get('/case/:caseId/insights', authorize(), requireCaseOwnership(), async (req, res) => {
   try {
-    const caseId = req.params.caseId;
+    const caseId = req.params.caseId as string;
 
     if (!caseId || caseId.trim().length === 0) {
       return res.status(400).json({ error: 'Invalid case ID' });

@@ -127,7 +127,7 @@ export const ALEX_TOOLS: AnthropicTool[] = [
       properties: {
         case_id: { type: "string", description: "The worker case ID" },
         note: { type: "string", description: "The note content — what was discussed or observed" },
-        next_steps: { type: "array", items: { type: "string" }, description: "Optional list of next steps arising from this note" },
+        next_steps: { type: "array", items: { type: "string" }, description: "Optional list of next steps arising from this note" } as any,
       },
       required: ["case_id", "note"],
     },
@@ -329,7 +329,7 @@ export async function executeAlexTool(
         riskFlags: [],
         updatesCompliance: false,
         updatesRecoveryTimeline: false,
-      }]);
+      } as any]);
       return { success: true, note_id: noteId, message: `Note added to case for ${workerCase.workerName}` };
     }
 

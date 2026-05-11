@@ -62,7 +62,7 @@ router.post("/requirements", authorize(), async (req: AuthRequest, res: Response
       createdBy: userId
     });
 
-    const requirement = await storage.createPreEmploymentHealthRequirement(validatedData);
+    const requirement = await storage.createPreEmploymentHealthRequirement(validatedData as any);
 
     const requestMeta = getRequestMetadata(req);
     await logAuditEvent({
@@ -105,7 +105,7 @@ router.put("/requirements/:id", authorize(), async (req: AuthRequest, res: Respo
   try {
     const organizationId = req.user!.organizationId;
     const userId = req.user!.id;
-    const requirementId = req.params.id;
+    const requirementId = req.params.id as string;
 
     const validatedData = insertPreEmploymentHealthRequirementSchema.partial().parse(req.body);
 
@@ -250,7 +250,7 @@ router.post("/assessments", authorize(), async (req: AuthRequest, res: Response)
 router.get("/assessments/:id", authorize(), async (req: AuthRequest, res: Response) => {
   try {
     const organizationId = req.user!.organizationId;
-    const assessmentId = req.params.id;
+    const assessmentId = req.params.id as string;
 
     const assessment = await storage.getPreEmploymentAssessmentById(assessmentId, organizationId);
 
@@ -290,7 +290,7 @@ router.put("/assessments/:id/status", authorize(), async (req: AuthRequest, res:
   try {
     const organizationId = req.user!.organizationId;
     const userId = req.user!.id;
-    const assessmentId = req.params.id;
+    const assessmentId = req.params.id as string;
 
     const updateSchema = z.object({
       status: z.enum(["pending", "scheduled", "in_progress", "completed", "failed", "cancelled"]),
@@ -326,7 +326,7 @@ router.put("/assessments/:id/status", authorize(), async (req: AuthRequest, res:
     const assessment = await storage.updatePreEmploymentAssessmentStatus(
       assessmentId,
       organizationId,
-      validatedData
+      validatedData as any
     );
 
     if (!assessment) {
@@ -381,7 +381,7 @@ router.post("/assessments/:id/components", authorize(), async (req: AuthRequest,
   try {
     const organizationId = req.user!.organizationId;
     const userId = req.user!.id;
-    const assessmentId = req.params.id;
+    const assessmentId = req.params.id as string;
 
     // Verify assessment exists and belongs to organization
     const assessment = await storage.getPreEmploymentAssessmentById(assessmentId, organizationId);

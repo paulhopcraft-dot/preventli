@@ -246,7 +246,7 @@ router.get("/overview", authorize(), async (req: AuthRequest, res: Response) => 
  */
 router.get("/expiry-overview/:organizationId", authorize(), async (req: AuthRequest, res: Response) => {
   try {
-    const organizationId = req.params.organizationId;
+    const organizationId = req.params.organizationId as string;
 
     // Ensure user can access this organization
     if (req.user!.organizationId !== organizationId && req.user!.role !== "admin") {
@@ -310,7 +310,7 @@ router.get("/expiry-overview/:organizationId", authorize(), async (req: AuthRequ
  */
 router.get("/cases/:id/rtw-compliance", authorize(), requireCaseOwnership, async (req: AuthRequest, res: Response) => {
   try {
-    const caseId = req.params.id;
+    const caseId = req.params.id as string;
     const organizationId = req.user!.organizationId;
 
     logger.api.info("Fetching RTW compliance", { caseId, organizationId });
@@ -338,7 +338,7 @@ const extendRtwPlanSchema = z.object({
 
 router.put("/cases/:id/rtw-plan/extend", authorize(), requireCaseOwnership, async (req: AuthRequest, res: Response) => {
   try {
-    const caseId = req.params.id;
+    const caseId = req.params.id as string;
     const organizationId = req.user!.organizationId;
     const { additionalWeeks, reason } = extendRtwPlanSchema.parse(req.body);
 

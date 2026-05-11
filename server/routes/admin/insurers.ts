@@ -60,7 +60,7 @@ router.get("/", async (req: AuthRequest, res: Response) => {
  */
 router.get("/:id", async (req: AuthRequest, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
 
     const result = await db
       .select()
@@ -105,7 +105,7 @@ router.post("/", async (req: AuthRequest, res: Response) => {
       });
     }
 
-    const data = validation.data;
+    const data = validation.data as any;
 
     // Check for duplicate code if provided
     if (data.code) {
@@ -126,7 +126,7 @@ router.post("/", async (req: AuthRequest, res: Response) => {
     // Create insurer
     const newInsurer = await db
       .insert(insurers)
-      .values(data)
+      .values(data as any)
       .returning();
 
     res.status(201).json({
@@ -149,7 +149,7 @@ router.post("/", async (req: AuthRequest, res: Response) => {
  */
 router.put("/:id", async (req: AuthRequest, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
 
     // Check insurer exists
     const existing = await db
@@ -177,7 +177,7 @@ router.put("/:id", async (req: AuthRequest, res: Response) => {
       });
     }
 
-    const data = validation.data;
+    const data = validation.data as any;
 
     // Check for code conflict if changing code
     if (data.code && data.code !== existing[0].code) {
@@ -201,7 +201,7 @@ router.put("/:id", async (req: AuthRequest, res: Response) => {
       .set({
         ...data,
         updatedAt: new Date(),
-      })
+      } as any)
       .where(eq(insurers.id, id))
       .returning();
 
@@ -225,7 +225,7 @@ router.put("/:id", async (req: AuthRequest, res: Response) => {
  */
 router.delete("/:id", async (req: AuthRequest, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
 
     // Check insurer exists
     const existing = await db
@@ -247,7 +247,7 @@ router.delete("/:id", async (req: AuthRequest, res: Response) => {
       .set({
         isActive: false,
         updatedAt: new Date(),
-      })
+      } as any)
       .where(eq(insurers.id, id));
 
     res.json({

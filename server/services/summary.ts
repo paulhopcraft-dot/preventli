@@ -457,7 +457,7 @@ Generate the structured case summary following the required format. Use ALL the 
         assignedToName: item.assignedToName,
         dueDate: item.dueDate,
         isBlocker: item.isBlocker || false,
-      });
+      } as any);
     }
   }
 

@@ -96,7 +96,7 @@ router.get("/", authorize(), async (req: AuthRequest, res: Response) => {
  */
 router.get("/:id", authorize(), async (req: AuthRequest, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const organizationId = req.user!.organizationId;
     const profile = await storage.getWorkerProfile(id);
     if (!profile) {
@@ -121,7 +121,7 @@ router.get("/:id", authorize(), async (req: AuthRequest, res: Response) => {
  */
 router.get("/:id/health-timeline", authorize(), async (req: AuthRequest, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const organizationId = req.user!.organizationId;
 
     const profile = await storage.getWorkerProfile(id);
@@ -168,7 +168,7 @@ router.post("/", authorize(), async (req: AuthRequest, res: Response) => {
       ...req.body,
       organizationId,
     });
-    const worker = await storage.upsertWorkerByEmail(validatedData);
+    const worker = await storage.upsertWorkerByEmail(validatedData as any);
     res.status(201).json({ worker });
   } catch (error) {
     if (error instanceof z.ZodError) {

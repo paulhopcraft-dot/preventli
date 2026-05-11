@@ -339,7 +339,7 @@ export async function generateEmailDraft(
     },
     status: "draft",
     createdBy: userId,
-  };
+  } as any;
 
   const savedDraft = await storage.createEmailDraft(draftInput);
   return mapEmailDraftDbToApi(savedDraft);
