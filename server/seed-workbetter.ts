@@ -477,11 +477,20 @@ async function seed(): Promise<void> {
   await db.delete(workerCases).where(
     inArray(workerCases.organizationId, allClientOrgIds)
   );
-  // 9. User invites created by our partner users
+  // 9. Null out created_by on records for OTHER orgs still referencing our partner users
+  //    (e.g. pre-employment assessments sent to non-seeded client orgs like Ikon Engineering)
+  const partnerUserIds = [PRIMARY_PARTNER_USER_ID, SCOPED_PARTNER_USER_ID];
+  await db.update(preEmploymentAssessments)
+    .set({ createdBy: null } as any)
+    .where(inArray(preEmploymentAssessments.createdBy as any, partnerUserIds));
+  await db.update(emailTemplates)
+    .set({ createdBy: null } as any)
+    .where(inArray(emailTemplates.createdBy as any, partnerUserIds));
+  // 10. User invites created by our partner users
   await db.delete(userInvites).where(
     inArray(userInvites.invitedByUserId, [PRIMARY_PARTNER_USER_ID, SCOPED_PARTNER_USER_ID])
   );
-  // 10. Partner access grants, then users, then orgs
+  // 11. Partner access grants, then users, then orgs
   await db.delete(partnerUserOrganizations).where(
     inArray(partnerUserOrganizations.userId, [PRIMARY_PARTNER_USER_ID, SCOPED_PARTNER_USER_ID])
   );
