@@ -97,7 +97,8 @@ function EmployerDashboardContent() {
   }
 
   const stats = dashboardData?.statistics;
-  const criticalActions = (dashboardData?.priorityActions ?? []).filter(a => a.priority === 'critical');
+  const actions = dashboardData?.priorityActions ?? [];
+  const criticalActions = actions.filter(a => a.priority === 'critical');
   const pendingApprovals = allCasesData?.cases.filter(c => c.rtwPlanStatus === 'pending_employer_review') ?? [];
   const highRiskCount = (allCasesData?.cases ?? []).filter(c => (c.riskLevel || '').toLowerCase() === 'high').length;
   const sortedCases = [...(allCasesData?.cases ?? [])].sort((a, b) => {
