@@ -433,33 +433,37 @@ async function seed(): Promise<void> {
     ALPINE_TEST_EMPTY_ID,
     ...WORKBETTER_CLIENT_IDS,
   ];
+  // All orgs being deleted: partner org + all client orgs.
+  // Child-table cleanup must cover ALL of these, not just client orgs.
+  const allOrgIds = [PARTNER_ORG_ID, ...allClientOrgIds];
+
   // ── Comprehensive cleanup ──────────────────────────────────────────────────
   // Handles all FK constraints that lack ON DELETE CASCADE.
   // Order: deepest dependents first, then parents.
 
   // 1. Pre-employment assessments (references org + worker + created_by user)
   await db.delete(preEmploymentAssessments).where(
-    inArray(preEmploymentAssessments.organizationId, allClientOrgIds)
+    inArray(preEmploymentAssessments.organizationId, allOrgIds)
   );
   // 2. Pre-employment health requirements (references org)
   await db.delete(preEmploymentHealthRequirements).where(
-    inArray(preEmploymentHealthRequirements.organizationId, allClientOrgIds)
+    inArray(preEmploymentHealthRequirements.organizationId, allOrgIds)
   );
   // 3. Telehealth bookings (references org + worker)
   await db.delete(telehealthBookings).where(
-    inArray(telehealthBookings.organizationId as any, allClientOrgIds)
+    inArray(telehealthBookings.organizationId as any, allOrgIds)
   );
   // 4. Email templates (references org + created_by user)
   await db.delete(emailTemplates).where(
-    inArray(emailTemplates.organizationId, allClientOrgIds)
+    inArray(emailTemplates.organizationId, allOrgIds)
   );
   // 5. RTW roles (references org; rtwDuties cascade from rtwRoles)
   await db.delete(rtwRoles).where(
-    inArray(rtwRoles.organizationId, allClientOrgIds)
+    inArray(rtwRoles.organizationId, allOrgIds)
   );
   // 6. Workers (references org; preEmploymentAssessments.workerId refs deleted above)
   await db.delete(workers).where(
-    inArray(workers.organizationId as any, allClientOrgIds)
+    inArray(workers.organizationId as any, allOrgIds)
   );
   // 7. Worker-case dependents that lack cascade (caseDiscussionInsights → Notes chain)
   const casesToDelete = await db
@@ -479,13 +483,18 @@ async function seed(): Promise<void> {
   );
   // 9. Null out created_by on records for OTHER orgs still referencing our partner users
   //    (e.g. pre-employment assessments sent to non-seeded client orgs like Ikon Engineering)
-  const partnerUserIds = [PRIMARY_PARTNER_USER_ID, SCOPED_PARTNER_USER_ID];
-  await db.update(preEmploymentAssessments)
-    .set({ createdBy: null } as any)
-    .where(inArray(preEmploymentAssessments.createdBy as any, partnerUserIds));
-  await db.update(emailTemplates)
-    .set({ createdBy: null } as any)
-    .where(inArray(emailTemplates.createdBy as any, partnerUserIds));
+  await db.execute(sql`
+    UPDATE pre_employment_assessments
+    SET created_by = NULL
+    WHERE created_by = ${PRIMARY_PARTNER_USER_ID}
+       OR created_by = ${SCOPED_PARTNER_USER_ID}
+  `);
+  await db.execute(sql`
+    UPDATE email_templates
+    SET created_by = NULL
+    WHERE created_by = ${PRIMARY_PARTNER_USER_ID}
+       OR created_by = ${SCOPED_PARTNER_USER_ID}
+  `);
   // 10. User invites created by our partner users
   await db.delete(userInvites).where(
     inArray(userInvites.invitedByUserId, [PRIMARY_PARTNER_USER_ID, SCOPED_PARTNER_USER_ID])
