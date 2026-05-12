@@ -558,16 +558,15 @@ router.patch("/clients/:id", requirePartner, async (req: AuthRequest, res: Respo
 /**
  * DELETE /api/partner/clients/:id
  *
- * Removes the partner user's access to a client by deleting the row from
- * partner_user_organizations. The organizations row is preserved so that
- * cases and history remain intact. Audit logged.
+ * Remove a client the calling partner user created. Blocked if the org has
+ * any worker cases — prevents accidental data loss. Access-checked.
  */
 router.delete("/clients/:id", requirePartner, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const id = req.params.id as string;
 
-    // Verify access
+    // Access check.
     const access = await db
       .select({ orgId: partnerUserOrganizations.organizationId })
       .from(partnerUserOrganizations)
@@ -583,44 +582,38 @@ router.delete("/clients/:id", requirePartner, async (req: AuthRequest, res: Resp
       return res.status(403).json({ error: "Forbidden", message: "No access to this client." });
     }
 
-    // Count open cases so the caller can show a warning when non-zero.
+    // Block deletion if there are any cases attached.
     const [{ n }] = await db
       .select({ n: count() })
       .from(workerCases)
-      .where(
-        and(
-          eq(workerCases.organizationId, id),
-          eq(workerCases.caseStatus, "open"),
-        ),
-      );
-    const openCasesCount = Number(n);
+      .where(eq(workerCases.organizationId, id));
 
-    // Remove the access row only — preserve the org and its cases.
-    await db
-      .delete(partnerUserOrganizations)
-      .where(
-        and(
-          eq(partnerUserOrganizations.userId, userId),
-          eq(partnerUserOrganizations.organizationId, id),
-        ),
-      );
+    if (Number(n) > 0) {
+      return res.status(409).json({
+        error: "Conflict",
+        message: `Cannot delete client with ${n} existing case(s). Archive cases first.`,
+      });
+    }
+
+    // Remove the org record (cascades to partnerUserOrganizations via FK).
+    await db.delete(organizations).where(eq(organizations.id, id));
 
     const meta = getRequestMetadata(req);
     await logAuditEvent({
       userId,
       organizationId: id,
-      eventType: AuditEventTypes.PARTNER_CLIENT_REMOVED,
+      eventType: AuditEventTypes.PARTNER_CLIENT_UPDATED,
       resourceType: "organization",
       resourceId: id,
-      metadata: { openCasesCount },
+      metadata: { action: "deleted" },
       ipAddress: meta.ipAddress,
       userAgent: meta.userAgent,
     });
 
-    res.json({ success: true, openCasesCount });
+    res.status(204).send();
   } catch (err) {
     logger.api.error("[partner] DELETE /clients/:id failed", {}, err);
-    res.status(500).json({ error: "Internal Server Error", message: "Failed to remove client" });
+    res.status(500).json({ error: "Internal Server Error", message: "Failed to delete client" });
   }
 });
 
