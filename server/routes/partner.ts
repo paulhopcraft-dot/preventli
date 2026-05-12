@@ -556,6 +556,75 @@ router.patch("/clients/:id", requirePartner, async (req: AuthRequest, res: Respo
 });
 
 /**
+ * DELETE /api/partner/clients/:id
+ *
+ * Removes the partner user's access to a client by deleting the row from
+ * partner_user_organizations. The organizations row is preserved so that
+ * cases and history remain intact. Audit logged.
+ */
+router.delete("/clients/:id", requirePartner, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const id = req.params.id as string;
+
+    // Verify access
+    const access = await db
+      .select({ orgId: partnerUserOrganizations.organizationId })
+      .from(partnerUserOrganizations)
+      .where(
+        and(
+          eq(partnerUserOrganizations.userId, userId),
+          eq(partnerUserOrganizations.organizationId, id),
+        ),
+      )
+      .limit(1);
+
+    if (access.length === 0) {
+      return res.status(403).json({ error: "Forbidden", message: "No access to this client." });
+    }
+
+    // Count open cases so the caller can show a warning when non-zero.
+    const [{ n }] = await db
+      .select({ n: count() })
+      .from(workerCases)
+      .where(
+        and(
+          eq(workerCases.organizationId, id),
+          eq(workerCases.caseStatus, "open"),
+        ),
+      );
+    const openCasesCount = Number(n);
+
+    // Remove the access row only — preserve the org and its cases.
+    await db
+      .delete(partnerUserOrganizations)
+      .where(
+        and(
+          eq(partnerUserOrganizations.userId, userId),
+          eq(partnerUserOrganizations.organizationId, id),
+        ),
+      );
+
+    const meta = getRequestMetadata(req);
+    await logAuditEvent({
+      userId,
+      organizationId: id,
+      eventType: AuditEventTypes.PARTNER_CLIENT_REMOVED,
+      resourceType: "organization",
+      resourceId: id,
+      metadata: { openCasesCount },
+      ipAddress: meta.ipAddress,
+      userAgent: meta.userAgent,
+    });
+
+    res.json({ success: true, openCasesCount });
+  } catch (err) {
+    logger.api.error("[partner] DELETE /clients/:id failed", {}, err);
+    res.status(500).json({ error: "Internal Server Error", message: "Failed to remove client" });
+  }
+});
+
+/**
  * GET /api/partner/cases
  *
  * Cross-client cases list for the partner workspace. Returns every case

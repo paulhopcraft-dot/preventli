@@ -63,6 +63,7 @@ export const AuditEventTypes = {
   // Partner-tier client management (slice 2)
   PARTNER_CLIENT_CREATED: "partner_client_created",
   PARTNER_CLIENT_UPDATED: "partner_client_updated",
+  PARTNER_CLIENT_REMOVED: "partner_client_removed",
 
   // Password management
   USER_PASSWORD_CHANGE: "user.password_change",
