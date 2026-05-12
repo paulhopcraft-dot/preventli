@@ -7,6 +7,10 @@ import {
   users,
   partnerUserOrganizations,
   workerCases,
+  medicalCertificates,
+  caseAttachments,
+  caseDiscussionNotes,
+  caseDiscussionInsights,
 } from "@shared/schema";
 
 /**
@@ -422,6 +426,18 @@ async function seed(): Promise<void> {
     ALPINE_TEST_EMPTY_ID,
     ...WORKBETTER_CLIENT_IDS,
   ];
+  // Delete dependent records that lack ON DELETE CASCADE before removing cases.
+  const casesToDelete = await db
+    .select({ id: workerCases.id })
+    .from(workerCases)
+    .where(inArray(workerCases.organizationId, allClientOrgIds));
+  const deleteCaseIds = casesToDelete.map((c) => c.id);
+  if (deleteCaseIds.length > 0) {
+    await db.delete(caseDiscussionInsights).where(inArray(caseDiscussionInsights.caseId, deleteCaseIds));
+    await db.delete(caseDiscussionNotes).where(inArray(caseDiscussionNotes.caseId, deleteCaseIds));
+    await db.delete(medicalCertificates).where(inArray(medicalCertificates.caseId, deleteCaseIds));
+    await db.delete(caseAttachments).where(inArray(caseAttachments.caseId, deleteCaseIds));
+  }
   await db.delete(workerCases).where(
     inArray(workerCases.organizationId, allClientOrgIds)
   );
