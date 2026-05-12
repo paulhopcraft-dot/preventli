@@ -1,3 +1,11 @@
 {
-  "entries": []
+  "entries": [
+    {
+      "file": "client/src/pages/InjuryDateReviewPage.tsx",
+      "processedAt": "2026-05-12T17:57:07.567Z",
+      "scoreBefore": 1006,
+      "scoreAfter": null,
+      "gateResult": "passed"
+    }
+  ]
 }
