@@ -84,13 +84,13 @@ ALTER TABLE "organizations"
  *   npm run seed:workbetter -- --minimal   # F only (skip demo workers)
  */
 
-const PARTNER_ORG_ID = "org-test-partner";
+const PARTNER_ORG_ID = "org-workbetter";
 const ALPINE_HEALTH_ID = "org-alpine-health";
 const ALPINE_MDF_ID = "org-alpine-mdf";
 const ALPINE_TEST_EMPTY_ID = "org-alpine-test-empty";
 
-const PRIMARY_PARTNER_USER_ID = "user-test-partner-primary";
-const SCOPED_PARTNER_USER_ID = "user-test-partner-scoped";
+const PRIMARY_PARTNER_USER_ID = "user-workbetter-primary";
+const SCOPED_PARTNER_USER_ID = "user-workbetter-scoped";
 
 const ALPINE_COMPANIES = [
   { id: ALPINE_HEALTH_ID, name: "Alpine Health" },
@@ -442,7 +442,7 @@ async function seed(): Promise<void> {
       name: "Test Partner",
       slug: "test-partner",
       kind: "partner",
-      logoUrl: null,
+      logoUrl: "/assets/workbetter-logo.jpg",
       contactName: "Test Partner Admin",
       contactEmail: "admin@testpartner.com.au",
       contactPhone: "03 9000 0001",
@@ -644,9 +644,12 @@ async function seed(): Promise<void> {
   console.log(`  client cases (Alpine Health/MDF): ${caseRows.length}`);
 
   console.log("\n[seed-workbetter] Login credentials:");
-  console.log("  workbetter@workbetter.net.au         / workbetter123  (full access)");
-  console.log("  workbetter-scoped@workbetter.net.au  / workbetter123  (Alpine Health only)");
+  console.log("  testpartner@testpartner.com.au         / workbetter123  (Test Partner — full access)");
+  console.log("  testpartner-scoped@testpartner.com.au  / workbetter123  (Test Partner — scoped)");
+  console.log("  workbetter@workbetter.net.au           — WorkBetter partner, starts with 0 clients");
 }
+
+export { seed as seedWorkBetter };
 
 seed()
   .then(async () => {
