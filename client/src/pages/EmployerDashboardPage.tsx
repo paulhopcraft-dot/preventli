@@ -63,6 +63,25 @@ interface DashboardData {
   organizationName: string;
 }
 
+function getPriorityColor(priority: string): string {
+  switch (priority) {
+    case 'critical': return 'bg-red-100 text-red-700 border-red-200';
+    case 'urgent': return 'bg-amber-100 text-amber-700 border-amber-200';
+    default: return 'bg-blue-100 text-blue-700 border-blue-200';
+  }
+}
+
+function getPriorityIcon(type: string): string {
+  switch (type) {
+    case 'certificate': return '📋';
+    case 'review': return '🔍';
+    case 'rtw_plan': return '📅';
+    case 'medical': return '🏥';
+    case 'compliance': return '⚠️';
+    default: return '•';
+  }
+}
+
 function EmployerDashboardContent() {
   const navigate = useNavigate();
 
