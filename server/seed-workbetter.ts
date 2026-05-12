@@ -667,17 +667,26 @@ async function seed(): Promise<void> {
 
 export { seed as seedWorkBetter };
 
-seed()
-  .then(async () => {
-    await pool.end();
-    process.exit(0);
-  })
-  .catch(async (err) => {
-    console.error("[seed-workbetter] Failed:", err);
-    try {
+// Only auto-run when executed directly as a script (not when imported as a module).
+// This prevents pool.end() / process.exit() from firing when the admin endpoint
+// dynamically imports this file.
+const isDirectRun =
+  process.argv[1]?.endsWith("seed-workbetter.ts") ||
+  process.argv[1]?.endsWith("seed-workbetter.js");
+
+if (isDirectRun) {
+  seed()
+    .then(async () => {
       await pool.end();
-    } catch {
-      // ignore
-    }
-    process.exit(1);
-  });
+      process.exit(0);
+    })
+    .catch(async (err) => {
+      console.error("[seed-workbetter] Failed:", err);
+      try {
+        await pool.end();
+      } catch {
+        // ignore
+      }
+      process.exit(1);
+    });
+}
