@@ -207,11 +207,6 @@ export default function CaseSummaryPage() {
           </div>
         </div>
 
-        {/* Compliance Milestone Clock — Off Work cases only */}
-        {workerCase.workStatus === "Off work" && workerCase.caseStatus !== "closed" && (
-          <MilestoneClock workerCase={workerCase} />
-        )}
-
         {/* Main content area + persistent sidebar */}
         <div className="flex gap-6 items-start">
         {/* 7-Tab Case Detail View */}
@@ -230,6 +225,11 @@ export default function CaseSummaryPage() {
 
           <TabsContent value="summary" className="mt-4">
             <div className="space-y-6">
+              {/* Compliance Milestone Clock — Off Work cases only */}
+              {workerCase.workStatus === "Off work" && workerCase.caseStatus !== "closed" && (
+                <MilestoneClock workerCase={workerCase} />
+              )}
+
               {/* Three summary cards */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <CurrentCapacityCard workerCase={workerCase} />
