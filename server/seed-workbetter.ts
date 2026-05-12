@@ -84,13 +84,13 @@ ALTER TABLE "organizations"
  *   npm run seed:workbetter -- --minimal   # F only (skip demo workers)
  */
 
-const PARTNER_ORG_ID = "org-workbetter";
+const PARTNER_ORG_ID = "org-test-partner";
 const ALPINE_HEALTH_ID = "org-alpine-health";
 const ALPINE_MDF_ID = "org-alpine-mdf";
 const ALPINE_TEST_EMPTY_ID = "org-alpine-test-empty";
 
-const PRIMARY_PARTNER_USER_ID = "user-workbetter-primary";
-const SCOPED_PARTNER_USER_ID = "user-workbetter-scoped";
+const PRIMARY_PARTNER_USER_ID = "user-test-partner-primary";
+const SCOPED_PARTNER_USER_ID = "user-test-partner-scoped";
 
 const ALPINE_COMPANIES = [
   { id: ALPINE_HEALTH_ID, name: "Alpine Health" },
@@ -439,12 +439,12 @@ async function seed(): Promise<void> {
   await db.insert(organizations).values([
     {
       id: PARTNER_ORG_ID,
-      name: "WorkBetter",
-      slug: "workbetter",
+      name: "Test Partner",
+      slug: "test-partner",
       kind: "partner",
-      logoUrl: "/assets/workbetter-logo.jpg",
-      contactName: "WorkBetter Admin",
-      contactEmail: "admin@workbetter.net.au",
+      logoUrl: null,
+      contactName: "Test Partner Admin",
+      contactEmail: "admin@testpartner.com.au",
       contactPhone: "03 9000 0001",
     },
     {
@@ -535,7 +535,7 @@ async function seed(): Promise<void> {
     {
       id: PRIMARY_PARTNER_USER_ID,
       organizationId: PARTNER_ORG_ID,
-      email: "workbetter@workbetter.net.au",
+      email: "testpartner@testpartner.com.au",
       password: passwordHash,
       role: "partner",
       subrole: null,
@@ -545,7 +545,7 @@ async function seed(): Promise<void> {
     {
       id: SCOPED_PARTNER_USER_ID,
       organizationId: PARTNER_ORG_ID,
-      email: "workbetter-scoped@workbetter.net.au",
+      email: "testpartner-scoped@testpartner.com.au",
       password: passwordHash,
       role: "partner",
       subrole: null,
@@ -554,22 +554,9 @@ async function seed(): Promise<void> {
     },
   ] as any);
 
-  console.log("[seed-workbetter] Granting partner user access to client orgs...");
-  // Primary user gets the Alpine fixtures plus every WorkBetter client.
-  // Scoped user stays limited to Alpine Health to keep proving access enforcement.
-  const primaryGrants = [
-    ALPINE_HEALTH_ID,
-    ALPINE_MDF_ID,
-    ALPINE_TEST_EMPTY_ID,
-    ...WORKBETTER_CLIENT_IDS,
-  ].map((organizationId) => ({ userId: PRIMARY_PARTNER_USER_ID, organizationId }));
-  const grantBatchSize = 100;
-  for (let i = 0; i < primaryGrants.length; i += grantBatchSize) {
-    await db.insert(partnerUserOrganizations).values(primaryGrants.slice(i, i + grantBatchSize));
-  }
-  await db.insert(partnerUserOrganizations).values([
-    { userId: SCOPED_PARTNER_USER_ID, organizationId: ALPINE_HEALTH_ID },
-  ]);
+  // WorkBetter starts with zero pre-linked clients — partners add their own
+  // clients through the UI. No partner_user_organizations rows are seeded here.
+  console.log("[seed-workbetter] WorkBetter starts with no pre-linked clients (partners add their own).");
 
   // Task F: minimal smoke case per company (one trivial open case).
   console.log("[seed-workbetter] Inserting smoke cases (Task F)...");
