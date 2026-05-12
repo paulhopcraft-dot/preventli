@@ -10,6 +10,20 @@ interface Message {
 
 interface ChatWidgetProps {
   caseContext?: { caseId?: string; workerId?: string };
+  userName?: string;
+}
+
+function getGreeting(userName?: string): string {
+  const hour = new Date().getHours();
+  const name = userName ? `, ${userName}` : "";
+
+  if (hour < 12) {
+    return `Good morning${name}! I've already been through your cases — there's a few things on your plate today. Want me to run you through them, or is there something specific on your mind?`;
+  } else if (hour < 17) {
+    return `Good afternoon${name}! How's the day going? I've been keeping an eye on your cases. Anything you need a hand with?`;
+  } else {
+    return `Good evening${name}! Wrapping up? I can pull together where everything stands, or flag anything that needs attention tomorrow.`;
+  }
 }
 
 function generateSessionId(): string {
@@ -25,13 +39,12 @@ function getOrCreateSessionId(): string {
   return id;
 }
 
-export function ChatWidget({ caseContext }: ChatWidgetProps) {
+export function ChatWidget({ caseContext, userName }: ChatWidgetProps) {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
     {
       role: "assistant",
-      content:
-        "Hi, I'm Alex — a workplace health specialist with Preventli. I'm here to help with case management, employee recovery questions, or workplace wellness guidance. How can I assist you today?",
+      content: getGreeting(userName),
     },
   ]);
   const [input, setInput] = useState("");
@@ -103,8 +116,8 @@ export function ChatWidget({ caseContext }: ChatWidgetProps) {
               <div className="flex items-center gap-2">
                 <Stethoscope className="w-4 h-4" />
                 <div>
-                  <p className="text-sm font-semibold">Alex · Preventli</p>
-                  <p className="text-xs opacity-75">Workplace Health Specialist</p>
+                  <p className="text-sm font-semibold">Alex</p>
+                  <p className="text-xs opacity-75">Your case manager</p>
                 </div>
               </div>
               <button onClick={() => setOpen(false)} className="opacity-75 hover:opacity-100 transition-opacity">
@@ -161,7 +174,7 @@ export function ChatWidget({ caseContext }: ChatWidgetProps) {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKey}
-                placeholder="Ask a health question..."
+                placeholder="Message Alex..."
                 className="flex-1 text-sm bg-transparent outline-none text-foreground placeholder:text-muted-foreground"
                 disabled={loading}
               />
@@ -182,7 +195,7 @@ export function ChatWidget({ caseContext }: ChatWidgetProps) {
           className="flex items-center gap-2 bg-primary text-primary-foreground rounded-full pl-4 pr-5 py-3 shadow-lg hover:bg-primary/90 transition-colors"
         >
           <Stethoscope className="w-5 h-5" />
-          <span className="text-sm font-medium">Talk with an Expert</span>
+          <span className="text-sm font-medium">Chat with Alex</span>
         </button>
       </div>
 

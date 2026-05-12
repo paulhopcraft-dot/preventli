@@ -51,6 +51,7 @@ import controlRoutes from "./routes/control";
 import lifecycleRoutes from "./routes/lifecycle";
 import hrDecisionsRoutes from "./routes/hr-decisions";
 import supportRoutes from "./routes/support";
+import morningBriefingRoutes from "./routes/morning-briefing";
 import type { RecoveryTimelineSummary } from "@shared/schema";
 import { evaluateClinicalEvidence } from "./services/clinicalEvidence";
 import { authorize, type AuthRequest } from "./middleware/auth";
@@ -225,6 +226,9 @@ export async function registerRoutes(app: Express): Promise<void> {
 
   // Unified Health Assistant Chat (JWT-protected)
   app.use("/api/chat", chatRoutes);
+
+  // Alex Morning Briefing (JWT-protected)
+  app.use("/api/morning-briefing", morningBriefingRoutes);
 
   // Public questionnaire routes (no auth — worker magic link)
   app.use("/api/public", publicRoutes);
