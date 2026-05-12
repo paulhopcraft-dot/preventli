@@ -11,6 +11,13 @@ import {
   caseAttachments,
   caseDiscussionNotes,
   caseDiscussionInsights,
+  preEmploymentAssessments,
+  preEmploymentHealthRequirements,
+  emailTemplates,
+  rtwRoles,
+  workers,
+  userInvites,
+  telehealthBookings,
 } from "@shared/schema";
 
 /**
@@ -426,7 +433,35 @@ async function seed(): Promise<void> {
     ALPINE_TEST_EMPTY_ID,
     ...WORKBETTER_CLIENT_IDS,
   ];
-  // Delete dependent records that lack ON DELETE CASCADE before removing cases.
+  // ── Comprehensive cleanup ──────────────────────────────────────────────────
+  // Handles all FK constraints that lack ON DELETE CASCADE.
+  // Order: deepest dependents first, then parents.
+
+  // 1. Pre-employment assessments (references org + worker + created_by user)
+  await db.delete(preEmploymentAssessments).where(
+    inArray(preEmploymentAssessments.organizationId, allClientOrgIds)
+  );
+  // 2. Pre-employment health requirements (references org)
+  await db.delete(preEmploymentHealthRequirements).where(
+    inArray(preEmploymentHealthRequirements.organizationId, allClientOrgIds)
+  );
+  // 3. Telehealth bookings (references org + worker)
+  await db.delete(telehealthBookings).where(
+    inArray(telehealthBookings.organizationId as any, allClientOrgIds)
+  );
+  // 4. Email templates (references org + created_by user)
+  await db.delete(emailTemplates).where(
+    inArray(emailTemplates.organizationId, allClientOrgIds)
+  );
+  // 5. RTW roles (references org; rtwDuties cascade from rtwRoles)
+  await db.delete(rtwRoles).where(
+    inArray(rtwRoles.organizationId, allClientOrgIds)
+  );
+  // 6. Workers (references org; preEmploymentAssessments.workerId refs deleted above)
+  await db.delete(workers).where(
+    inArray(workers.organizationId as any, allClientOrgIds)
+  );
+  // 7. Worker-case dependents that lack cascade (caseDiscussionInsights → Notes chain)
   const casesToDelete = await db
     .select({ id: workerCases.id })
     .from(workerCases)
@@ -438,9 +473,15 @@ async function seed(): Promise<void> {
     await db.delete(medicalCertificates).where(inArray(medicalCertificates.caseId, deleteCaseIds));
     await db.delete(caseAttachments).where(inArray(caseAttachments.caseId, deleteCaseIds));
   }
+  // 8. Worker cases (cascades: rtwPlans → versions/consent, caseActions, emailDrafts, etc.)
   await db.delete(workerCases).where(
     inArray(workerCases.organizationId, allClientOrgIds)
   );
+  // 9. User invites created by our partner users
+  await db.delete(userInvites).where(
+    inArray(userInvites.invitedByUserId, [PRIMARY_PARTNER_USER_ID, SCOPED_PARTNER_USER_ID])
+  );
+  // 10. Partner access grants, then users, then orgs
   await db.delete(partnerUserOrganizations).where(
     inArray(partnerUserOrganizations.userId, [PRIMARY_PARTNER_USER_ID, SCOPED_PARTNER_USER_ID])
   );
