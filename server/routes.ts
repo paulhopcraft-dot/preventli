@@ -25,6 +25,7 @@ import adminOrganizationRoutes from "./routes/admin/organizations";
 import adminInsurerRoutes from "./routes/admin/insurers";
 import adminRolesRoutes from "./routes/admin/roles";
 import adminDutiesRoutes from "./routes/admin/duties";
+import adminSeedRoutes from "./routes/admin/seed";
 import organizationRoutes from "./routes/organization";
 // caseChatRoutes removed — consolidated into unified chat at /api/chat/message
 import workerRoutes from "./routes/workers";
@@ -88,6 +89,9 @@ export async function registerRoutes(app: Express): Promise<void> {
 
   // Admin RTW duties management routes (requires admin authentication)
   app.use("/api/admin/duties", adminDutiesRoutes);
+
+  // Admin seed trigger (admin only — one-shot idempotent re-seed)
+  app.use("/api/admin/seed", adminSeedRoutes);
 
   // Organization self-service routes (authenticated users)
   app.use("/api/organization", organizationRoutes);
