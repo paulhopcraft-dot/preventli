@@ -68,6 +68,10 @@ export const AuditEventTypes = {
   // Password management
   USER_PASSWORD_CHANGE: "user.password_change",
   USER_PASSWORD_CHANGE_FAILED: "user.password_change_failed",
+
+  // RTW Auto-Draft
+  RTW_AUTO_DRAFT_CREATED: "rtw_plan.auto_draft.created",
+  RTW_AUTO_DRAFT_SKIPPED: "rtw_plan.auto_draft.skipped",
 } as const;
 
 export type AuditEventType = typeof AuditEventTypes[keyof typeof AuditEventTypes];
