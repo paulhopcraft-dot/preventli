@@ -672,9 +672,19 @@ export interface TranscriptInsight {
   createdAt: string;
 }
 
+export type WorkerCaseType =
+  | "injury"
+  | "pre_employment"
+  | "prevention"
+  | "wellness"
+  | "mental_health"
+  | "exit";
+
 export interface WorkerCase {
   id: string;
   organizationId: string; // Organization/tenant isolation - added in migration 0003
+  type: WorkerCaseType; // Case type — distinguishes injury cases from health-check-originated cases
+  assessmentId?: string | null; // Link back to originating pre-employment assessment (nullable)
   workerId?: string | null;
   workerName: string;
   company: string; // Allow any company name from Freshdesk, not just predefined ones
@@ -863,6 +873,14 @@ export const workerCases = pgTable("worker_cases", {
   clcLastFollowUp: text("clc_last_follow_up"),
   clcNextFollowUp: text("clc_next_follow_up"),
   employmentStatus: text("employment_status").notNull().default("ACTIVE"),
+
+  // Case type discrimination — injury vs health-check-originated cases
+  // SCOPE NOTE: case auto-creation is currently wired ONLY for pre-employment checks
+  // (POST /api/public/check/:token). Exit / Prevention / Wellness / MentalHealth forms
+  // will get their own hooks in a follow-up plan once their submission paths are confirmed.
+  type: text("type").notNull().default("injury").$type<WorkerCaseType>(),
+  // Link back to the originating pre-employment assessment (nullable; only set for health-check rows)
+  assessmentId: varchar("assessment_id"),
 
   // Phase 3.2 — Case Assignment
   caseManagerId: varchar("case_manager_id"),      // Assigned case manager user ID
@@ -2611,7 +2629,7 @@ export type InsertCaseDocument = typeof caseDocuments.$inferInsert;
 export const insertCaseDocumentSchema = createInsertSchema(caseDocuments);
 
 // ============================================
-// CHAT MEMORY TABLE (Dr. Alex per-case/worker memory)
+// CHAT MEMORY TABLE (Alex per-case/worker memory)
 // ============================================
 
 export const chatMemory = pgTable("chat_memory", {

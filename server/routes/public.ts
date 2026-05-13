@@ -71,9 +71,18 @@ router.post("/check/:token", async (req: Request, res: Response) => {
     // Save responses and mark in-progress
     await storage.updateAssessmentResponses(assessment.id, responses);
 
-    // Trigger AI report generation (async — don't block worker's confirmation)
     // Pass assessment with responses merged in so generator doesn't need to re-fetch
     const assessmentWithResponses = { ...assessment, questionnaireResponses: responses };
+
+    // SCOPE NOTE: case auto-creation is currently wired ONLY for pre-employment checks
+    // (this endpoint). Exit / Prevention / Wellness / MentalHealth forms will get
+    // their own hooks in a follow-up plan once their submission paths are confirmed.
+    storage.createCaseFromAssessment(assessmentWithResponses).catch((err) => {
+      // Non-blocking: case creation failure must not break the worker's submit flow.
+      logger.error("Health-check case auto-creation failed:", undefined, err);
+    });
+
+    // Trigger AI report generation (async — don't block worker's confirmation)
     generateReport(assessmentWithResponses).catch((err) => {
       logger.error("Report generation failed:", undefined, err);
     });

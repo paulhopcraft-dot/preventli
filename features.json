@@ -1175,7 +1175,7 @@
     {
       "id": "telehealth-platform",
       "name": "Preventli Telehealth Platform",
-      "description": "Self-service telehealth layer: magic-link health assessments, Dr. Alex chat widget, Book Telehealth modal, AI report generation, and normalized workers table",
+      "description": "Self-service telehealth layer: magic-link health assessments, Alex chat widget, Book Telehealth modal, AI report generation, and normalized workers table",
       "priority": "high",
       "status": "completed",
       "verified_at": "2026-03-01T04:15:00Z",
@@ -1204,7 +1204,7 @@
         },
         {
           "id": "chat-api-endpoint",
-          "story": "As a user, messages go to Dr. Alex (loaded from DR_ALEX_SOUL.md) with optional case context",
+          "story": "As a user, messages go to Alex (loaded from DR_ALEX_SOUL.md) with optional case context",
           "status": "completed",
           "passes": true,
           "verified_at": "2026-03-01T00:00:00Z"
@@ -1218,7 +1218,7 @@
         },
         {
           "id": "booking-inline-chat",
-          "story": "As a user, when Dr. Alex suggests seeing a doctor, a Book Telehealth button appears inline in chat",
+          "story": "As a user, when Alex suggests seeing a doctor, a Book Telehealth button appears inline in chat",
           "status": "completed",
           "passes": true,
           "verified_at": "2026-03-01T00:00:00Z"
@@ -1270,7 +1270,7 @@
         "Workers table: normalized FK target for cases, assessments, and bookings",
         "Magic link: crypto.randomBytes(32).toString('hex') stored as accessToken",
         "Public routes (/api/public/*) have no authorize() middleware",
-        "Dr. Alex soul loaded from config/DR_ALEX_SOUL.md at server startup via readFileSync",
+        "Alex soul loaded from config/DR_ALEX_SOUL.md at server startup via readFileSync",
         "SUGGEST_BOOKING signal stripped from AI response text, returned as suggestBooking: true flag",
         "ChatWidget lazy-imports BookingModal to avoid circular dependency",
         "reportGenerator accepts full assessment object (not ID) to avoid empty orgId lookup",
@@ -1280,7 +1280,7 @@
       "businessImpact": [
         "Workers can complete health checks without creating an account",
         "Employers get automated clearance emails \u2014 no manual follow-up",
-        "Dr. Alex provides 24/7 health guidance and triages to telehealth when needed",
+        "Alex provides 24/7 health guidance and triages to telehealth when needed",
         "Jacinta alerted instantly for complex or flagged assessments",
         "Full worker history in one normalized data model"
       ]
@@ -1301,8 +1301,8 @@
     },
     {
       "id": "dr-alex-memory",
-      "name": "Dr. Alex Per-Case/Worker Conversation Memory",
-      "description": "chat_memory table stores conversation history per case or worker. Dr. Alex loads last 8 messages before each response and saves new exchanges fire-and-forget. Memory scoped to caseId or workerId context.",
+      "name": "Alex Per-Case/Worker Conversation Memory",
+      "description": "chat_memory table stores conversation history per case or worker. Alex loads last 8 messages before each response and saves new exchanges fire-and-forget. Memory scoped to caseId or workerId context.",
       "priority": "high",
       "status": "completed",
       "verified_at": "2026-03-01T07:00:00Z",
@@ -1311,14 +1311,14 @@
       "userStories": [
         {
           "id": "chat-memory-persist",
-          "story": "As a clinician, Dr. Alex remembers what was discussed about a case last week so I don't have to repeat context",
+          "story": "As a clinician, Alex remembers what was discussed about a case last week so I don't have to repeat context",
           "status": "completed",
           "passes": true,
           "verified_at": "2026-03-01T07:00:00Z"
         },
         {
           "id": "chat-memory-worker",
-          "story": "As a clinician, Dr. Alex remembers worker-specific context when I'm on a worker's profile page",
+          "story": "As a clinician, Alex remembers worker-specific context when I'm on a worker's profile page",
           "status": "completed",
           "passes": true,
           "verified_at": "2026-03-01T07:00:00Z"
@@ -1335,7 +1335,7 @@
     {
       "id": "e2e-test-suite",
       "name": "Comprehensive Playwright E2E Test Suite",
-      "description": "53-test Playwright E2E suite covering all features built in sessions 91-97. @smoke/@critical/@regression waves. Tests auth, workers, pre-employment assessments, employer-initiated flows, Dr. Alex chat, telehealth bookings, case compliance, notifications, agents, and page load smoke tests.",
+      "description": "53-test Playwright E2E suite covering all features built in sessions 91-97. @smoke/@critical/@regression waves. Tests auth, workers, pre-employment assessments, employer-initiated flows, Alex chat, telehealth bookings, case compliance, notifications, agents, and page load smoke tests.",
       "priority": "high",
       "status": "completed",
       "verified_at": "2026-03-01T08:00:00Z",

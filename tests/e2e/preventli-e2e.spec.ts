@@ -7,7 +7,7 @@
  *   - Pre-employment assessments (create, send magic link, worker submission, clearance)
  *   - Employer-initiated flows (email send + web activation)
  *   - Telehealth bookings (clinician + employer-triggered)
- *   - Dr. Alex chat (context injection, memory persistence, SUGGEST_BOOKING)
+ *   - Alex chat (context injection, memory persistence, SUGGEST_BOOKING)
  *   - Case compliance context (certificate, RTW, overdue actions)
  *   - Notification API (health check due)
  *   - Agents API (trigger + status)
@@ -437,7 +437,7 @@ test.describe("@critical Employer-Initiated Pre-Employment", () => {
 // 5. DR. ALEX CHAT — CONTEXT & MEMORY
 // ─────────────────────────────────────────────────────────────────────────────
 
-test.describe("@critical Dr. Alex Chat", () => {
+test.describe("@critical Alex Chat", () => {
   test("API: chat responds to basic message", async ({ request }) => {
     const { headers } = await apiSession(request);
 
@@ -477,7 +477,7 @@ test.describe("@critical Dr. Alex Chat", () => {
 
     expect(res.status()).toBe(200);
     const json = await res.json();
-    // Dr. Alex should respond with case-specific content, not a generic greeting
+    // Alex should respond with case-specific content, not a generic greeting
     expect(json.reply.length).toBeGreaterThan(20);
   });
 
@@ -525,7 +525,7 @@ test.describe("@critical Dr. Alex Chat", () => {
       },
     });
 
-    // Message 2: ask Dr. Alex to recall
+    // Message 2: ask Alex to recall
     const res2 = await request.post(`${BASE}/api/chat/message`, {
       headers,
       data: {
@@ -536,7 +536,7 @@ test.describe("@critical Dr. Alex Chat", () => {
     });
 
     const json2 = await res2.json();
-    // Dr. Alex should reference the previous message content
+    // Alex should reference the previous message content
     expect(json2.reply.length).toBeGreaterThan(30);
     // The reply should mention certificate or the previous topic
     const lowerReply = json2.reply.toLowerCase();
@@ -570,7 +570,7 @@ test.describe("@critical Dr. Alex Chat", () => {
 
     expect(res.status()).toBe(200);
     const json = await res.json();
-    // suggestBooking is a boolean — true or false depending on Dr. Alex judgment
+    // suggestBooking is a boolean — true or false depending on Alex judgment
     expect(typeof json.suggestBooking).toBe("boolean");
     // Reply should not contain the raw [SUGGEST_BOOKING] tag
     expect(json.reply).not.toContain("[SUGGEST_BOOKING]");
@@ -593,7 +593,7 @@ test.describe("@critical Dr. Alex Chat", () => {
     const chatBtn = page.getByRole("button", { name: /talk with a doctor/i }).first();
     await chatBtn.click();
 
-    // Chat panel shows Dr. Alex header
+    // Chat panel shows Alex header
     await expect(
       page.getByText(/Dr\. Alex/i).first()
     ).toBeVisible({ timeout: 6_000 });
@@ -738,7 +738,7 @@ test.describe("@critical Case Compliance", () => {
     expect([200, 404]).toContain(res.status());
   });
 
-  test("UI: case page shows Dr. Alex context chat", async ({ page, request }) => {
+  test("UI: case page shows Alex context chat", async ({ page, request }) => {
     await loginUI(page);
     const { headers } = await apiSession(request);
     const casesRes = await request.get(`${BASE}/api/cases`, { headers });

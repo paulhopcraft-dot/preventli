@@ -31,7 +31,7 @@ import {
   Users as UsersIcon,
   Paperclip,
 } from "lucide-react";
-import type { WorkerCase, PaginatedCasesResponse, CaseLifecycleStage } from "@shared/schema";
+import type { WorkerCase, PaginatedCasesResponse, CaseLifecycleStage, CaseAction } from "@shared/schema";
 import { LIFECYCLE_STAGE_LABELS } from "@shared/schema";
 import { cn } from "@/lib/utils";
 import { CaseContactsPanel } from "@/components/CaseContactsPanel";
@@ -42,6 +42,8 @@ import { ComponentErrorBoundary } from "@/components/ErrorBoundary";
 import { ContextualHelpSystem } from "@/components/unified-case-management/ContextualHelpSystem";
 import { SmartRTWPlanning } from "@/components/unified-case-management/SmartRTWPlanning";
 import { CaseActionPanel } from "@/components/CaseActionPanel";
+import { CaseActionPlanCard } from "@/components/CaseActionPlanCard";
+import { fetchWithCsrf } from "@/lib/queryClient";
 import { MilestoneClock } from "@/components/MilestoneClock";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -64,6 +66,19 @@ export default function CaseSummaryPage() {
     queryKey: [`/api/cases/${id}/timeline-estimate`],
     enabled: !!id,
   });
+
+  const { data: pendingActionsData, refetch: refetchActions } = useQuery<{ data: CaseAction[] }>({
+    queryKey: [`/api/actions/pending`, id],
+    queryFn: async () => {
+      const response = await fetchWithCsrf(`/api/actions/pending?limit=100`);
+      if (!response.ok) throw new Error("Failed to fetch actions");
+      return response.json();
+    },
+    enabled: !!id,
+  });
+  const caseActions = pendingActionsData?.data?.filter((action: CaseAction) =>
+    action.caseId === id && action.status === "pending"
+  ) ?? [];
 
   if (isLoading) {
     return (
@@ -192,11 +207,6 @@ export default function CaseSummaryPage() {
           </div>
         </div>
 
-        {/* Compliance Milestone Clock — Off Work cases only */}
-        {workerCase.workStatus === "Off work" && workerCase.caseStatus !== "closed" && (
-          <MilestoneClock workerCase={workerCase} />
-        )}
-
         {/* Main content area + persistent sidebar */}
         <div className="flex gap-6 items-start">
         {/* 7-Tab Case Detail View */}
@@ -215,6 +225,11 @@ export default function CaseSummaryPage() {
 
           <TabsContent value="summary" className="mt-4">
             <div className="space-y-6">
+              {/* Compliance Milestone Clock — Off Work cases only */}
+              {workerCase.workStatus === "Off work" && workerCase.caseStatus !== "closed" && (
+                <MilestoneClock workerCase={workerCase} />
+              )}
+
               {/* Three summary cards */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <CurrentCapacityCard workerCase={workerCase} />
@@ -319,6 +334,13 @@ export default function CaseSummaryPage() {
                   </CardContent>
                 </Card>
               )}
+
+              <CaseActionPlanCard
+                caseId={workerCase.id}
+                actions={caseActions}
+                workerName={workerCase.workerName}
+                onActionUpdate={() => refetchActions()}
+              />
 
               {/* Case Overview */}
               <Card>

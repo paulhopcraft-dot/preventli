@@ -296,7 +296,7 @@ export async function executeAlexTool(
 
     case "complete_action": {
       const actionId = input.action_id as string;
-      await storage.completeAction(actionId, "alex-ai", "Dr. Alex");
+      await storage.completeAction(actionId, "alex-ai", "Alex");
       return { success: true, message: `Action ${actionId} marked as completed` };
     }
 

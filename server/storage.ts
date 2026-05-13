@@ -62,6 +62,7 @@
   CaseLifecycleStage,
   CaseLifecycleLogDB,
   InsertCaseLifecycleLog,
+  WorkerCaseType,
 } from "@shared/schema";
 import { LIFECYCLE_TRANSITIONS } from "@shared/schema";
 import { db } from "./db";
@@ -502,7 +503,11 @@ export interface IStorage {
     workStatus: string;
     riskLevel: string;
     summary?: string;
+    type?: WorkerCaseType;        // defaults to "injury"
+    assessmentId?: string | null; // set for health-check originated cases
   }): Promise<WorkerCase>;
+  createCaseFromAssessment(assessment: PreEmploymentAssessmentDB): Promise<WorkerCase>;
+  updateWorkerCaseType(caseId: string, organizationId: string, newType: WorkerCaseType): Promise<WorkerCase | null>;
   clearAllWorkerCases(): Promise<void>;
   updateAISummary(caseId: string, organizationId: string, summary: string, model: string, workStatusClassification?: string): Promise<void>;
   needsSummaryRefresh(caseId: string, organizationId: string, currentModel?: string): Promise<boolean>;
@@ -704,7 +709,7 @@ export interface IStorage {
   getEmailAttachments(emailId: string): Promise<EmailAttachmentDB[]>;
   findCaseContactByEmail(email: string): Promise<{ caseId: string; organizationId: string; role: string } | null>;
 
-  // Chat Memory — Dr. Alex per-case/worker conversation history
+  // Chat Memory — Alex per-case/worker conversation history
   getChatMemory(key: { caseId?: string; workerId?: string }, limit?: number): Promise<ChatMemoryDB[]>;
   saveChatMessage(data: InsertChatMemory): Promise<void>;
 }
@@ -800,6 +805,8 @@ class DbStorage implements IStorage {
         const workerCase: WorkerCase = {
           id: dbCase.id,
           organizationId: dbCase.organizationId,
+          type: ((dbCase as any).type as WorkerCaseType) ?? "injury",
+          assessmentId: (dbCase as any).assessmentId ?? null,
           workerId: dbCase.workerId ?? undefined,
           workerName: dbCase.workerName,
           company: dbCase.company as any,
@@ -970,6 +977,8 @@ class DbStorage implements IStorage {
         const workerCase: WorkerCase = {
           id: dbCase.id,
           organizationId: dbCase.organizationId,
+          type: ((dbCase as any).type as WorkerCaseType) ?? "injury",
+          assessmentId: (dbCase as any).assessmentId ?? null,
           workerId: dbCase.workerId ?? undefined,
           workerName: dbCase.workerName,
           company: dbCase.company as any,
@@ -1224,6 +1233,8 @@ class DbStorage implements IStorage {
     workStatus: string;
     riskLevel: string;
     summary?: string;
+    type?: WorkerCaseType;        // defaults to "injury"
+    assessmentId?: string | null; // set for health-check originated cases
   }): Promise<WorkerCase> {
     const now = new Date();
     const dueDate = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000); // 7 days from now
@@ -1252,6 +1263,8 @@ class DbStorage implements IStorage {
         summary: caseData.summary || `New claim for ${caseData.workerName}`,
         ticketIds: [],
         ticketCount: "1",
+        type: caseData.type ?? "injury",
+        assessmentId: caseData.assessmentId ?? null,
       })
       .returning();
 
@@ -1259,6 +1272,8 @@ class DbStorage implements IStorage {
     const workerCase: WorkerCase = {
       id: inserted.id,
       organizationId: inserted.organizationId,
+      type: (inserted.type as WorkerCaseType) ?? "injury",
+      assessmentId: inserted.assessmentId ?? null,
       workerName: inserted.workerName,
       company: inserted.company as any,
       dateOfInjury: inserted.dateOfInjury.toISOString().split("T")[0],
@@ -1276,6 +1291,46 @@ class DbStorage implements IStorage {
     };
 
     return workerCase;
+  }
+
+  /**
+   * Create a worker_cases row from a completed pre-employment assessment.
+   * Maps assessment fields to the required worker_cases columns.
+   * SCOPE NOTE: Only called from POST /api/public/check/:token (pre-employment magic-link).
+   * Exit / Prevention / Wellness / MentalHealth forms will be wired in a follow-up plan.
+   */
+  async createCaseFromAssessment(assessment: PreEmploymentAssessmentDB): Promise<WorkerCase> {
+    // dateOfInjury is NOT NULL on worker_cases — substitute assessment completion date
+    const refDate = assessment.completedDate ?? assessment.sentAt ?? new Date();
+    return this.createCase({
+      organizationId: assessment.organizationId,
+      workerName: assessment.candidateName,
+      company: assessment.departmentName ?? "Pre-employment",
+      dateOfInjury: refDate instanceof Date ? refDate.toISOString().split("T")[0] : String(refDate).split("T")[0],
+      workStatus: "Pending",  // not yet employed — health check stage
+      riskLevel: "Low",       // default; can be revised post-report
+      summary: `Pre-employment health check for ${assessment.candidateName} (${assessment.positionTitle})`,
+      type: "pre_employment",
+      assessmentId: assessment.id,
+    });
+  }
+
+  /**
+   * Flip the type of a case (e.g. promote pre_employment -> injury).
+   * Used by POST /api/cases/:id/convert-to-injury.
+   */
+  async updateWorkerCaseType(
+    caseId: string,
+    organizationId: string,
+    newType: WorkerCaseType,
+  ): Promise<WorkerCase | null> {
+    const [updated] = await db
+      .update(workerCases)
+      .set({ type: newType, updatedAt: new Date() })
+      .where(and(eq(workerCases.id, caseId), eq(workerCases.organizationId, organizationId)))
+      .returning();
+    if (!updated) return null;
+    return updated as unknown as WorkerCase;
   }
 
   async getCaseRecoveryTimeline(caseId: string, organizationId: string): Promise<MedicalCertificate[]> {
@@ -4302,7 +4357,7 @@ class DbStorage implements IStorage {
   }
 
   // ============================================================================
-  // CHAT MEMORY (Dr. Alex per-case/worker conversation history)
+  // CHAT MEMORY (Alex per-case/worker conversation history)
   // ============================================================================
 
   async getChatMemory(
