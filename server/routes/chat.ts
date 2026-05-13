@@ -12,14 +12,14 @@ import { getCaseRTWCompliance } from "../services/rtwCompliance";
 const logger = createLogger("ChatRoutes");
 const router: Router = express.Router();
 
-// Load Dr. Alex soul from config file — edit config/DR_ALEX_SOUL.md to change persona
+// Load Alex soul from config file — edit config/DR_ALEX_SOUL.md to change persona
 function loadSoul(): string {
   try {
     const soulPath = join(process.cwd(), "config", "DR_ALEX_SOUL.md");
     return readFileSync(soulPath, "utf-8");
   } catch {
     logger.error("DR_ALEX_SOUL.md not found — using fallback persona");
-    return "You are Dr. Alex, a warm and professional workplace health specialist at Preventli. Help users with health questions. Do not diagnose or prescribe. If they need a doctor, end with [SUGGEST_BOOKING].";
+    return "You are Alex, a warm and professional workplace health specialist at Preventli. Help users with health questions. Do not diagnose or prescribe. If they need a doctor, end with [SUGGEST_BOOKING].";
   }
 }
 
@@ -28,7 +28,7 @@ const SOUL = loadSoul();
 
 /**
  * @route POST /api/chat/message
- * @desc Send a message to Dr. Alex (Health Assistant)
+ * @desc Send a message to Alex (Health Assistant)
  * @access Private
  */
 router.post("/message", authorize(), async (req: AuthRequest, res: Response) => {

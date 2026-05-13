@@ -709,7 +709,7 @@ export interface IStorage {
   getEmailAttachments(emailId: string): Promise<EmailAttachmentDB[]>;
   findCaseContactByEmail(email: string): Promise<{ caseId: string; organizationId: string; role: string } | null>;
 
-  // Chat Memory — Dr. Alex per-case/worker conversation history
+  // Chat Memory — Alex per-case/worker conversation history
   getChatMemory(key: { caseId?: string; workerId?: string }, limit?: number): Promise<ChatMemoryDB[]>;
   saveChatMessage(data: InsertChatMemory): Promise<void>;
 }
@@ -4357,7 +4357,7 @@ class DbStorage implements IStorage {
   }
 
   // ============================================================================
-  // CHAT MEMORY (Dr. Alex per-case/worker conversation history)
+  // CHAT MEMORY (Alex per-case/worker conversation history)
   // ============================================================================
 
   async getChatMemory(
