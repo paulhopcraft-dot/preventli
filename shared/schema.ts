@@ -2667,7 +2667,7 @@ export type InsertCaseDocument = typeof caseDocuments.$inferInsert;
 export const insertCaseDocumentSchema = createInsertSchema(caseDocuments);
 
 // ============================================
-// CHAT MEMORY TABLE (Dr. Alex per-case/worker memory)
+// CHAT MEMORY TABLE (Alex per-case/worker memory)
 // ============================================
 
 export const chatMemory = pgTable("chat_memory", {

@@ -187,21 +187,21 @@ You do not need any technical knowledge. Just follow the steps and record what y
 
 ---
 
-## SCENARIO 9 — AI Assistant (Dr. Alex)
+## SCENARIO 9 — AI Assistant (Alex)
 
-**Story:** You open Jake's case and want to ask for help. You use the Dr. Alex AI assistant.
+**Story:** You open Jake's case and want to ask for help. You use the Alex AI assistant.
 
 | # | Step | What you should see | Result |
 |---|------|---------------------|--------|
 | 1 | Open Jake's case | Case loads | |
-| 2 | Find the Dr. Alex chat or AI assistant | A chat interface is visible on the case | |
-| 3 | Ask: *"Jake has been off for 6 months and missed his RTW milestone. What should I do?"* | Dr. Alex responds with practical advice | |
+| 2 | Find the Alex chat or AI assistant | A chat interface is visible on the case | |
+| 3 | Ask: *"Jake has been off for 6 months and missed his RTW milestone. What should I do?"* | Alex responds with practical advice | |
 | 4 | Check if the response mentions specific next steps | Response includes actions, not just general information | |
 | 5 | Ask: *"What are my legal obligations at this point?"* | Response mentions WorkSafe Code of Practice and Fair Work Act | |
 | 6 | Check if the advice is relevant to Jake's case specifically | Response references case details, not generic text | |
 
 **Questions to answer:**
-- Is Dr. Alex easy to find on the case page?
+- Is Alex easy to find on the case page?
 - Did the advice feel relevant and helpful?
 - Or was it generic and could have come from a Google search?
 

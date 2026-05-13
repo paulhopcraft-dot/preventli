@@ -565,20 +565,20 @@ test.describe('Next-Step Guidance — Does Preventli Tell You What To Do?', { ta
     }
   });
 
-  test('Dr. Alex (AI) gives actionable RTW advice when asked about an off-track case', async ({ authenticatedPage: page }) => {
-    // HR managers should be able to ask Dr. Alex: "Daniel is 3 months in, no improvement.
+  test('Alex (AI) gives actionable RTW advice when asked about an off-track case', async ({ authenticatedPage: page }) => {
+    // HR managers should be able to ask Alex: "Daniel is 3 months in, no improvement.
     // What should I do?" and get a practical, WorkSafe-compliant answer.
     const found = await findOffTrackCase(page);
     if (!found) return;
 
-    // Find the Dr. Alex chat interface
+    // Find the Alex chat interface
     const drAlex = page.locator(
       'text=/dr.*alex|ask.*alex|ai.*assistant|chat/i, [data-testid="dr-alex-chat"]'
     ).first();
 
     const hasDrAlex = await drAlex.isVisible({ timeout: 5000 }).catch(() => false);
     if (!hasDrAlex) {
-      console.log('GAP: Dr. Alex chat not visible on case — AI guidance not accessible at the point of need');
+      console.log('GAP: Alex chat not visible on case — AI guidance not accessible at the point of need');
       return;
     }
 
@@ -601,10 +601,10 @@ test.describe('Next-Step Guidance — Does Preventli Tell You What To Do?', { ta
         const hasResponse = await response.isVisible({ timeout: 15000 }).catch(() => false);
 
         if (!hasResponse) {
-          console.log('GAP: Dr. Alex did not respond to RTW question within 15 seconds');
+          console.log('GAP: Alex did not respond to RTW question within 15 seconds');
         } else {
           const responseText = await response.textContent();
-          console.log('Dr. Alex response received:', responseText?.substring(0, 200));
+          console.log('Alex response received:', responseText?.substring(0, 200));
           // Response should mention actionable steps
           expect(responseText?.toLowerCase()).toMatch(/step|action|contact|gp|worksafe|plan|review/i);
         }
