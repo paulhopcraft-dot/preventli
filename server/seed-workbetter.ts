@@ -461,7 +461,17 @@ async function seed(): Promise<void> {
   await db.delete(rtwRoles).where(
     inArray(rtwRoles.organizationId, allOrgIds)
   );
-  // 6. Workers (references org; preEmploymentAssessments.workerId refs deleted above)
+  // 5b. Null out worker_id in assessments pointing to workers we're about to delete
+  //     (handles assessments for non-seeded orgs like Ikon Engineering)
+  const workerIdsBeingDeleted = await db
+    .select({ id: workers.id })
+    .from(workers)
+    .where(inArray(workers.organizationId as any, allOrgIds));
+  if (workerIdsBeingDeleted.length > 0) {
+    const wIds = workerIdsBeingDeleted.map((w) => w.id);
+    await db.execute(sql`UPDATE pre_employment_assessments SET worker_id = NULL WHERE worker_id = ANY(${wIds})`);
+  }
+  // 6. Workers (references org; worker_id FK nulled above for external assessments)
   await db.delete(workers).where(
     inArray(workers.organizationId as any, allOrgIds)
   );
