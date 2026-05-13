@@ -649,6 +649,10 @@ export interface IStorage {
   getLatestCertificate(caseId: string, organizationId: string): Promise<MedicalCertificateDB | null>;
   getActiveDraftPlan(caseId: string, organizationId: string): Promise<RTWPlanDB | null>;
   findCasesEligibleForAutoDraft(organizationId: string): Promise<WorkerCaseDB[]>;
+  getCaseRoleContext(
+    caseId: string,
+    organizationId: string,
+  ): Promise<{ workerId: string | null; preInjuryRoleOverrideId: string | null } | null>;
 
   // RTW Plan Output - Plan Details (OUT-01 to OUT-06)
   getLatestRTWPlanByCase(caseId: string, organizationId: string): Promise<RTWPlanWithDetails | null>;
@@ -3330,6 +3334,21 @@ class DbStorage implements IStorage {
       .orderBy(desc(rtwPlans.createdAt))
       .limit(1);
     return plan ?? null;
+  }
+
+  async getCaseRoleContext(
+    caseId: string,
+    organizationId: string,
+  ): Promise<{ workerId: string | null; preInjuryRoleOverrideId: string | null } | null> {
+    const [row] = await db
+      .select({
+        workerId: workerCases.workerId,
+        preInjuryRoleOverrideId: workerCases.preInjuryRoleOverrideId,
+      })
+      .from(workerCases)
+      .where(and(eq(workerCases.id, caseId), eq(workerCases.organizationId, organizationId)))
+      .limit(1);
+    return row ?? null;
   }
 
   // Idempotency note: this method pre-filters by SQL (no active draft); the orchestrator
