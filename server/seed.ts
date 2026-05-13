@@ -10,6 +10,7 @@ import {
   organizations,
   type CaseCompliance,
 } from "@shared/schema";
+import { seedWallara } from "./seed-wallara";
 
 type SeedAttachment = {
   name: string;
@@ -597,6 +598,16 @@ async function seed() {
 }
 
 seed()
+  .then(async () => {
+    // Always run Wallara seed — it has its own idempotency guard (delete-then-insert
+    // scoped to org-wallara). Wrapped in try/catch so a Wallara-seed failure
+    // never blocks Render boot.
+    try {
+      await seedWallara();
+    } catch (wallaraErr) {
+      console.error("Wallara seed failed (continuing anyway):", wallaraErr);
+    }
+  })
   .catch((error) => {
     console.error("Seed failed:", error);
     process.exitCode = 1;

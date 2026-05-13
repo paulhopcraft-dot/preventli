@@ -14,7 +14,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { db } from "../db";
-import { agentJobs, agentActions } from "@shared/schema";
+import { agentJobs, agentActions, users } from "@shared/schema";
 import { eq, and, desc } from "drizzle-orm";
 import { authorize, type AuthRequest } from "../middleware/auth";
 import { agentScheduler } from "../agent-runner/triggers";
@@ -207,6 +207,66 @@ router.post("/jobs/:jobId/reject-action", authorize(), async (req: AuthRequest, 
   } catch (err) {
     logger.error("Failed to reject action", {}, err);
     res.status(500).json({ error: "Failed to reject action" });
+  }
+});
+
+// ─── Latest morning briefing for the current user's org ───────────────────────
+// Returns the most-recent completed coordinator agent job summary for the
+// authenticated user's active organization. Used by the employer dashboard
+// to render the "Good morning {firstName}, ..." card.
+
+const FIRST_NAME_OVERRIDES: Record<string, string> = {
+  "wallara@wallara.com.au": "Ellen",
+};
+
+function deriveFirstName(email: string): string {
+  const override = FIRST_NAME_OVERRIDES[email.toLowerCase()];
+  if (override) return override;
+  const prefix = (email.split("@")[0] || "").split(/[.\-_+]/)[0] || "";
+  if (!prefix) return "there";
+  return prefix.charAt(0).toUpperCase() + prefix.slice(1).toLowerCase();
+}
+
+router.get("/latest-briefing", authorize(), async (req: AuthRequest, res) => {
+  try {
+    const organizationId = req.user!.organizationId;
+
+    const [job] = await db
+      .select({
+        summary: agentJobs.summary,
+        completedAt: agentJobs.completedAt,
+      })
+      .from(agentJobs)
+      .where(
+        and(
+          eq(agentJobs.organizationId, organizationId),
+          eq(agentJobs.agentType, "coordinator"),
+          eq(agentJobs.status, "completed")
+        )
+      )
+      .orderBy(desc(agentJobs.completedAt))
+      .limit(1);
+
+    // Look up email for firstName derivation (User type has no name fields).
+    const [u] = await db
+      .select({ email: users.email })
+      .from(users)
+      .where(eq(users.id, req.user!.id))
+      .limit(1);
+    const firstName = u ? deriveFirstName(u.email) : "there";
+
+    if (!job || !job.summary) {
+      return res.json({ summary: null, completedAt: null, firstName });
+    }
+
+    res.json({
+      summary: job.summary,
+      completedAt: job.completedAt,
+      firstName,
+    });
+  } catch (err) {
+    logger.error("Failed to fetch latest briefing", {}, err);
+    res.status(500).json({ error: "Failed to fetch latest briefing" });
   }
 });
 

@@ -82,6 +82,12 @@ function getPriorityIcon(type: string): string {
   }
 }
 
+interface LatestBriefing {
+  summary: string | null;
+  completedAt: string | null;
+  firstName: string;
+}
+
 function EmployerDashboardContent() {
   const navigate = useNavigate();
 
@@ -90,6 +96,12 @@ function EmployerDashboardContent() {
     queryFn: () => fetch('/api/employer/dashboard').then(r => r.json()),
     refetchInterval: 120_000,
     staleTime: 60_000,
+  });
+
+  const { data: briefing } = useQuery<LatestBriefing>({
+    queryKey: ['agents-latest-briefing'],
+    queryFn: () => fetch('/api/agents/latest-briefing').then(r => r.json()),
+    staleTime: 5 * 60_000,
   });
 
   const { data: allCasesData } = useQuery<PaginatedCasesResponse>({
@@ -134,6 +146,22 @@ function EmployerDashboardContent() {
 
   return (
     <div className="space-y-6">
+      {/* Morning Briefing Card — coordinator agent's overnight summary */}
+      {briefing?.summary && (
+        <Card className="bg-card shadow-lg border-0">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg">
+              {`Good morning ${briefing.firstName}, here's your morning brief —`}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground whitespace-pre-line leading-relaxed">
+              {briefing.summary}
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
       {/* RTW Approval Banner — only shown when employer action is needed */}
       {pendingApprovals.length > 0 && (
         <Alert variant="warning" className="flex items-start gap-3">
