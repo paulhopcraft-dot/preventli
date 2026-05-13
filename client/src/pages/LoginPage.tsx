@@ -31,10 +31,14 @@ export default function LoginPage() {
     },
   });
 
-  // Redirect if already authenticated - always go to main dashboard
+  // Redirect if already authenticated — use same role-aware routing as AuthContext.login()
   useEffect(() => {
     if (isAuthenticated && user) {
-      navigate("/");
+      if (user.role === "partner") {
+        navigate("/partner/clients");
+      } else {
+        navigate("/");
+      }
     }
   }, [isAuthenticated, user, navigate]);
 
