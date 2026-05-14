@@ -13,6 +13,7 @@ import { agentScheduler } from "./agent-runner/triggers";
 import { storage } from "./storage";
 import { checkStorageHealth } from "./services/storageService";
 import { logger } from "./lib/logger";
+import { seedWallara } from "./seed-wallara";
 import {
   validateSecurityEnvironment,
   helmetConfig,
@@ -35,6 +36,12 @@ if (process.env.SENTRY_DSN) {
 
 // Validate critical security environment variables on startup (fail-closed)
 validateSecurityEnvironment();
+
+// TEMP one-shot demo seed on boot — must be reverted after Wallara demo data lands.
+// Idempotent: wipes + reinserts org-wallara only. Fire-and-forget so it doesn't block startup.
+seedWallara()
+  .then(() => console.log("[boot-seed] Wallara seed completed"))
+  .catch((err) => console.error("[boot-seed] Wallara seed failed:", err));
 
 const app = express();
 
