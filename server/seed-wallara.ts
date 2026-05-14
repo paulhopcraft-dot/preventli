@@ -13,6 +13,10 @@ import {
   telehealthBookings,
   rtwPlans,
   rtwPlanVersions,
+  rtwRoles,
+  rtwDuties,
+  rtwDutyDemands,
+  caseContacts,
   agentJobs,
   type FunctionalRestrictionsExtracted,
 } from "@shared/schema";
@@ -61,6 +65,12 @@ const RTW_PLAN_MARCUS_ID = "rtw-plan-wallara-marcus";
 const RTW_PLAN_VERSION_MARCUS_ID = "rtw-plan-version-wallara-marcus-v1";
 
 const AGENT_JOB_BRIEFING_ID = "agent-job-wallara-briefing";
+
+// RTW role IDs for the three active workers (DSW / Maintenance / Coordinator).
+// Stable IDs so re-seeds replace cleanly and the auto-draft endpoint stays predictable.
+const ROLE_DSW_ID = "rtwrole-wallara-dsw";
+const ROLE_MAINT_ID = "rtwrole-wallara-maintenance";
+const ROLE_COORD_ID = "rtwrole-wallara-coordinator";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -135,12 +145,17 @@ async function seedWallara(): Promise<void> {
   if (existingCaseIds.length > 0) {
     await db.delete(medicalCertificates).where(inArray(medicalCertificates.caseId, existingCaseIds));
     await db.delete(caseAttachments).where(inArray(caseAttachments.caseId, existingCaseIds));
+    await db.delete(caseContacts).where(inArray(caseContacts.caseId, existingCaseIds));
   }
 
   await db.delete(telehealthBookings).where(inArray(telehealthBookings.organizationId as any, [WALLARA_ORG_ID]));
   await db.delete(preEmploymentAssessments).where(inArray(preEmploymentAssessments.organizationId, [WALLARA_ORG_ID]));
   await db.delete(workerCases).where(inArray(workerCases.organizationId, [WALLARA_ORG_ID]));
+  // workers must clear BEFORE rtwRoles (workers.role_id → rtw_roles.id, no cascade,
+  // PG default RESTRICT). rtwDuties cascade-deletes rtwDutyDemands via FK.
   await db.delete(workers).where(inArray(workers.organizationId as any, [WALLARA_ORG_ID]));
+  await db.delete(rtwDuties).where(inArray(rtwDuties.organizationId, [WALLARA_ORG_ID]));
+  await db.delete(rtwRoles).where(inArray(rtwRoles.organizationId, [WALLARA_ORG_ID]));
   await db.delete(users).where(inArray(users.id, [USER_ELLEN_ID]));
   await db.delete(organizations).where(inArray(organizations.id, [WALLARA_ORG_ID]));
 
@@ -177,6 +192,102 @@ async function seedWallara(): Promise<void> {
     emailVerifiedAt: now,
   } as any);
 
+  // ── 3a. RTW roles + duties + duty demands ──────────────────────────────────
+  // Required by the auto-draft orchestrator (rtwAutoDrafter.resolveRoleId reads
+  // workerCases.preInjuryRoleOverrideId then falls back to workers.roleId). We
+  // set both on the active workers/cases below for belt-and-braces. Each role
+  // gets 5-6 duties with mixed demand profiles so the calculator can produce
+  // a real plan instead of "all duties not suitable".
+  console.log("[seed-wallara] Inserting RTW roles, duties, demands...");
+  await db.insert(rtwRoles).values([
+    {
+      id: ROLE_DSW_ID,
+      organizationId: WALLARA_ORG_ID,
+      name: "Disability Support Worker",
+      description: "Direct support for participants — personal care, mobility, community access.",
+    },
+    {
+      id: ROLE_MAINT_ID,
+      organizationId: WALLARA_ORG_ID,
+      name: "Maintenance Officer",
+      description: "Facility upkeep, minor repairs, grounds maintenance across Wallara sites.",
+    },
+    {
+      id: ROLE_COORD_ID,
+      organizationId: WALLARA_ORG_ID,
+      name: "Support Coordinator",
+      description: "Plans participant supports, liaises with families and providers, mostly desk-based.",
+    },
+  ] as any);
+
+  // Duty IDs are stable so we can attach demands without round-trip lookups.
+  const dsw = {
+    personalCare: "rtwduty-wallara-dsw-personal-care",
+    medication: "rtwduty-wallara-dsw-medication",
+    community: "rtwduty-wallara-dsw-community",
+    documentation: "rtwduty-wallara-dsw-documentation",
+    mobility: "rtwduty-wallara-dsw-mobility",
+    cleaning: "rtwduty-wallara-dsw-cleaning",
+  };
+  const maint = {
+    repairs: "rtwduty-wallara-maint-repairs",
+    grounds: "rtwduty-wallara-maint-grounds",
+    inspection: "rtwduty-wallara-maint-inspection",
+    inventory: "rtwduty-wallara-maint-inventory",
+    cleaning: "rtwduty-wallara-maint-cleaning",
+  };
+  const coord = {
+    planning: "rtwduty-wallara-coord-planning",
+    meetings: "rtwduty-wallara-coord-meetings",
+    documentation: "rtwduty-wallara-coord-documentation",
+    homeVisits: "rtwduty-wallara-coord-home-visits",
+    intake: "rtwduty-wallara-coord-intake",
+  };
+
+  await db.insert(rtwDuties).values([
+    // Disability Support Worker — mix of physical (heavy) and sedentary (admin).
+    { id: dsw.personalCare, roleId: ROLE_DSW_ID, organizationId: WALLARA_ORG_ID, name: "Personal care assistance", description: "Showering, dressing, toileting support.", isModifiable: false },
+    { id: dsw.medication, roleId: ROLE_DSW_ID, organizationId: WALLARA_ORG_ID, name: "Medication administration", description: "Prepare and administer scheduled medications.", isModifiable: true },
+    { id: dsw.community, roleId: ROLE_DSW_ID, organizationId: WALLARA_ORG_ID, name: "Community access support", description: "Accompany participants on outings — driving, walking, public transport.", isModifiable: true },
+    { id: dsw.documentation, roleId: ROLE_DSW_ID, organizationId: WALLARA_ORG_ID, name: "Documentation & reporting", description: "Shift notes, incident reports, NDIS records.", isModifiable: true },
+    { id: dsw.mobility, roleId: ROLE_DSW_ID, organizationId: WALLARA_ORG_ID, name: "Mobility & transfer support", description: "Assisted transfers, hoist use, wheelchair pushing.", isModifiable: false },
+    { id: dsw.cleaning, roleId: ROLE_DSW_ID, organizationId: WALLARA_ORG_ID, name: "Light household tasks", description: "Light cleaning, laundry, meal prep in participant homes.", isModifiable: true },
+    // Maintenance Officer — almost all physical.
+    { id: maint.repairs, roleId: ROLE_MAINT_ID, organizationId: WALLARA_ORG_ID, name: "Minor repairs & handyman tasks", description: "Patching, painting, fixture replacement.", isModifiable: false },
+    { id: maint.grounds, roleId: ROLE_MAINT_ID, organizationId: WALLARA_ORG_ID, name: "Grounds maintenance", description: "Lawn mowing, edging, garden upkeep.", isModifiable: false },
+    { id: maint.inspection, roleId: ROLE_MAINT_ID, organizationId: WALLARA_ORG_ID, name: "Site safety inspections", description: "Walk-around inspections, hazard logging.", isModifiable: true },
+    { id: maint.inventory, roleId: ROLE_MAINT_ID, organizationId: WALLARA_ORG_ID, name: "Stock & inventory management", description: "Order parts, log stock movements, reconcile invoices.", isModifiable: true },
+    { id: maint.cleaning, roleId: ROLE_MAINT_ID, organizationId: WALLARA_ORG_ID, name: "Deep cleaning rotation", description: "Periodic deep-clean of communal areas, requires bending and reaching.", isModifiable: true },
+    // Support Coordinator — almost all desk-based, light demands.
+    { id: coord.planning, roleId: ROLE_COORD_ID, organizationId: WALLARA_ORG_ID, name: "Support plan development", description: "Draft and review participant support plans.", isModifiable: true },
+    { id: coord.meetings, roleId: ROLE_COORD_ID, organizationId: WALLARA_ORG_ID, name: "Provider & family meetings", description: "Video and phone meetings with stakeholders.", isModifiable: true },
+    { id: coord.documentation, roleId: ROLE_COORD_ID, organizationId: WALLARA_ORG_ID, name: "Documentation & NDIS reporting", description: "Progress reports, plan reviews, NDIS submissions.", isModifiable: true },
+    { id: coord.homeVisits, roleId: ROLE_COORD_ID, organizationId: WALLARA_ORG_ID, name: "Participant home visits", description: "In-home check-ins, requires driving and stairs.", isModifiable: true },
+    { id: coord.intake, roleId: ROLE_COORD_ID, organizationId: WALLARA_ORG_ID, name: "New participant intake", description: "Intake interviews, primarily seated office work.", isModifiable: true },
+  ] as any);
+
+  await db.insert(rtwDutyDemands).values([
+    // DSW — heavy duties (personal care, mobility) + light duties (documentation).
+    { dutyId: dsw.personalCare, bending: "frequently", squatting: "frequently", kneeling: "occasionally", twisting: "frequently", reachingOverhead: "occasionally", reachingForward: "frequently", lifting: "frequently", liftingMaxKg: 25, carrying: "frequently", carryingMaxKg: 25, standing: "frequently", sitting: "occasionally", walking: "frequently", repetitiveMovements: "frequently", concentration: "frequently", stressTolerance: "frequently", workPace: "frequently" },
+    { dutyId: dsw.medication, bending: "occasionally", squatting: "never", kneeling: "never", twisting: "never", reachingOverhead: "occasionally", reachingForward: "frequently", lifting: "occasionally", liftingMaxKg: 2, carrying: "occasionally", carryingMaxKg: 2, standing: "frequently", sitting: "occasionally", walking: "frequently", repetitiveMovements: "occasionally", concentration: "constantly", stressTolerance: "frequently", workPace: "frequently" },
+    { dutyId: dsw.community, bending: "occasionally", squatting: "occasionally", kneeling: "never", twisting: "occasionally", reachingOverhead: "never", reachingForward: "occasionally", lifting: "occasionally", liftingMaxKg: 10, carrying: "occasionally", carryingMaxKg: 10, standing: "frequently", sitting: "frequently", walking: "frequently", repetitiveMovements: "occasionally", concentration: "frequently", stressTolerance: "frequently", workPace: "frequently" },
+    { dutyId: dsw.documentation, bending: "never", squatting: "never", kneeling: "never", twisting: "never", reachingOverhead: "never", reachingForward: "occasionally", lifting: "never", carrying: "never", standing: "occasionally", sitting: "frequently", walking: "occasionally", repetitiveMovements: "frequently", concentration: "constantly", stressTolerance: "occasionally", workPace: "frequently" },
+    { dutyId: dsw.mobility, bending: "frequently", squatting: "frequently", kneeling: "frequently", twisting: "frequently", reachingOverhead: "occasionally", reachingForward: "frequently", lifting: "frequently", liftingMaxKg: 30, carrying: "frequently", carryingMaxKg: 30, standing: "frequently", sitting: "occasionally", walking: "frequently", repetitiveMovements: "frequently", concentration: "frequently", stressTolerance: "frequently", workPace: "frequently" },
+    { dutyId: dsw.cleaning, bending: "frequently", squatting: "occasionally", kneeling: "occasionally", twisting: "occasionally", reachingOverhead: "occasionally", reachingForward: "frequently", lifting: "occasionally", liftingMaxKg: 10, carrying: "occasionally", carryingMaxKg: 10, standing: "frequently", sitting: "never", walking: "frequently", repetitiveMovements: "frequently", concentration: "occasionally", stressTolerance: "occasionally", workPace: "occasionally" },
+    // Maintenance — physical-heavy, inventory is the only sittable duty.
+    { dutyId: maint.repairs, bending: "frequently", squatting: "frequently", kneeling: "frequently", twisting: "frequently", reachingOverhead: "frequently", reachingForward: "frequently", lifting: "frequently", liftingMaxKg: 20, carrying: "frequently", carryingMaxKg: 20, standing: "frequently", sitting: "never", walking: "frequently", repetitiveMovements: "frequently", concentration: "frequently", stressTolerance: "occasionally", workPace: "occasionally" },
+    { dutyId: maint.grounds, bending: "frequently", squatting: "occasionally", kneeling: "occasionally", twisting: "frequently", reachingOverhead: "occasionally", reachingForward: "frequently", lifting: "frequently", liftingMaxKg: 15, carrying: "frequently", carryingMaxKg: 15, standing: "frequently", sitting: "never", walking: "frequently", repetitiveMovements: "frequently", concentration: "occasionally", stressTolerance: "occasionally", workPace: "occasionally" },
+    { dutyId: maint.inspection, bending: "occasionally", squatting: "occasionally", kneeling: "occasionally", twisting: "occasionally", reachingOverhead: "occasionally", reachingForward: "occasionally", lifting: "never", carrying: "never", standing: "frequently", sitting: "occasionally", walking: "frequently", repetitiveMovements: "occasionally", concentration: "frequently", stressTolerance: "occasionally", workPace: "occasionally" },
+    { dutyId: maint.inventory, bending: "occasionally", squatting: "never", kneeling: "never", twisting: "never", reachingOverhead: "occasionally", reachingForward: "occasionally", lifting: "occasionally", liftingMaxKg: 5, carrying: "occasionally", carryingMaxKg: 5, standing: "occasionally", sitting: "frequently", walking: "occasionally", repetitiveMovements: "occasionally", concentration: "frequently", stressTolerance: "occasionally", workPace: "occasionally" },
+    { dutyId: maint.cleaning, bending: "frequently", squatting: "occasionally", kneeling: "occasionally", twisting: "frequently", reachingOverhead: "frequently", reachingForward: "frequently", lifting: "occasionally", liftingMaxKg: 10, carrying: "occasionally", carryingMaxKg: 10, standing: "frequently", sitting: "never", walking: "frequently", repetitiveMovements: "frequently", concentration: "occasionally", stressTolerance: "occasionally", workPace: "occasionally" },
+    // Coordinator — desk-based, all light.
+    { dutyId: coord.planning, bending: "never", squatting: "never", kneeling: "never", twisting: "never", reachingOverhead: "never", reachingForward: "occasionally", lifting: "never", carrying: "never", standing: "occasionally", sitting: "frequently", walking: "occasionally", repetitiveMovements: "frequently", concentration: "constantly", stressTolerance: "frequently", workPace: "frequently" },
+    { dutyId: coord.meetings, bending: "never", squatting: "never", kneeling: "never", twisting: "never", reachingOverhead: "never", reachingForward: "occasionally", lifting: "never", carrying: "never", standing: "occasionally", sitting: "frequently", walking: "occasionally", repetitiveMovements: "occasionally", concentration: "constantly", stressTolerance: "frequently", workPace: "frequently" },
+    { dutyId: coord.documentation, bending: "never", squatting: "never", kneeling: "never", twisting: "never", reachingOverhead: "never", reachingForward: "occasionally", lifting: "never", carrying: "never", standing: "occasionally", sitting: "frequently", walking: "occasionally", repetitiveMovements: "frequently", concentration: "constantly", stressTolerance: "frequently", workPace: "frequently" },
+    { dutyId: coord.homeVisits, bending: "occasionally", squatting: "never", kneeling: "never", twisting: "occasionally", reachingOverhead: "never", reachingForward: "occasionally", lifting: "occasionally", liftingMaxKg: 5, carrying: "occasionally", carryingMaxKg: 5, standing: "frequently", sitting: "frequently", walking: "frequently", repetitiveMovements: "occasionally", concentration: "frequently", stressTolerance: "frequently", workPace: "frequently" },
+    { dutyId: coord.intake, bending: "never", squatting: "never", kneeling: "never", twisting: "never", reachingOverhead: "never", reachingForward: "occasionally", lifting: "never", carrying: "never", standing: "never", sitting: "frequently", walking: "never", repetitiveMovements: "frequently", concentration: "constantly", stressTolerance: "frequently", workPace: "frequently" },
+  ] as any);
+
   // ── 4. Workers ─────────────────────────────────────────────────────────────
   console.log("[seed-wallara] Inserting 6 workers...");
   await db.insert(workers).values([
@@ -186,6 +297,7 @@ async function seedWallara(): Promise<void> {
       name: "Sarah Chen",
       email: "sarah.chen@wallara.com.au",
       phone: "0411 111 111",
+      roleId: ROLE_DSW_ID,
     },
     {
       id: WORKER_MARCUS_ID,
@@ -193,6 +305,7 @@ async function seedWallara(): Promise<void> {
       name: "Marcus Tanaka",
       email: "marcus.tanaka@wallara.com.au",
       phone: "0422 222 222",
+      roleId: ROLE_MAINT_ID,
     },
     {
       id: WORKER_PRIYA_ID,
@@ -200,6 +313,7 @@ async function seedWallara(): Promise<void> {
       name: "Priya Reddy",
       email: "priya.reddy@wallara.com.au",
       phone: "0433 333 333",
+      roleId: ROLE_COORD_ID,
     },
     {
       id: WORKER_JAMES_ID,
@@ -340,6 +454,7 @@ async function seedWallara(): Promise<void> {
     riskLevel: "Medium",
     workStatus: "Off work",
     hasCertificate: true,
+    preInjuryRoleOverrideId: ROLE_DSW_ID,
     complianceIndicator: "Medium",
     currentStatus: "Active treatment — week 4 of recovery",
     nextStep: "Draft RTW plan for review",
@@ -373,6 +488,7 @@ async function seedWallara(): Promise<void> {
     riskLevel: "Low",
     workStatus: "At work",
     hasCertificate: true,
+    preInjuryRoleOverrideId: ROLE_MAINT_ID,
     complianceIndicator: "Low",
     currentStatus: "RTW transition — restricted duties, capacity improving",
     nextStep: "Full duties review in 2 weeks",
@@ -403,6 +519,7 @@ async function seedWallara(): Promise<void> {
     riskLevel: "Low",
     workStatus: "At work",
     hasCertificate: false,
+    preInjuryRoleOverrideId: ROLE_COORD_ID,
     complianceIndicator: "Low",
     currentStatus: "Preventative wellness intake — ergonomic follow-up flagged",
     nextStep: "Schedule ergonomic assessment",
@@ -675,6 +792,154 @@ async function seedWallara(): Promise<void> {
     createdBy: USER_ELLEN_ID,
     changeReason: "Initial RTW plan",
   } as any);
+
+  // ── 9a. Case contacts (treating GP + specialist + physio + employer) ───────
+  // Spread across multiple AU clinics so the demo doesn't read as one provider
+  // doing everything. Phone format "03 9XXX XXXX" (VIC). Emails follow
+  // firstname.lastname@<clinic>.com.au.
+  console.log("[seed-wallara] Inserting case contacts...");
+  await db.insert(caseContacts).values([
+    // ── Sarah Chen — lumbar strain (GP + MRI specialist + employer) ─────────
+    {
+      caseId: CASE_SARAH_ID,
+      organizationId: WALLARA_ORG_ID,
+      role: "treating_gp",
+      name: "Dr. Helen Mead",
+      phone: "03 9412 6700",
+      email: "helen.mead@bridgestreetclinic.com.au",
+      company: "Bridge Street Medical Clinic",
+      isPrimary: true,
+      isActive: true,
+    },
+    {
+      caseId: CASE_SARAH_ID,
+      organizationId: WALLARA_ORG_ID,
+      role: "specialist",
+      name: "Dr. Anand Krishnan",
+      phone: "03 9650 2100",
+      email: "anand.krishnan@melbournespine.com.au",
+      company: "Melbourne Spine & Pain Centre",
+      notes: "Reviewed MRI L4-L5 disc bulge — conservative management, no surgical indication.",
+      isPrimary: false,
+      isActive: true,
+    },
+    {
+      caseId: CASE_SARAH_ID,
+      organizationId: WALLARA_ORG_ID,
+      role: "case_manager",
+      name: "Ellen Burns",
+      phone: "03 9000 9000",
+      email: "wallara@wallara.com.au",
+      company: "Wallara",
+      isPrimary: false,
+      isActive: true,
+    },
+    {
+      caseId: CASE_SARAH_ID,
+      organizationId: WALLARA_ORG_ID,
+      role: "employer_primary",
+      name: "Ellen Burns",
+      phone: "03 9000 9000",
+      email: "wallara@wallara.com.au",
+      company: "Wallara",
+      isPrimary: false,
+      isActive: true,
+    },
+
+    // ── Marcus Tanaka — rotator cuff (GP + specialist + physio + employer) ──
+    {
+      caseId: CASE_MARCUS_ID,
+      organizationId: WALLARA_ORG_ID,
+      role: "treating_gp",
+      name: "Dr. Rachel Okonkwo",
+      phone: "03 9387 4422",
+      email: "rachel.okonkwo@brunswickfamilymedical.com.au",
+      company: "Brunswick Family Medical",
+      isPrimary: true,
+      isActive: true,
+    },
+    {
+      caseId: CASE_MARCUS_ID,
+      organizationId: WALLARA_ORG_ID,
+      role: "specialist",
+      name: "Dr. James Patterson",
+      phone: "03 9527 8800",
+      email: "james.patterson@victoriaorthopaedic.com.au",
+      company: "Victoria Orthopaedic Group",
+      notes: "Partial supraspinatus tear — conservative management, physiotherapy-led recovery.",
+      isPrimary: false,
+      isActive: true,
+    },
+    {
+      caseId: CASE_MARCUS_ID,
+      organizationId: WALLARA_ORG_ID,
+      role: "physiotherapist",
+      name: "Sophie Nguyen",
+      phone: "03 9482 1145",
+      email: "sophie.nguyen@northsidephysio.com.au",
+      company: "Northside Physiotherapy",
+      notes: "Weekly sessions — shoulder stability and progressive loading.",
+      isPrimary: false,
+      isActive: true,
+    },
+    {
+      caseId: CASE_MARCUS_ID,
+      organizationId: WALLARA_ORG_ID,
+      role: "case_manager",
+      name: "Ellen Burns",
+      phone: "03 9000 9000",
+      email: "wallara@wallara.com.au",
+      company: "Wallara",
+      isPrimary: false,
+      isActive: true,
+    },
+    {
+      caseId: CASE_MARCUS_ID,
+      organizationId: WALLARA_ORG_ID,
+      role: "employer_primary",
+      name: "Ellen Burns",
+      phone: "03 9000 9000",
+      email: "wallara@wallara.com.au",
+      company: "Wallara",
+      isPrimary: false,
+      isActive: true,
+    },
+
+    // ── Priya Reddy — preventative (GP + employer, no specialists) ──────────
+    {
+      caseId: CASE_PRIYA_ID,
+      organizationId: WALLARA_ORG_ID,
+      role: "treating_gp",
+      name: "Dr. Marcus Hayward",
+      phone: "03 9533 6611",
+      email: "marcus.hayward@clarendonmedical.com.au",
+      company: "Clarendon Street Medical",
+      isPrimary: true,
+      isActive: true,
+    },
+    {
+      caseId: CASE_PRIYA_ID,
+      organizationId: WALLARA_ORG_ID,
+      role: "case_manager",
+      name: "Ellen Burns",
+      phone: "03 9000 9000",
+      email: "wallara@wallara.com.au",
+      company: "Wallara",
+      isPrimary: false,
+      isActive: true,
+    },
+    {
+      caseId: CASE_PRIYA_ID,
+      organizationId: WALLARA_ORG_ID,
+      role: "employer_primary",
+      name: "Ellen Burns",
+      phone: "03 9000 9000",
+      email: "wallara@wallara.com.au",
+      company: "Wallara",
+      isPrimary: false,
+      isActive: true,
+    },
+  ] as any);
 
   // ── 10. Telehealth bookings (exit interviews) ──────────────────────────────
   console.log("[seed-wallara] Inserting telehealth exit bookings for James and Liam...");
