@@ -56,10 +56,16 @@ const WORKER_PRIYA_ID = "worker-wallara-priya";
 const WORKER_JAMES_ID = "worker-wallara-james";
 const WORKER_AISHA_ID = "worker-wallara-aisha";
 const WORKER_LIAM_ID = "worker-wallara-liam";
+const WORKER_DAVID_ID = "worker-wallara-david";
+const WORKER_NAOMI_ID = "worker-wallara-naomi";
 
 const CASE_SARAH_ID = "case-wallara-sarah";
 const CASE_MARCUS_ID = "case-wallara-marcus";
 const CASE_PRIYA_ID = "case-wallara-priya";
+// David Nguyen — chronic 6-month L4-L5 disc injury, IME just received (medico-legal demo).
+const CASE_DAVID_ID = "case-wallara-david";
+// Naomi Wright — preventative Health & Wellbeing demo case (no injury).
+const CASE_NAOMI_ID = "case-wallara-naomi";
 
 const RTW_PLAN_MARCUS_ID = "rtw-plan-wallara-marcus";
 const RTW_PLAN_VERSION_MARCUS_ID = "rtw-plan-version-wallara-marcus-v1";
@@ -95,19 +101,22 @@ function scanUrl(primary: string, fallbackSeed: string): string {
 const BRIEFING_SUMMARY = `Good morning. Here's your overnight status for Wallara.
 
 Last night I:
-• Reviewed certificate expirations across 4 active workers — no urgent renewals needed today.
+• Ingested David Nguyen's IME report (Dr Margaret Chen, 08/05/2026) — case-conference recommended within 2 weeks.
+• Reviewed certificate expirations across active cases — no urgent renewals today.
 • Updated Marcus Tanaka's recovery trend — capacity improving, on track for full duties review in 2 weeks.
+• Generated Naomi Wright's GPNet Prevention Check Report from her completed assessment.
 • Flagged Sarah Chen's RTW plan as ready to draft (week-4 milestone reached).
 
 Today you should:
+• Action David Nguyen's IME — convene case conference, draft modified-duties RTW, initiate vocational reassessment.
 • Approve the draft RTW plan for Sarah Chen when ready — medical clearance is in.
+• Schedule Naomi's workstation review (Prevention Check recommendation #1).
 • Check in with Marcus about the new restricted-duties schedule starting Monday.
-• Review Priya Reddy's preventative intake notes — flagged for ergonomic follow-up.
 
 Status:
-• 2 active injury claims, 2 preventative cases on the watchlist.
+• 3 active injury claims (Sarah, Marcus, David — David is highest priority), 2 preventative cases (Priya, Naomi).
 • 1 exit interview completed last week (James O'Brien).
-• Compliance: all green. Next WorkSafe deadline: 14 days for Marcus's progress report.
+• Compliance: 1 high-risk case (David Nguyen — 6 months off work, no current RTW pathway).
 
 I'll keep watching overnight.`;
 
@@ -289,7 +298,7 @@ async function seedWallara(): Promise<void> {
   ] as any);
 
   // ── 4. Workers ─────────────────────────────────────────────────────────────
-  console.log("[seed-wallara] Inserting 6 workers...");
+  console.log("[seed-wallara] Inserting 8 workers...");
   await db.insert(workers).values([
     {
       id: WORKER_SARAH_ID,
@@ -335,6 +344,28 @@ async function seedWallara(): Promise<void> {
       name: "Liam Brennan",
       email: "liam.brennan@wallara.com.au",
       phone: "0466 666 666",
+    },
+    {
+      // David Nguyen — Facilities & Maintenance Coordinator, 58yo, 6 months
+      // off work with chronic L4-L5 disc injury. IME has just been completed —
+      // case awaits employer + insurer next-step decisions.
+      id: WORKER_DAVID_ID,
+      organizationId: WALLARA_ORG_ID,
+      name: "David Nguyen",
+      email: "david.nguyen@wallara.com.au",
+      phone: "0417 091 066",
+      roleId: ROLE_MAINT_ID,
+    },
+    {
+      // Naomi Wright — Support Coordinator, 41yo. No injury. Voluntarily
+      // engaged a Prevention Check after flagging fatigue + neck pain in the
+      // quarterly pulse survey. Demonstrates Preventli's preventative pathway.
+      id: WORKER_NAOMI_ID,
+      organizationId: WALLARA_ORG_ID,
+      name: "Naomi Wright",
+      email: "naomi.wright@wallara.com.au",
+      phone: "0477 777 777",
+      roleId: ROLE_COORD_ID,
     },
   ] as any);
 
@@ -433,6 +464,36 @@ async function seedWallara(): Promise<void> {
       status: "completed",
       clearanceLevel: "cleared_unconditional",
       completedDate: new Date(now.getTime() - 1460 * DAY_MS), // ~4 years ago
+      assessorName: "Dr. Helen Mead",
+      assessorType: "GP",
+    },
+    {
+      // David Nguyen — completed pre-emp 5 years ago, full clearance.
+      id: "preemp-wallara-david",
+      organizationId: WALLARA_ORG_ID,
+      workerId: WORKER_DAVID_ID,
+      candidateName: "David Nguyen",
+      candidateEmail: "david.nguyen@wallara.com.au",
+      positionTitle: "Facilities & Maintenance Coordinator",
+      assessmentType: "functional_capacity",
+      status: "completed",
+      clearanceLevel: "cleared_unconditional",
+      completedDate: new Date(now.getTime() - 1825 * DAY_MS), // ~5 years ago
+      assessorName: "Dr. Helen Mead",
+      assessorType: "Occupational Physician",
+    },
+    {
+      // Naomi Wright — completed pre-emp 2 years ago, full clearance.
+      id: "preemp-wallara-naomi",
+      organizationId: WALLARA_ORG_ID,
+      workerId: WORKER_NAOMI_ID,
+      candidateName: "Naomi Wright",
+      candidateEmail: "naomi.wright@wallara.com.au",
+      positionTitle: "Support Coordinator",
+      assessmentType: "baseline_health",
+      status: "completed",
+      clearanceLevel: "cleared_unconditional",
+      completedDate: new Date(now.getTime() - 730 * DAY_MS), // ~2 years ago
       assessorName: "Dr. Helen Mead",
       assessorType: "GP",
     },
@@ -537,6 +598,75 @@ async function seedWallara(): Promise<void> {
     } as any,
   } as any);
 
+  // David Nguyen — chronic L4-L5 disc injury, 6 months off work. IME has just
+  // been received (08/05/2026) and the case is awaiting the case-conference
+  // decision: continue modified-duties RTW vs vocational reassessment.
+  // High compliance pressure: case is overdue for an updated RTW pathway.
+  const davidInjuryDate = new Date(now.getTime() - 182 * DAY_MS); // ~6 months
+  await db.insert(workerCases).values({
+    id: CASE_DAVID_ID,
+    organizationId: WALLARA_ORG_ID,
+    workerId: WORKER_DAVID_ID,
+    workerName: "David Nguyen",
+    company: "Wallara",
+    dateOfInjury: davidInjuryDate,
+    claimNumber: "VWA 24-091847",
+    riskLevel: "High",
+    workStatus: "Off work",
+    hasCertificate: true,
+    preInjuryRoleOverrideId: ROLE_MAINT_ID,
+    complianceIndicator: "High",
+    currentStatus: "IME report received — case conference required",
+    nextStep: "Convene case conference with GP, IME, insurer within 2 weeks",
+    owner: "Ellen Burns",
+    dueDate: new Date(now.getTime() + 14 * DAY_MS).toISOString().slice(0, 10),
+    summary:
+      "Chronic L4-L5 discogenic low back pain with L5 radiculopathy. Six months off work. IME (Dr Margaret Chen, 08/05/2026) confirms pre-injury role unsuitable; modified-duties RTW recommended with vocational reassessment.",
+    ticketIds: [],
+    ticketCount: "0",
+    lifecycleStage: "active_treatment",
+    clinicalStatusJson: { rtwPlanStatus: "not_planned" } as any,
+    complianceJson: {
+      indicator: "High",
+      reason: "Worker off work 6+ months — IME recommends vocational reassessment, no current RTW plan",
+      source: "claude",
+      lastChecked: new Date(now.getTime() - 1 * 60 * 60 * 1000).toISOString(),
+    } as any,
+  } as any);
+
+  // Naomi Wright — preventative Health & Wellbeing check. No injury, no claim.
+  // Demonstrates Preventli's prevention pathway: pulse-survey-triggered review,
+  // GPNet Prevention Check report generated, employer + worker recommendations.
+  await db.insert(workerCases).values({
+    id: CASE_NAOMI_ID,
+    organizationId: WALLARA_ORG_ID,
+    workerId: WORKER_NAOMI_ID,
+    workerName: "Naomi Wright",
+    company: "Wallara",
+    dateOfInjury: new Date(now.getTime() - 3 * DAY_MS), // assessment date proxy
+    claimNumber: null,
+    riskLevel: "Low",
+    workStatus: "At work",
+    hasCertificate: false,
+    preInjuryRoleOverrideId: ROLE_COORD_ID,
+    complianceIndicator: "Low",
+    currentStatus: "Prevention Check completed — recommendations open",
+    nextStep: "Schedule ergonomic workstation review",
+    owner: "Ellen Burns",
+    dueDate: new Date(now.getTime() + 12 * DAY_MS).toISOString().slice(0, 10),
+    summary:
+      "Voluntary Prevention Check after pulse-survey flag (fatigue, intermittent neck pain). No clinical findings of concern — moderate ergonomic + psychosocial risk. Targeted preventative interventions recommended.",
+    ticketIds: [],
+    ticketCount: "0",
+    lifecycleStage: "intake",
+    complianceJson: {
+      indicator: "Low",
+      reason: "Prevention Check complete; recommendations awaiting action within review window",
+      source: "claude",
+      lastChecked: new Date(now.getTime() - 1 * 60 * 60 * 1000).toISOString(),
+    } as any,
+  } as any);
+
   // ── 7. Diagnosis scan attachments ──────────────────────────────────────────
   console.log("[seed-wallara] Inserting diagnosis-scan attachments...");
   await db.insert(caseAttachments).values([
@@ -572,6 +702,37 @@ async function seedWallara(): Promise<void> {
         "https://upload.wikimedia.org/wikipedia/commons/6/60/Subacromial_Impingement_with_Supraspinatus_Rupture.jpg",
         "wallara-marcus-mri",
       ),
+    },
+    {
+      // David — MRI confirming L4-L5 disc protrusion (Dec 2025).
+      organizationId: WALLARA_ORG_ID,
+      caseId: CASE_DAVID_ID,
+      name: "MRI Lumbar Spine — L4-L5 disc protrusion with right neural impingement",
+      type: "diagnosis-scan",
+      url: scanUrl(
+        "https://upload.wikimedia.org/wikipedia/commons/2/20/Lumbar_MRI_t2-tse-rst-sagittal_10.jpg",
+        "wallara-david-mri",
+      ),
+    },
+    {
+      // David — IME report (medico-legal). Anchors timeline + downloads list.
+      // Rich content is rendered client-side from shared/medicoLegalReports.ts.
+      organizationId: WALLARA_ORG_ID,
+      caseId: CASE_DAVID_ID,
+      name: "IME Report — Dr Margaret Chen (08/05/2026)",
+      type: "medico-legal-report",
+      // Demo: report content renders inline from constant. No PDF URL yet — the
+      // frontend modal renders the full report from MEDICO_LEGAL_REPORTS[caseId].
+      // When the backend generator ships, this URL becomes the persisted .pdf.
+      url: "internal://medico-legal-report/case-wallara-david",
+    },
+    {
+      // Naomi — GPNet Prevention Check report. Same pattern as David's IME.
+      organizationId: WALLARA_ORG_ID,
+      caseId: CASE_NAOMI_ID,
+      name: "GPNet Prevention Check Report — Dr Priya Khatri (12/05/2026)",
+      type: "prevention-check-report",
+      url: "internal://prevention-check-report/case-wallara-naomi",
     },
   ] as any);
 
@@ -761,6 +922,80 @@ async function seedWallara(): Promise<void> {
     }) as any
   );
 
+  // David — 5 unfit certs spanning 6 months. Current cert (week 24) carries
+  // IME-aligned restrictions so post-conference RTW planning has the data it
+  // needs. Earlier certs are no_work (off-work continuation). Demonstrates a
+  // chronic case that never got onto a successful RTW pathway.
+  const davidWeek24Restrictions: FunctionalRestrictionsExtracted = {
+    // IME-aligned: fit for sedentary/light duties only.
+    sitting: "with_modifications",
+    standingWalking: "with_modifications",
+    bending: "cannot",
+    squatting: "cannot",
+    kneelingClimbing: "cannot",
+    twisting: "cannot",
+    reachingOverhead: "cannot",
+    reachingForward: "with_modifications",
+    neckMovement: "can",
+    lifting: "with_modifications",
+    liftingMaxKg: 5,
+    carrying: "with_modifications",
+    carryingMaxKg: 5,
+    pushing: "cannot",
+    pulling: "cannot",
+    repetitiveMovements: "with_modifications",
+    useOfInjuredLimb: "with_modifications",
+    restMinutesPerHour: 10,
+    constraintDurationWeeks: 4,
+    maxWorkHoursPerDay: 4,
+    maxWorkDaysPerWeek: 5,
+    extractionConfidence: 0.92,
+    extractedAt: now.toISOString(),
+  };
+  const davidCerts = [
+    { weekOffset: 0, capacity: "no_work", name: "Initial off-work certificate", restrictions: [] as Array<{ type: string; description: string }>, restrictionsJson: null as FunctionalRestrictionsExtracted | null },
+    { weekOffset: 4, capacity: "no_work", name: "Month 1 review — off-work continuation", restrictions: [], restrictionsJson: null },
+    { weekOffset: 12, capacity: "no_work", name: "Month 3 review — off-work, conservative management", restrictions: [], restrictionsJson: null },
+    { weekOffset: 20, capacity: "no_work", name: "Month 5 review — off-work, no surgical candidacy", restrictions: [], restrictionsJson: null },
+    {
+      weekOffset: 24,
+      capacity: "modified_duties",
+      name: "Month 6 — IME-aligned modified duties (sedentary only)",
+      restrictions: [
+        { type: "lifting", description: "No lifting >5kg" },
+        { type: "posture", description: "Sit-stand workstation; max 4 hrs/day initially" },
+        { type: "movement", description: "No bending or stooping below knee level" },
+      ],
+      restrictionsJson: davidWeek24Restrictions,
+    },
+  ];
+  await db.insert(medicalCertificates).values(
+    davidCerts.map((c) => {
+      const start = new Date(davidInjuryDate.getTime() + c.weekOffset * 7 * DAY_MS);
+      const end = new Date(start.getTime() + 28 * DAY_MS);
+      return {
+        caseId: CASE_DAVID_ID,
+        organizationId: WALLARA_ORG_ID,
+        workerId: WORKER_DAVID_ID,
+        issueDate: start,
+        startDate: start,
+        endDate: end,
+        capacity: c.capacity,
+        certificateType: "medical_certificate",
+        source: "manual",
+        treatingPractitioner: "Dr. Saravanan Shanmugam",
+        practitionerType: "GP",
+        clinicName: "Keysborough Family Medical",
+        fileName: `david-cert-week-${c.weekOffset}.jpg`,
+        fileUrl: picsum(`wallara-david-cert-${c.weekOffset}`),
+        restrictions: c.restrictions,
+        functionalRestrictionsJson: c.restrictionsJson,
+        isCurrentCertificate: c.weekOffset === 24,
+        notes: c.name,
+      };
+    }) as any
+  );
+
   // ── 9. RTW plan for Marcus ────────────────────────────────────────────────
   console.log("[seed-wallara] Inserting RTW plan for Marcus...");
   await db.insert(rtwPlans).values({
@@ -930,6 +1165,124 @@ async function seedWallara(): Promise<void> {
     },
     {
       caseId: CASE_PRIYA_ID,
+      organizationId: WALLARA_ORG_ID,
+      role: "employer_primary",
+      name: "Ellen Burns",
+      phone: "03 9000 9000",
+      email: "wallara@wallara.com.au",
+      company: "Wallara",
+      isPrimary: false,
+      isActive: true,
+    },
+
+    // ── David Nguyen — chronic L4-L5 (GP + neurosurgeon + physio + IME + insurer + employer) ──
+    {
+      caseId: CASE_DAVID_ID,
+      organizationId: WALLARA_ORG_ID,
+      role: "treating_gp",
+      name: "Dr. Saravanan Shanmugam",
+      phone: "03 9112 8950",
+      email: "s.shanmugam@keysboroughfamilymedical.com.au",
+      company: "Keysborough Family Medical",
+      isPrimary: true,
+      isActive: true,
+    },
+    {
+      caseId: CASE_DAVID_ID,
+      organizationId: WALLARA_ORG_ID,
+      role: "specialist",
+      name: "Mr. Arjun Patel",
+      phone: "03 9614 7700",
+      email: "arjun.patel@melbourneneurosurgery.com.au",
+      company: "Melbourne Neurosurgery",
+      notes: "Reviewed Feb 2026 — L4-L5 disc protrusion, conservative management only, not a surgical candidate.",
+      isPrimary: false,
+      isActive: true,
+    },
+    {
+      caseId: CASE_DAVID_ID,
+      organizationId: WALLARA_ORG_ID,
+      role: "physiotherapist",
+      name: "Laura Donnelly",
+      phone: "03 5941 3688",
+      email: "laura.donnelly@dandenongphysio.com.au",
+      company: "Dandenong Physiotherapy",
+      notes: "Weekly hands-on + home-program; tolerance plateaued, no recent gains.",
+      isPrimary: false,
+      isActive: true,
+    },
+    {
+      caseId: CASE_DAVID_ID,
+      organizationId: WALLARA_ORG_ID,
+      role: "specialist",
+      name: "Dr. Margaret Chen",
+      phone: "03 9650 4500",
+      email: "m.chen@collinsoccmed.com.au",
+      company: "Collins Street Occupational Medicine",
+      notes: "Independent Medical Examiner (IME) — report dated 08/05/2026. Recommends modified-duties RTW + vocational reassessment.",
+      isPrimary: false,
+      isActive: true,
+    },
+    {
+      caseId: CASE_DAVID_ID,
+      organizationId: WALLARA_ORG_ID,
+      role: "case_manager",
+      name: "Ellen Burns",
+      phone: "03 9000 9000",
+      email: "wallara@wallara.com.au",
+      company: "Wallara",
+      isPrimary: false,
+      isActive: true,
+    },
+    {
+      caseId: CASE_DAVID_ID,
+      organizationId: WALLARA_ORG_ID,
+      role: "employer_primary",
+      name: "Ellen Burns",
+      phone: "03 9000 9000",
+      email: "wallara@wallara.com.au",
+      company: "Wallara",
+      isPrimary: false,
+      isActive: true,
+    },
+
+    // ── Naomi Wright — preventative (GP + occupational physician + employer) ──
+    {
+      caseId: CASE_NAOMI_ID,
+      organizationId: WALLARA_ORG_ID,
+      role: "treating_gp",
+      name: "Dr. Rebecca Tran",
+      phone: "03 9388 2200",
+      email: "rebecca.tran@northcotefamilymedical.com.au",
+      company: "Northcote Family Medical",
+      isPrimary: true,
+      isActive: true,
+    },
+    {
+      caseId: CASE_NAOMI_ID,
+      organizationId: WALLARA_ORG_ID,
+      role: "specialist",
+      name: "Dr. Priya Khatri",
+      phone: "03 9602 7700",
+      email: "p.khatri@queenstreetoccmed.com.au",
+      company: "Queen Street Occupational Medicine",
+      notes: "Conducted Prevention Check assessment 12/05/2026 — moderate ergonomic + psychosocial risk, low clinical concern.",
+      isPrimary: false,
+      isActive: true,
+    },
+    {
+      caseId: CASE_NAOMI_ID,
+      organizationId: WALLARA_ORG_ID,
+      role: "case_manager",
+      name: "Ellen Burns",
+      phone: "03 9000 9000",
+      email: "wallara@wallara.com.au",
+      company: "Wallara",
+      isPrimary: false,
+      isActive: true,
+    },
+    {
+      caseId: CASE_NAOMI_ID,
       organizationId: WALLARA_ORG_ID,
       role: "employer_primary",
       name: "Ellen Burns",

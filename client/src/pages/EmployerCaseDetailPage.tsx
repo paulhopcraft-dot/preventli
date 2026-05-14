@@ -16,6 +16,8 @@ import { CaseContactsPanel } from "@/components/CaseContactsPanel";
 import { AutoDraftButton } from "@/components/AutoDraftButton";
 import { AutoDraftRTWPlanBanner } from "@/components/AutoDraftRTWPlanBanner";
 import { CurrentRTWPlanCard } from "@/components/CurrentRTWPlanCard";
+import { MedicoLegalReportPanel } from "@/components/MedicoLegalReportPanel";
+import { HealthWellbeingPanel } from "@/components/HealthWellbeingPanel";
 import {
   Tooltip,
   TooltipContent,
@@ -969,6 +971,16 @@ export default function EmployerCaseDetailPage() {
             <AutoDraftButton caseId={workerCase.id} />
           </div>
         </div>
+      </div>
+
+      {/* Medico-legal IME report panel (renders only on cases with an IME registered). */}
+      <div className="px-4 pt-4">
+        <MedicoLegalReportPanel caseId={workerCase.id} />
+      </div>
+
+      {/* Health & Wellbeing Prevention Check panel (renders only on preventative cases with a report). */}
+      <div className="px-4 pt-4">
+        <HealthWellbeingPanel caseId={workerCase.id} />
       </div>
 
       {/* Auto-draft RTW plan banner (only renders when an auto-generated draft exists) */}
