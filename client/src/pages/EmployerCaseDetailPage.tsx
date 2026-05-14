@@ -15,6 +15,13 @@ import { TimelineCard } from "@/components/TimelineCard";
 import { CaseContactsPanel } from "@/components/CaseContactsPanel";
 import { AutoDraftButton } from "@/components/AutoDraftButton";
 import { AutoDraftRTWPlanBanner } from "@/components/AutoDraftRTWPlanBanner";
+import { CurrentRTWPlanCard } from "@/components/CurrentRTWPlanCard";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 // Heavy components - lazy load to reduce initial bundle size
 const DynamicRecoveryTimeline = lazy(() => import("@/components/DynamicRecoveryTimeline").then(m => ({ default: m.DynamicRecoveryTimeline })));
@@ -444,31 +451,77 @@ function CommandCentre({ workerCase, caseActions, effectiveRiskLevel, onApproveR
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-4">
 
         {/* Card 1 — Compliance */}
-        <Card className={cn(
-          "border-t-4",
-          complianceLevel === "compliant"     ? "border-t-emerald-500" :
-          complianceLevel === "at-risk"       ? "border-t-amber-500" :
-                                               "border-t-red-500"
-        )}>
-          <CardContent className="pt-4 pb-3 px-4">
-            <div className="flex items-start justify-between mb-2">
-              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Compliance</span>
-              {complianceLevel === "compliant"   ? <ShieldCheck className="h-5 w-5 text-emerald-500 shrink-0" /> :
-               complianceLevel === "at-risk"     ? <ShieldAlert className="h-5 w-5 text-amber-500 shrink-0" /> :
-                                                   <ShieldX className="h-5 w-5 text-red-500 shrink-0" />}
-            </div>
-            <p className={cn(
-              "text-base font-bold",
-              complianceLevel === "compliant"   ? "text-emerald-700 dark:text-emerald-400" :
-              complianceLevel === "at-risk"     ? "text-amber-700 dark:text-amber-400" :
-                                                  "text-red-700 dark:text-red-400"
-            )}>
-              {complianceLevel === "compliant" ? "Compliant" :
-               complianceLevel === "at-risk"   ? "At Risk" : "Non-Compliant"}
-            </p>
-            <p className="text-xs text-muted-foreground mt-1 leading-snug">{complianceIssue}</p>
-          </CardContent>
-        </Card>
+        {(() => {
+          const showReason =
+            (complianceLevel === "at-risk" || complianceLevel === "non-compliant") &&
+            !!workerCase.compliance?.reason;
+          const complianceCheckedLabel = workerCase.compliance?.lastChecked
+            ? new Date(workerCase.compliance.lastChecked).toLocaleString("en-AU", {
+                day: "2-digit",
+                month: "short",
+                year: "numeric",
+                hour: "2-digit",
+                minute: "2-digit",
+              })
+            : null;
+          const cardInner = (
+            <Card className={cn(
+              "border-t-4",
+              complianceLevel === "compliant"     ? "border-t-emerald-500" :
+              complianceLevel === "at-risk"       ? "border-t-amber-500" :
+                                                   "border-t-red-500",
+              showReason && "cursor-help"
+            )}
+            data-testid="compliance-status-card"
+            >
+              <CardContent className="pt-4 pb-3 px-4">
+                <div className="flex items-start justify-between mb-2">
+                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Compliance</span>
+                  {complianceLevel === "compliant"   ? <ShieldCheck className="h-5 w-5 text-emerald-500 shrink-0" /> :
+                   complianceLevel === "at-risk"     ? <ShieldAlert className="h-5 w-5 text-amber-500 shrink-0" /> :
+                                                       <ShieldX className="h-5 w-5 text-red-500 shrink-0" />}
+                </div>
+                <p className={cn(
+                  "text-base font-bold",
+                  complianceLevel === "compliant"   ? "text-emerald-700 dark:text-emerald-400" :
+                  complianceLevel === "at-risk"     ? "text-amber-700 dark:text-amber-400" :
+                                                      "text-red-700 dark:text-red-400"
+                )}>
+                  {complianceLevel === "compliant" ? "Compliant" :
+                   complianceLevel === "at-risk"   ? "At Risk" : "Non-Compliant"}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1 leading-snug">{complianceIssue}</p>
+                {showReason && (
+                  <p className="text-[10px] text-muted-foreground/80 mt-1 italic">
+                    Hover for details
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          );
+          if (!showReason) return cardInner;
+          return (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div data-testid="compliance-reason-tooltip-trigger">{cardInner}</div>
+                </TooltipTrigger>
+                <TooltipContent
+                  side="bottom"
+                  className="max-w-xs whitespace-pre-wrap text-xs"
+                  data-testid="compliance-reason-tooltip"
+                >
+                  <p className="font-semibold mb-1">Why this status?</p>
+                  <p className="mb-2">{workerCase.compliance?.reason}</p>
+                  <p className="text-[10px] text-muted-foreground">
+                    Source: {workerCase.compliance?.source ?? "unknown"}
+                    {complianceCheckedLabel ? ` · Checked ${complianceCheckedLabel}` : ""}
+                  </p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          );
+        })()}
 
         {/* Card 2 — Recovery */}
         <Card className={cn(
@@ -900,6 +953,11 @@ export default function EmployerCaseDetailPage() {
       {/* Auto-draft RTW plan banner (only renders when an auto-generated draft exists) */}
       <div className="px-4 pt-4">
         <AutoDraftRTWPlanBanner caseId={workerCase.id} />
+      </div>
+
+      {/* Current/active RTW plan card (only renders when latest plan is past draft) */}
+      <div className="px-4 pt-4">
+        <CurrentRTWPlanCard caseId={workerCase.id} />
       </div>
 
       {/* Tabs at the top */}
