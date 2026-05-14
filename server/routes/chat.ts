@@ -151,7 +151,15 @@ router.post("/message", authorize(), async (req: AuthRequest, res: Response) => 
             ? `\n- Open actions: ${caseActions.filter(a => a.status !== "done").length} pending`
             : "";
 
-          contextBlock = `\n\n---\n⚠ CONTEXT MODE: You are now assisting a Preventli CLINICIAN or ADMIN, NOT a patient. Override your "lead with a question" rule — instead, directly summarise the case status below and highlight any urgent issues. Do NOT ask who they are. Do NOT ask for more context. Jump straight to what matters.\n\nCase on screen:\n- Worker: ${workerCase.workerName}\n- Company: ${workerCase.company}\n- Work status: ${workerCase.workStatus}${certLine}${rtwLine}${actionLine}\n- Summary: ${workerCase.summary ?? "no summary on file"}\n\nIf the certificate is expired or expiring, flag it first. If actions are overdue, say so. If a telehealth consult would help resolve something, end with [SUGGEST_BOOKING].`;
+          // Stored compliance indicator (source of truth — set by compliance engine / seed / manual overrides)
+          const storedCompliance = workerCase.compliance ?? null;
+          const complianceLine = storedCompliance
+            ? `\n- Compliance indicator (stored, source of truth): ${storedCompliance.indicator}${storedCompliance.reason ? ` — reason: ${storedCompliance.reason}` : ""}${storedCompliance.source ? ` [source: ${storedCompliance.source}]` : ""}`
+            : workerCase.complianceIndicator
+            ? `\n- Compliance indicator (stored, source of truth): ${workerCase.complianceIndicator}`
+            : "\n- Compliance indicator: not on file";
+
+          contextBlock = `\n\n---\n⚠ CONTEXT MODE: You are now assisting a Preventli CLINICIAN or ADMIN, NOT a patient. Override your "lead with a question" rule — instead, directly summarise the case status below and highlight any urgent issues. Do NOT ask who they are. Do NOT ask for more context. Jump straight to what matters.\n\nCase on screen:\n- Worker: ${workerCase.workerName}\n- Company: ${workerCase.company}\n- Work status: ${workerCase.workStatus}${complianceLine}${certLine}${rtwLine}${actionLine}\n- Summary: ${workerCase.summary ?? "no summary on file"}\n\nWhen the user asks about this worker's compliance status, report the Compliance indicator and reason exactly as shown above. Do NOT re-derive compliance from certificates, RTW plan status, or open actions — the stored indicator is the source of truth (it reflects the compliance engine, manual overrides, and discussion-note escalations). If certificate is expired or expiring, flag it as a separate concern. If actions are overdue, say so. If a telehealth consult would help resolve something, end with [SUGGEST_BOOKING].`;
         }
       } catch {
         // context load failure is non-fatal
