@@ -182,7 +182,7 @@ export function ChatWidget({ caseContext }: ChatWidgetProps) {
           className="flex items-center gap-2 bg-primary text-primary-foreground rounded-full pl-4 pr-5 py-3 shadow-lg hover:bg-primary/90 transition-colors"
         >
           <Stethoscope className="w-5 h-5" />
-          <span className="text-sm font-medium">Talk with an Expert</span>
+          <span className="text-sm font-medium">Talk with Alex</span>
         </button>
       </div>
 

@@ -829,6 +829,27 @@ export default function EmployerCaseDetailPage() {
 
   const caseActions = actionsData?.data ?? [];
 
+  // Fetch all medical certificates for this case (used in the Injury & Diagnosis tab)
+  interface CertWithStatus {
+    id: string;
+    caseId: string;
+    issueDate?: string;
+    startDate: string;
+    endDate: string;
+    capacity: "fit" | "partial" | "unfit" | "unknown";
+    notes?: string;
+    source?: "freshdesk" | "manual";
+    documentUrl?: string;
+    sourceReference?: string;
+    displayStatus: "active" | "expiring_soon" | "expired";
+    daysUntilExpiry?: number;
+  }
+  const { data: certsData } = useQuery<{ success: boolean; data: CertWithStatus[] }>({
+    queryKey: [`/api/actions/case/${id}/certificates-with-status`],
+    enabled: !!id,
+  });
+  const allCertificates = certsData?.data ?? [];
+
   // Parse injury details from AI summary markdown tables
   const parseInjuryFromSummary = (summary: string | null | undefined) => {
     if (!summary) return {};
@@ -1237,9 +1258,16 @@ export default function EmployerCaseDetailPage() {
                     })()}
                   </div>
 
-                  {/* Medical Certificates */}
+                  {/* Medical Certificates — full list with status (active / expiring soon / expired) */}
                   <div>
-                    <h4 className="text-sm font-semibold text-primary mb-2">Medical Certificates</h4>
+                    <h4 className="text-sm font-semibold text-primary mb-2">
+                      Medical Certificates
+                      {allCertificates.length > 0 && (
+                        <span className="ml-2 text-xs font-normal text-muted-foreground">
+                          ({allCertificates.length})
+                        </span>
+                      )}
+                    </h4>
                     {(() => {
                       const certAttachments = workerCase.attachments?.filter(att =>
                         ['certificate', 'cert', 'medical cert', 'worksafe'].some(term =>
@@ -1247,57 +1275,120 @@ export default function EmployerCaseDetailPage() {
                         )
                       ) || [];
 
-                      if (certAttachments.length > 0 || workerCase.latestCertificate) {
+                      // Sort certs by startDate descending (newest first) — endpoint already does this but be defensive
+                      const sortedCerts = [...allCertificates].sort(
+                        (a, b) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime()
+                      );
+
+                      if (sortedCerts.length === 0 && certAttachments.length === 0 && !workerCase.latestCertificate) {
+                        return (
+                          <div className="p-3 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded text-sm">
+                            <p className="text-red-800 dark:text-red-200 font-medium">No medical certificate on file</p>
+                            <p className="text-xs text-red-600 dark:text-red-400 mt-1">
+                              Action required: Request current medical certificate
+                            </p>
+                          </div>
+                        );
+                      }
+
+                      const statusBadge = (s: CertWithStatus["displayStatus"]) => {
+                        if (s === "active") return { label: "Active", cls: "bg-emerald-100 text-emerald-800 dark:bg-emerald-800 dark:text-emerald-100" };
+                        if (s === "expiring_soon") return { label: "Expiring soon", cls: "bg-amber-100 text-amber-800 dark:bg-amber-800 dark:text-amber-100" };
+                        return { label: "Expired", cls: "bg-red-100 text-red-800 dark:bg-red-800 dark:text-red-100" };
+                      };
+
+                      const rowBg = (s: CertWithStatus["displayStatus"]): string => {
+                        if (s === "active") return "bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800";
+                        if (s === "expiring_soon") return "bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800";
+                        return "bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800";
+                      };
+
+                      // Fall back to legacy "latestCertificate" if endpoint returned no certs but workerCase has one
+                      if (sortedCerts.length === 0 && workerCase.latestCertificate) {
                         return (
                           <div className="space-y-2">
-                            {workerCase.latestCertificate && (
+                            <div
+                              className={cn(
+                                "flex items-center justify-between p-2 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded text-sm",
+                                workerCase.latestCertificate.documentUrl && "cursor-pointer hover:bg-emerald-100 dark:hover:bg-emerald-900/50 transition-colors"
+                              )}
+                              onClick={() => {
+                                if (workerCase.latestCertificate?.documentUrl) {
+                                  window.open(workerCase.latestCertificate.documentUrl, '_blank');
+                                }
+                              }}
+                            >
+                              <div>
+                                <span className="font-medium">Current Certificate</span>
+                                <p className="text-xs text-muted-foreground">
+                                  Valid: {formatCertDate(workerCase.latestCertificate.startDate)} to {formatCertDate(workerCase.latestCertificate.endDate)}
+                                </p>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-800 dark:text-emerald-100">Active</Badge>
+                                {workerCase.latestCertificate.documentUrl && (
+                                  <Button variant="ghost" size="sm" className="h-6 text-xs px-2">View</Button>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <div className="space-y-2">
+                          {sortedCerts.map(cert => {
+                            const badge = statusBadge(cert.displayStatus);
+                            return (
                               <div
+                                key={cert.id}
                                 className={cn(
-                                  "flex items-center justify-between p-2 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded text-sm",
-                                  workerCase.latestCertificate.documentUrl && "cursor-pointer hover:bg-emerald-100 dark:hover:bg-emerald-900/50 transition-colors"
+                                  "flex items-center justify-between p-2 border rounded text-sm",
+                                  rowBg(cert.displayStatus),
+                                  cert.documentUrl && "cursor-pointer hover:opacity-90 transition-opacity"
                                 )}
                                 onClick={() => {
-                                  if (workerCase.latestCertificate?.documentUrl) {
-                                    window.open(workerCase.latestCertificate.documentUrl, '_blank');
-                                  }
+                                  if (cert.documentUrl) window.open(cert.documentUrl, '_blank');
                                 }}
                               >
-                                <div>
-                                  <span className="font-medium">Current Certificate</span>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-medium capitalize">
+                                      {cert.capacity === 'fit' ? 'Fit for work' :
+                                       cert.capacity === 'partial' ? 'Partial capacity' :
+                                       cert.capacity === 'unfit' ? 'Unfit for work' :
+                                       'Unknown capacity'}
+                                    </span>
+                                  </div>
                                   <p className="text-xs text-muted-foreground">
-                                    Valid: {formatCertDate(workerCase.latestCertificate.startDate)} to {formatCertDate(workerCase.latestCertificate.endDate)}
+                                    {formatCertDate(cert.startDate)} – {formatCertDate(cert.endDate)}
+                                    {typeof cert.daysUntilExpiry === 'number' && cert.displayStatus !== 'expired'
+                                      ? ` · ${cert.daysUntilExpiry} day${cert.daysUntilExpiry !== 1 ? 's' : ''} until expiry`
+                                      : ''}
                                   </p>
                                 </div>
-                                <div className="flex items-center gap-2">
-                                  <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-800 dark:text-emerald-100">Active</Badge>
-                                  {workerCase.latestCertificate.documentUrl && (
+                                <div className="flex items-center gap-2 shrink-0">
+                                  <Badge className={badge.cls}>{badge.label}</Badge>
+                                  {cert.documentUrl && (
                                     <Button variant="ghost" size="sm" className="h-6 text-xs px-2">View</Button>
                                   )}
                                 </div>
                               </div>
-                            )}
-                            {certAttachments.map(att => (
-                              <div key={att.id} className="flex items-center justify-between p-2 bg-muted rounded text-sm">
-                                <span>{att.name}</span>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-7 text-xs"
-                                  onClick={() => window.open(att.url, '_blank')}
-                                >
-                                  View
-                                </Button>
-                              </div>
-                            ))}
-                          </div>
-                        );
-                      }
-                      return (
-                        <div className="p-3 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded text-sm">
-                          <p className="text-red-800 dark:text-red-200 font-medium">No medical certificate on file</p>
-                          <p className="text-xs text-red-600 dark:text-red-400 mt-1">
-                            Action required: Request current medical certificate
-                          </p>
+                            );
+                          })}
+                          {certAttachments.map(att => (
+                            <div key={att.id} className="flex items-center justify-between p-2 bg-muted rounded text-sm">
+                              <span>{att.name}</span>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 text-xs"
+                                onClick={() => window.open(att.url, '_blank')}
+                              >
+                                View
+                              </Button>
+                            </div>
+                          ))}
                         </div>
                       );
                     })()}
