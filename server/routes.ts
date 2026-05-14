@@ -41,6 +41,7 @@ import contactRoutes from "./routes/contacts";
 import restrictionRoutes from "./routes/restrictions";
 import functionalAbilityRouter from "./routes/functionalAbility";
 import rtwPlansRouter from "./routes/rtwPlans";
+import rtwAutoDraftRouter from "./routes/rtwAutoDraft";
 import { employerDashboardRouter } from "./routes/employer-dashboard";
 import complianceDashboardRouter from "./routes/compliance-dashboard";
 import preEmploymentRoutes from "./routes/preEmployment";
@@ -206,6 +207,9 @@ export async function registerRoutes(app: Express): Promise<void> {
 
   // RTW Plan Generator routes (JWT-protected) - GEN-01 to GEN-10
   app.use("/api/rtw-plans", authorize(), rtwPlansRouter);
+
+  // RTW Auto-Draft routes (JWT-protected, case ownership applied per-route)
+  app.use("/api/cases", rtwAutoDraftRouter);
 
   // Employer Dashboard routes (JWT-protected)
   app.use("/api/employer", employerDashboardRouter);
