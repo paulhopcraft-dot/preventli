@@ -597,21 +597,22 @@ async function seed() {
   console.log("  - doctor@harborclinic.local (org-beta only)");
 }
 
-seed()
-  .then(async () => {
-    // Always run Wallara seed — it has its own idempotency guard (delete-then-insert
-    // scoped to org-wallara). Wrapped in try/catch so a Wallara-seed failure
-    // never blocks Render boot.
-    try {
-      await seedWallara();
-    } catch (wallaraErr) {
-      console.error("Wallara seed failed (continuing anyway):", wallaraErr);
-    }
-  })
-  .catch((error) => {
-    console.error("Seed failed:", error);
-    process.exitCode = 1;
-  })
-  .finally(async () => {
-    await pool.end();
-  });
+async function runAllSeeds() {
+  let mainSeedFailed = false;
+  try {
+    await seed();
+  } catch (error) {
+    console.error("Main seed failed (continuing to Wallara anyway):", error);
+    mainSeedFailed = true;
+  }
+  try {
+    await seedWallara();
+    console.log("[seed] Wallara seed completed");
+  } catch (wallaraErr) {
+    console.error("Wallara seed failed:", wallaraErr);
+  }
+  await pool.end();
+  if (mainSeedFailed) process.exitCode = 1;
+}
+
+runAllSeeds();
