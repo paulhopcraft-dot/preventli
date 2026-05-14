@@ -13,6 +13,8 @@ import type { WorkerCase, PaginatedCasesResponse, CaseActionDB } from "@shared/s
 import { cn } from "@/lib/utils";
 import { TimelineCard } from "@/components/TimelineCard";
 import { CaseContactsPanel } from "@/components/CaseContactsPanel";
+import { AutoDraftButton } from "@/components/AutoDraftButton";
+import { AutoDraftRTWPlanBanner } from "@/components/AutoDraftRTWPlanBanner";
 
 // Heavy components - lazy load to reduce initial bundle size
 const DynamicRecoveryTimeline = lazy(() => import("@/components/DynamicRecoveryTimeline").then(m => ({ default: m.DynamicRecoveryTimeline })));
@@ -890,8 +892,14 @@ export default function EmployerCaseDetailPage() {
             )}>
               {effectiveRiskLevel || workerCase.riskLevel || "Unknown"}
             </Badge>
+            <AutoDraftButton caseId={workerCase.id} />
           </div>
         </div>
+      </div>
+
+      {/* Auto-draft RTW plan banner (only renders when an auto-generated draft exists) */}
+      <div className="px-4 pt-4">
+        <AutoDraftRTWPlanBanner caseId={workerCase.id} />
       </div>
 
       {/* Tabs at the top */}
