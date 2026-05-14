@@ -22,10 +22,10 @@ import {
  * Creates:
  *   - 1 organization (Wallara, kind=employer)
  *   - 1 user (Ellen Burns, role=employer, password wallara01)
- *   - 4 workers across pre-employment / injury / preventative / exit phases
- *   - 4 pre-employment assessments (one per worker, all passed)
+ *   - 6 workers across pre-employment / injury / preventative / exit phases
+ *   - 6 pre-employment assessments (5 passed + 1 in-progress awaiting approval)
  *   - 3 worker_cases (Sarah injury, Marcus injury+RTW, Priya preventative)
- *   - 1 telehealth booking (James exit appointment)
+ *   - 2 telehealth bookings (James + Liam exit appointments)
  *   - 3 medical certificates for Sarah, 4 for Marcus (date-aligned to recovery)
  *   - Diagnosis-scan caseAttachments (Sarah: 1 MRI, Marcus: ultrasound + MRI)
  *   - 1 rtwPlan + rtwPlanVersion for Marcus
@@ -47,6 +47,8 @@ const WORKER_SARAH_ID = "worker-wallara-sarah";
 const WORKER_MARCUS_ID = "worker-wallara-marcus";
 const WORKER_PRIYA_ID = "worker-wallara-priya";
 const WORKER_JAMES_ID = "worker-wallara-james";
+const WORKER_AISHA_ID = "worker-wallara-aisha";
+const WORKER_LIAM_ID = "worker-wallara-liam";
 
 const CASE_SARAH_ID = "case-wallara-sarah";
 const CASE_MARCUS_ID = "case-wallara-marcus";
@@ -159,7 +161,7 @@ async function seedWallara(): Promise<void> {
   } as any);
 
   // ── 4. Workers ─────────────────────────────────────────────────────────────
-  console.log("[seed-wallara] Inserting 4 workers...");
+  console.log("[seed-wallara] Inserting 6 workers...");
   await db.insert(workers).values([
     {
       id: WORKER_SARAH_ID,
@@ -188,6 +190,20 @@ async function seedWallara(): Promise<void> {
       name: "James O'Brien",
       email: "james.obrien@wallara.com.au",
       phone: "0444 444 444",
+    },
+    {
+      id: WORKER_AISHA_ID,
+      organizationId: WALLARA_ORG_ID,
+      name: "Aisha Patel",
+      email: "aisha.patel@wallara.com.au",
+      phone: "0455 555 555",
+    },
+    {
+      id: WORKER_LIAM_ID,
+      organizationId: WALLARA_ORG_ID,
+      name: "Liam Brennan",
+      email: "liam.brennan@wallara.com.au",
+      phone: "0466 666 666",
     },
   ] as any);
 
@@ -247,6 +263,45 @@ async function seedWallara(): Promise<void> {
       status: "completed",
       clearanceLevel: "cleared_unconditional",
       completedDate: new Date(now.getTime() - 1095 * DAY_MS), // ~3 years ago
+      assessorName: "Dr. Helen Mead",
+      assessorType: "GP",
+    },
+    {
+      // Aisha Patel — submitted questionnaire, awaiting employer approval.
+      // status="in_progress" matches storage.updateAssessmentResponses() — set
+      // when the worker submits the questionnaire but before the AI report /
+      // clearance decision is finalised.
+      id: "preemp-wallara-aisha",
+      organizationId: WALLARA_ORG_ID,
+      workerId: WORKER_AISHA_ID,
+      candidateName: "Aisha Patel",
+      candidateEmail: "aisha.patel@wallara.com.au",
+      positionTitle: "Disability Support Worker",
+      assessmentType: "baseline_health",
+      status: "in_progress",
+      sentAt: new Date(now.getTime() - 5 * DAY_MS),
+      assessorName: "Dr. Helen Mead",
+      assessorType: "GP",
+      questionnaireResponses: {
+        submittedAt: new Date(now.getTime() - 3 * DAY_MS).toISOString(),
+        priorInjuries: "No prior workplace injuries.",
+        chronicConditions: "Nil reported.",
+        medications: "None.",
+        physicalCapacity: "Self-rated full capacity for role demands.",
+      } as any,
+    },
+    {
+      // Liam Brennan — completed pre-emp 4 years ago, now exiting.
+      id: "preemp-wallara-liam",
+      organizationId: WALLARA_ORG_ID,
+      workerId: WORKER_LIAM_ID,
+      candidateName: "Liam Brennan",
+      candidateEmail: "liam.brennan@wallara.com.au",
+      positionTitle: "Support Coordinator",
+      assessmentType: "baseline_health",
+      status: "completed",
+      clearanceLevel: "cleared_unconditional",
+      completedDate: new Date(now.getTime() - 1460 * DAY_MS), // ~4 years ago
       assessorName: "Dr. Helen Mead",
       assessorType: "GP",
     },
@@ -485,19 +540,34 @@ async function seedWallara(): Promise<void> {
     changeReason: "Initial RTW plan",
   } as any);
 
-  // ── 10. Telehealth booking for James (exit interview) ──────────────────────
-  console.log("[seed-wallara] Inserting telehealth exit booking for James...");
-  await db.insert(telehealthBookings).values({
-    organizationId: WALLARA_ORG_ID,
-    workerId: WORKER_JAMES_ID,
-    workerName: "James O'Brien",
-    workerEmail: "james.obrien@wallara.com.au",
-    employerName: "Wallara",
-    serviceType: "exit",
-    appointmentType: "exit_health_check",
-    employerNotes: "Exit health check on departure after 3 years of service.",
-    status: "completed",
-  } as any);
+  // ── 10. Telehealth bookings (exit interviews) ──────────────────────────────
+  console.log("[seed-wallara] Inserting telehealth exit bookings for James and Liam...");
+  await db.insert(telehealthBookings).values([
+    {
+      organizationId: WALLARA_ORG_ID,
+      workerId: WORKER_JAMES_ID,
+      workerName: "James O'Brien",
+      workerEmail: "james.obrien@wallara.com.au",
+      employerName: "Wallara",
+      serviceType: "exit",
+      appointmentType: "exit_health_check",
+      employerNotes: "Exit health check on departure after 3 years of service.",
+      status: "completed",
+    },
+    {
+      organizationId: WALLARA_ORG_ID,
+      workerId: WORKER_LIAM_ID,
+      workerName: "Liam Brennan",
+      workerEmail: "liam.brennan@wallara.com.au",
+      employerName: "Wallara",
+      serviceType: "exit",
+      appointmentType: "exit_health_check",
+      employerNotes: "Exit health check on departure after 4 years of service.",
+      status: "completed",
+      createdAt: new Date(now.getTime() - 7 * DAY_MS), // ~1 week ago
+      updatedAt: new Date(now.getTime() - 7 * DAY_MS),
+    },
+  ] as any);
 
   // ── 11. Pre-baked morning briefing (coordinator agent job) ─────────────────
   console.log("[seed-wallara] Inserting pre-baked morning briefing agent job...");
