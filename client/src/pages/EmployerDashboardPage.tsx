@@ -605,6 +605,23 @@ function EmployerDashboardContent() {
                   <p className="bg-muted/50 rounded p-2 whitespace-pre-wrap">{selectedBooking.employerNotes}</p>
                 </div>
               )}
+              {selectedBooking.questionnaireResponses && Object.keys(selectedBooking.questionnaireResponses).length > 0 && (
+                <div className="pt-2">
+                  <p className="text-muted-foreground font-medium mb-2">Responses</p>
+                  <dl className="space-y-2">
+                    {Object.entries(selectedBooking.questionnaireResponses as Record<string, unknown>).map(([k, v]) => (
+                      <div key={k} className="grid grid-cols-3 gap-2">
+                        <dt className="text-muted-foreground col-span-1 capitalize text-xs">
+                          {k.replace(/([A-Z])/g, ' $1').replace(/^./, c => c.toUpperCase()).trim()}
+                        </dt>
+                        <dd className="col-span-2 text-xs break-words">
+                          {typeof v === 'boolean' ? (v ? 'Yes' : 'No') : String(v)}
+                        </dd>
+                      </div>
+                    ))}
+                  </dl>
+                </div>
+              )}
               <div className="flex justify-end gap-2 pt-2">
                 <Button variant="outline" onClick={() => setSelectedBooking(null)}>
                   Close

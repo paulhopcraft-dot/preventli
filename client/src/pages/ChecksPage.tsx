@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import type { TelehealthBookingDB } from "@shared/schema";
 import { Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -126,6 +127,14 @@ export default function ChecksPage() {
     queryFn: () => fetch("/api/workers", { credentials: "include" }).then(r => r.json()),
   });
 
+  const { data: bookingsData } = useQuery<{ bookings: TelehealthBookingDB[] }>({
+    queryKey: ["/api/bookings"],
+    queryFn: () => fetch("/api/bookings", { credentials: "include" }).then(r => r.json()),
+  });
+
+  const exitBookings = (bookingsData?.bookings ?? []).filter(b => b.serviceType === "exit");
+  const [selectedExit, setSelectedExit] = useState<TelehealthBookingDB | null>(null);
+
   const [assessmentSearch, setAssessmentSearch] = useState("");
   const assessments = assessmentsData?.assessments ?? [];
   const workers = workersData?.workers ?? [];
@@ -157,13 +166,20 @@ export default function ChecksPage() {
     }).length,
   };
 
-  // Mock data for other check types (not yet wired to real APIs)
+  // Exit stats are derived from real telehealth bookings filtered by serviceType="exit".
+  // Pre-employment and other categories remain mocked until their APIs are wired.
+  const exitStats = {
+    total: exitBookings.length,
+    pending: exitBookings.filter(b => b.status === "pending").length,
+    completed: exitBookings.filter(b => b.status === "completed").length,
+    clearanceReady: exitBookings.filter(b => b.status === "confirmed").length,
+  };
   const checkStats = {
     prevention: { total: 45, due: 7, completed: 38, overdue: 2 },
     injury: { total: 8, active: 3, resolved: 5, critical: 1 },
     wellness: { total: 67, scheduled: 12, completed: 55, flagged: 3 },
     mentalHealth: { total: 23, active: 5, scheduled: 8, completed: 18 },
-    exit: { total: 4, pending: 2, completed: 2, clearanceReady: 1 }
+    exit: exitStats,
   };
 
   const StatCard = ({ title, value, description, icon: Icon, color = "blue" }: any) => (
@@ -632,6 +648,40 @@ export default function ChecksPage() {
               />
             </div>
 
+            {/* Active exit interviews — clickable list, each row opens responses */}
+            {exitBookings.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Exit Interviews</CardTitle>
+                  <CardDescription>Click a row to view the worker's exit-interview responses</CardDescription>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <div className="divide-y divide-border">
+                    {exitBookings.map(b => (
+                      <button
+                        key={b.id}
+                        type="button"
+                        onClick={() => setSelectedExit(b)}
+                        className="w-full flex items-center gap-4 px-4 py-3 hover:bg-muted/50 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-foreground truncate">{b.workerName}</p>
+                          <p className="text-xs text-muted-foreground truncate">
+                            {b.employerName ?? "—"}
+                            {b.appointmentType ? ` · ${b.appointmentType.replace(/_/g, " ")}` : ""}
+                          </p>
+                        </div>
+                        <Badge className="text-xs shrink-0 capitalize">{b.status}</Badge>
+                        <div className="hidden sm:block w-20 text-xs text-muted-foreground text-right shrink-0">
+                          {b.createdAt ? new Date(b.createdAt).toLocaleDateString("en-AU", { day: "numeric", month: "short" }) : "—"}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             <Card>
               <CardHeader>
                 <div className="flex items-center justify-between">
@@ -762,6 +812,72 @@ export default function ChecksPage() {
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Exit interview detail modal — shows questionnaireResponses if populated */}
+      <Dialog open={!!selectedExit} onOpenChange={(open) => { if (!open) setSelectedExit(null); }}>
+        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Exit Interview</DialogTitle>
+            <DialogDescription>
+              {selectedExit?.workerName}
+              {selectedExit?.appointmentType ? ` · ${selectedExit.appointmentType.replace(/_/g, " ")}` : ""}
+            </DialogDescription>
+          </DialogHeader>
+          {selectedExit && (
+            <div className="space-y-4 text-sm">
+              <div className="grid grid-cols-3 gap-2">
+                <span className="text-muted-foreground col-span-1">Email</span>
+                <span className="col-span-2">{selectedExit.workerEmail ?? "—"}</span>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                <span className="text-muted-foreground col-span-1">Employer</span>
+                <span className="col-span-2">{selectedExit.employerName ?? "—"}</span>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                <span className="text-muted-foreground col-span-1">Status</span>
+                <span className="col-span-2 capitalize">{selectedExit.status}</span>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                <span className="text-muted-foreground col-span-1">Requested</span>
+                <span className="col-span-2">
+                  {selectedExit.createdAt ? new Date(selectedExit.createdAt).toLocaleString("en-AU") : "—"}
+                </span>
+              </div>
+              {selectedExit.employerNotes && (
+                <div>
+                  <p className="text-muted-foreground mb-1">Notes</p>
+                  <p className="bg-muted/50 rounded p-2 whitespace-pre-wrap">{selectedExit.employerNotes}</p>
+                </div>
+              )}
+
+              {/* Responses */}
+              {selectedExit.questionnaireResponses && Object.keys(selectedExit.questionnaireResponses).length > 0 ? (
+                <div className="pt-2">
+                  <h4 className="font-semibold text-sm mb-2">Responses</h4>
+                  <dl className="space-y-2">
+                    {Object.entries(selectedExit.questionnaireResponses as Record<string, unknown>).map(([k, v]) => (
+                      <div key={k} className="grid grid-cols-3 gap-2">
+                        <dt className="text-muted-foreground col-span-1 capitalize">
+                          {k.replace(/([A-Z])/g, " $1").replace(/^./, c => c.toUpperCase()).trim()}
+                        </dt>
+                        <dd className="col-span-2 break-words">
+                          {typeof v === "boolean" ? (v ? "Yes" : "No") : String(v)}
+                        </dd>
+                      </div>
+                    ))}
+                  </dl>
+                </div>
+              ) : (
+                <div className="pt-2 text-muted-foreground italic">No questionnaire responses recorded.</div>
+              )}
+
+              <div className="flex justify-end pt-2">
+                <Button variant="outline" onClick={() => setSelectedExit(null)}>Close</Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </PageLayout>
   );
 }

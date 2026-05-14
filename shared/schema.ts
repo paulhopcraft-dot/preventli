@@ -2594,6 +2594,9 @@ export const telehealthBookings = pgTable("telehealth_bookings", {
   employerNotes: text("employer_notes"),
   requestReferral: boolean("request_referral").default(false),
   status: text("status").notNull().default("pending").$type<TelehealthBookingStatus>(),
+  // Worker-completed form responses (exit interview answers, pre-employment
+  // questionnaire, etc.). Shape is flexible per service type.
+  questionnaireResponses: jsonb("questionnaire_responses").$type<Record<string, unknown> | null>(),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

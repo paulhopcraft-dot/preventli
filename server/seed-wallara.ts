@@ -350,6 +350,14 @@ async function seedWallara(): Promise<void> {
     ticketCount: "0",
     lifecycleStage: "active_treatment",
     clinicalStatusJson: { rtwPlanStatus: "not_planned" } as any,
+    // Stored compliance is the source of truth for Alex + tooltip. Indicator must
+    // always carry a specific reason — never leave reason blank.
+    complianceJson: {
+      indicator: "Medium",
+      reason: "Recovery on track but RTW plan not yet drafted",
+      source: "claude",
+      lastChecked: new Date(now.getTime() - 6 * 60 * 60 * 1000).toISOString(),
+    } as any,
   } as any);
 
   // Marcus Tanaka — injury, rotator cuff, ~12 weeks ago, rtw_transition
@@ -375,6 +383,12 @@ async function seedWallara(): Promise<void> {
     ticketCount: "0",
     lifecycleStage: "rtw_transition",
     clinicalStatusJson: { rtwPlanStatus: "in_progress" } as any,
+    complianceJson: {
+      indicator: "Low",
+      reason: "Case file incomplete — missing recent functional capacity update",
+      source: "claude",
+      lastChecked: new Date(now.getTime() - 4 * 60 * 60 * 1000).toISOString(),
+    } as any,
   } as any);
 
   // Priya Reddy — preventative, no claim, intake
@@ -398,6 +412,12 @@ async function seedWallara(): Promise<void> {
     ticketIds: [],
     ticketCount: "0",
     lifecycleStage: "intake",
+    complianceJson: {
+      indicator: "Low",
+      reason: "All baseline checks current",
+      source: "claude",
+      lastChecked: new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString(),
+    } as any,
   } as any);
 
   // ── 7. Diagnosis scan attachments ──────────────────────────────────────────
@@ -669,6 +689,16 @@ async function seedWallara(): Promise<void> {
       appointmentType: "exit_health_check",
       employerNotes: "Exit health check on departure after 3 years of service.",
       status: "completed",
+      questionnaireResponses: {
+        reasonForLeaving: "Accepted a senior support coordinator role closer to family",
+        satisfactionScore: 8,
+        wouldRecommend: true,
+        managementSupport: "Supportive — Ellen was responsive and made time for monthly 1:1s",
+        growthOpportunities: "Adequate — completed manual handling refresher and senior first-aid renewal during tenure",
+        feedback: "Loved the team and the participants. Wallara culture is genuine.",
+        improvements: "Would value clearer career-pathway documentation for support workers wanting to move into coordination",
+        rehireEligible: true,
+      },
     },
     {
       organizationId: WALLARA_ORG_ID,
@@ -682,6 +712,16 @@ async function seedWallara(): Promise<void> {
       status: "completed",
       createdAt: new Date(now.getTime() - 7 * DAY_MS), // ~1 week ago
       updatedAt: new Date(now.getTime() - 7 * DAY_MS),
+      questionnaireResponses: {
+        reasonForLeaving: "Returning to postgraduate study in social work full-time",
+        satisfactionScore: 9,
+        wouldRecommend: true,
+        managementSupport: "Excellent — coordinator backed flexible hours during my final units",
+        growthOpportunities: "Strong — supported through Cert IV and given lead-coordinator shifts",
+        feedback: "Wallara invested in me. Honest feedback culture made a real difference.",
+        improvements: "Case-load planning could be smoothed across the fortnight — sometimes uneven week to week",
+        rehireEligible: true,
+      },
     },
   ] as any);
 
