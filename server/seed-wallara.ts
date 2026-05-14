@@ -14,6 +14,7 @@ import {
   rtwPlans,
   rtwPlanVersions,
   agentJobs,
+  type FunctionalRestrictionsExtracted,
 } from "@shared/schema";
 
 /**
@@ -441,17 +442,48 @@ async function seedWallara(): Promise<void> {
   console.log("[seed-wallara] Inserting medical certificates...");
 
   // Sarah: 3 certs — week 1 off-work, week 2 off-work, week 4 light duties
+  // Current cert (week 4) carries functionalRestrictionsJson so the AutoDraft
+  // medical-constraints gate (caseHasMedicalConstraintsGate) passes.
+  // Shape: FunctionalRestrictionsExtracted (see shared/schema.ts:1948-1988).
+  const sarahWeek4Restrictions: FunctionalRestrictionsExtracted = {
+    // Lumbar strain — light duties: limit lifting/bending, allow seated work with rest.
+    sitting: "with_modifications",
+    standingWalking: "with_modifications",
+    bending: "cannot",
+    squatting: "cannot",
+    kneelingClimbing: "cannot",
+    twisting: "cannot",
+    reachingOverhead: "with_modifications",
+    reachingForward: "can",
+    neckMovement: "can",
+    lifting: "with_modifications",
+    liftingMaxKg: 5,
+    carrying: "with_modifications",
+    carryingMaxKg: 5,
+    pushing: "with_modifications",
+    pulling: "with_modifications",
+    repetitiveMovements: "with_modifications",
+    useOfInjuredLimb: "with_modifications",
+    restMinutesPerHour: 10,
+    constraintDurationWeeks: 4,
+    maxWorkHoursPerDay: 6,
+    maxWorkDaysPerWeek: 5,
+    extractionConfidence: 0.92,
+    extractedAt: now.toISOString(),
+  };
   const sarahCerts = [
     {
       weekOffset: 0,
       capacity: "no_work",
       restrictions: [] as Array<{ type: string; description: string }>,
+      restrictionsJson: null as FunctionalRestrictionsExtracted | null,
       name: "Initial off-work certificate",
     },
     {
       weekOffset: 1,
       capacity: "no_work",
       restrictions: [],
+      restrictionsJson: null,
       name: "Week 2 extension — off-work",
     },
     {
@@ -461,6 +493,7 @@ async function seedWallara(): Promise<void> {
         { type: "lifting", description: "No lifting >5kg" },
         { type: "posture", description: "No prolonged sitting >30min" },
       ],
+      restrictionsJson: sarahWeek4Restrictions,
       name: "Week 4 — light duties",
     },
   ];
@@ -484,6 +517,7 @@ async function seedWallara(): Promise<void> {
         fileName: `sarah-cert-week-${c.weekOffset + 1}.jpg`,
         fileUrl: picsum(`wallara-sarah-cert-${c.weekOffset + 1}`),
         restrictions: c.restrictions,
+        functionalRestrictionsJson: c.restrictionsJson,
         isCurrentCertificate: c.weekOffset === 3,
         notes: c.name,
       };
@@ -491,9 +525,60 @@ async function seedWallara(): Promise<void> {
   );
 
   // Marcus: 4 certs — initial off-work, week 4 off-work, week 8 restricted, week 12 full-duties-with-restrictions
+  // Current cert (week 12) carries functionalRestrictionsJson (rotator cuff —
+  // no overhead lifting, no repetitive shoulder use, 4kg lift cap, 6h/day).
+  const marcusWeek12Restrictions: FunctionalRestrictionsExtracted = {
+    sitting: "can",
+    standingWalking: "can",
+    bending: "can",
+    squatting: "can",
+    kneelingClimbing: "with_modifications",
+    twisting: "with_modifications",
+    reachingOverhead: "cannot",
+    reachingForward: "with_modifications",
+    neckMovement: "can",
+    lifting: "with_modifications",
+    liftingMaxKg: 4,
+    carrying: "with_modifications",
+    carryingMaxKg: 4,
+    pushing: "with_modifications",
+    pulling: "with_modifications",
+    repetitiveMovements: "cannot",
+    useOfInjuredLimb: "with_modifications",
+    constraintDurationWeeks: 4,
+    maxWorkHoursPerDay: 6,
+    maxWorkDaysPerWeek: 5,
+    extractionConfidence: 0.94,
+    extractedAt: now.toISOString(),
+  };
+  // Week 8 — earlier, more restrictive (no overhead, no repetitive shoulder).
+  const marcusWeek8Restrictions: FunctionalRestrictionsExtracted = {
+    sitting: "can",
+    standingWalking: "with_modifications",
+    bending: "with_modifications",
+    squatting: "with_modifications",
+    kneelingClimbing: "cannot",
+    twisting: "cannot",
+    reachingOverhead: "cannot",
+    reachingForward: "with_modifications",
+    neckMovement: "can",
+    lifting: "with_modifications",
+    liftingMaxKg: 2,
+    carrying: "with_modifications",
+    carryingMaxKg: 2,
+    pushing: "cannot",
+    pulling: "cannot",
+    repetitiveMovements: "cannot",
+    useOfInjuredLimb: "cannot",
+    constraintDurationWeeks: 4,
+    maxWorkHoursPerDay: 4,
+    maxWorkDaysPerWeek: 5,
+    extractionConfidence: 0.90,
+    extractedAt: now.toISOString(),
+  };
   const marcusCerts = [
-    { weekOffset: 0, capacity: "no_work", name: "Initial off-work certificate", restrictions: [] as Array<{ type: string; description: string }> },
-    { weekOffset: 3, capacity: "no_work", name: "Week 4 extension — off-work", restrictions: [] },
+    { weekOffset: 0, capacity: "no_work", name: "Initial off-work certificate", restrictions: [] as Array<{ type: string; description: string }>, restrictionsJson: null as FunctionalRestrictionsExtracted | null },
+    { weekOffset: 3, capacity: "no_work", name: "Week 4 extension — off-work", restrictions: [], restrictionsJson: null },
     {
       weekOffset: 7,
       capacity: "modified_duties",
@@ -502,12 +587,14 @@ async function seedWallara(): Promise<void> {
         { type: "lifting", description: "No overhead lifting" },
         { type: "repetition", description: "No repetitive shoulder use" },
       ],
+      restrictionsJson: marcusWeek8Restrictions,
     },
     {
       weekOffset: 11,
       capacity: "modified_duties",
       name: "Week 12 — full duties with restrictions",
       restrictions: [{ type: "lifting", description: "No overhead lifting >5kg" }],
+      restrictionsJson: marcusWeek12Restrictions,
     },
   ];
   await db.insert(medicalCertificates).values(
@@ -530,6 +617,7 @@ async function seedWallara(): Promise<void> {
         fileName: `marcus-cert-week-${c.weekOffset + 1}.jpg`,
         fileUrl: picsum(`wallara-marcus-cert-${c.weekOffset + 1}`),
         restrictions: c.restrictions,
+        functionalRestrictionsJson: c.restrictionsJson,
         isCurrentCertificate: c.weekOffset === 11,
         notes: c.name,
       };

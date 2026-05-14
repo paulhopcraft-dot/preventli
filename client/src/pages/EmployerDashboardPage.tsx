@@ -20,8 +20,9 @@ import {
   ArrowRight,
   CalendarClock,
   Video,
+  ClipboardCheck,
 } from 'lucide-react';
-import type { PaginatedCasesResponse, TelehealthBookingDB } from '@shared/schema';
+import type { PaginatedCasesResponse, TelehealthBookingDB, PreEmploymentAssessmentDB } from '@shared/schema';
 
 /**
  * Spread onto a clickable <div> to make it keyboard-operable.
@@ -117,6 +118,16 @@ function EmployerDashboardContent() {
   const { data: bookingsData } = useQuery<{ bookings: TelehealthBookingDB[] }>({
     queryKey: ['/api/bookings'],
     queryFn: () => fetch('/api/bookings').then(r => r.json()),
+    staleTime: 60_000,
+  });
+
+  // Pending pre-employment assessments — candidates who have submitted their
+  // questionnaire and are awaiting employer review/clearance. Status
+  // `in_progress` is set by storage.updateAssessmentResponses() at submission.
+  const { data: pendingPreEmployment } = useQuery<{ assessments: PreEmploymentAssessmentDB[] }>({
+    queryKey: ['/api/pre-employment/assessments', 'in_progress'],
+    queryFn: () =>
+      fetch('/api/pre-employment/assessments?status=in_progress').then(r => r.json()),
     staleTime: 60_000,
   });
 
@@ -482,6 +493,64 @@ function EmployerDashboardContent() {
                     <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:text-primary shrink-0" />
                   </div>
                 ))}
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })()}
+
+      {/* Pending Pre-Employment Assessments — candidates who submitted the
+          questionnaire and are awaiting employer review (status=in_progress). */}
+      {(() => {
+        const pending = pendingPreEmployment?.assessments ?? [];
+        if (pending.length === 0) return null;
+        const submittedAt = (a: PreEmploymentAssessmentDB): Date | null => {
+          const submitted = (a.questionnaireResponses as { submittedAt?: string } | null)?.submittedAt;
+          if (submitted) return new Date(submitted);
+          if (a.sentAt) return new Date(a.sentAt);
+          return a.createdAt ? new Date(a.createdAt) : null;
+        };
+        return (
+          <Card className="bg-card shadow-lg border-0">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <ClipboardCheck className="w-5 h-5 text-muted-foreground" />
+                Pending Pre-Employment Assessments
+                <Badge variant="secondary" className="ml-1">{pending.length}</Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="divide-y divide-border">
+                {pending.map(a => {
+                  const when = submittedAt(a);
+                  return (
+                    <div
+                      key={a.id}
+                      className="flex items-center gap-4 px-4 py-3 hover:bg-muted/50 cursor-pointer group focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      aria-label={`Review pre-employment assessment for ${a.candidateName}`}
+                      {...clickableRowProps(() => navigate('/pre-employment'))}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-medium text-foreground group-hover:text-primary truncate">{a.candidateName}</p>
+                          <Badge variant="outline" className="text-xs shrink-0">{a.positionTitle}</Badge>
+                        </div>
+                        <p className="text-xs text-muted-foreground truncate">
+                          {a.assessmentType.replace(/_/g, ' ')}
+                          {a.assessorName ? ` · ${a.assessorName}` : ''}
+                        </p>
+                      </div>
+                      <Badge className="text-xs shrink-0 capitalize border bg-amber-100 text-amber-800 border-amber-200">
+                        Awaiting review
+                      </Badge>
+                      <div className="hidden sm:flex items-center gap-1 text-xs text-muted-foreground shrink-0">
+                        <CalendarClock className="w-3 h-3" />
+                        {when ? when.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' }) : '—'}
+                      </div>
+                      <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:text-primary shrink-0" />
+                    </div>
+                  );
+                })}
               </div>
             </CardContent>
           </Card>
