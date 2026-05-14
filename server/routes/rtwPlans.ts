@@ -415,6 +415,28 @@ router.get("/:planId", async (req: AuthRequest, res) => {
 // Plan Output Endpoints (OUT-01 to OUT-08)
 // ============================================================================
 
+const VALID_CAPABILITIES = new Set([
+  "can",
+  "cannot",
+  "with_modifications",
+  "not_assessed",
+]);
+
+function flatRestrictionsToArray(
+  r: unknown,
+): Array<{ category: string; capability: string; notes: null }> {
+  if (!r) return [];
+  if (Array.isArray(r)) return r as Array<{ category: string; capability: string; notes: null }>;
+  if (typeof r !== "object") return [];
+  return Object.entries(r as Record<string, unknown>)
+    .filter(([, v]) => typeof v === "string" && VALID_CAPABILITIES.has(v))
+    .map(([category, capability]) => ({
+      category,
+      capability: capability as string,
+      notes: null,
+    }));
+}
+
 /**
  * GET /api/rtw-plans/:planId/details
  * OUT-01 to OUT-06: Get complete plan with case, role, restrictions context
@@ -498,7 +520,7 @@ router.get("/:planId/details", async (req: AuthRequest, res) => {
         })),
         workerCase: details.workerCase,
         role: details.role,
-        restrictions: details.restrictions,
+        restrictions: flatRestrictionsToArray(details.restrictions),
         maxHoursPerDay: details.maxHoursPerDay,
         maxDaysPerWeek: details.maxDaysPerWeek,
       },
