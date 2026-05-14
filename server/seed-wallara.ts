@@ -33,8 +33,10 @@ import {
  *
  * Idempotent: deletes all rows where organization_id = WALLARA_ORG_ID before insert.
  *
- * Image strategy: uses picsum.photos public CDN URLs directly in the fileUrl /
- * url columns. No filesystem writes — keeps the seed fast and never blocks boot.
+ * Image strategy: diagnosis scans use real public-domain / CC medical images
+ * from Wikimedia Commons (so Sarah's lumbar MRI doesn't render as a stock dog
+ * photo). Certificate jpgs and other placeholder images still use picsum.photos.
+ * No filesystem writes — keeps the seed fast and never blocks boot.
  *
  * Usage:
  *   npm run seed:wallara
@@ -65,6 +67,20 @@ function picsum(seed: string): string {
   return `https://picsum.photos/seed/${seed}/800/600`;
 }
 
+/**
+ * Returns a real medical-scan URL from Wikimedia Commons. Falls back to
+ * picsum.photos if the caller passes an empty primary URL, so the seed never
+ * breaks even if a Wikimedia file is later moved or deleted.
+ */
+function scanUrl(primary: string, fallbackSeed: string): string {
+  try {
+    if (primary && primary.startsWith("https://")) return primary;
+    return picsum(fallbackSeed);
+  } catch {
+    return picsum(fallbackSeed);
+  }
+}
+
 const BRIEFING_SUMMARY = `Good morning. Here's your overnight status for Wallara.
 
 Last night I:
@@ -74,7 +90,7 @@ Last night I:
 
 Today you should:
 • Approve the draft RTW plan for Sarah Chen when ready — medical clearance is in.
-• Check in with Marcus's host employer about the new restricted-duties schedule starting Monday.
+• Check in with Marcus about the new restricted-duties schedule starting Monday.
 • Review Priya Reddy's preventative intake notes — flagged for ergonomic follow-up.
 
 Status:
@@ -391,21 +407,33 @@ async function seedWallara(): Promise<void> {
       caseId: CASE_SARAH_ID,
       name: "MRI Lumbar Spine — L4-L5 disc bulge",
       type: "diagnosis-scan",
-      url: picsum("wallara-sarah-mri"),
+      // Source: https://commons.wikimedia.org/wiki/File:Lumbar_MRI_t2-tse-rst-sagittal_10.jpg (public domain)
+      url: scanUrl(
+        "https://upload.wikimedia.org/wikipedia/commons/2/20/Lumbar_MRI_t2-tse-rst-sagittal_10.jpg",
+        "wallara-sarah-mri",
+      ),
     },
     {
       organizationId: WALLARA_ORG_ID,
       caseId: CASE_MARCUS_ID,
       name: "Ultrasound — Right Shoulder",
       type: "diagnosis-scan",
-      url: picsum("wallara-marcus-ultrasound"),
+      // Source: https://commons.wikimedia.org/wiki/File:Transversal_US_supraspinatus.jpg (CC BY-SA)
+      url: scanUrl(
+        "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f0/Transversal_US_supraspinatus.jpg/960px-Transversal_US_supraspinatus.jpg",
+        "wallara-marcus-ultrasound",
+      ),
     },
     {
       organizationId: WALLARA_ORG_ID,
       caseId: CASE_MARCUS_ID,
       name: "MRI — Right Shoulder rotator cuff",
       type: "diagnosis-scan",
-      url: picsum("wallara-marcus-mri"),
+      // Source: https://commons.wikimedia.org/wiki/File:Subacromial_Impingement_with_Supraspinatus_Rupture.jpg (CC BY)
+      url: scanUrl(
+        "https://upload.wikimedia.org/wikipedia/commons/6/60/Subacromial_Impingement_with_Supraspinatus_Rupture.jpg",
+        "wallara-marcus-mri",
+      ),
     },
   ] as any);
 
