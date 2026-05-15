@@ -12,6 +12,7 @@ import {
   ChevronUp,
   ChevronsUpDown,
   Search,
+  Stethoscope,
   User,
 } from "lucide-react";
 import { MilestoneBadge } from "./MilestoneBadge";
@@ -145,9 +146,19 @@ const CaseRow = memo(function CaseRow({ c, isSelected, onCaseClick }: CaseRowPro
         <RiskBadge level={effectiveRiskLevel(c)} type="risk" explanation={c.compliance?.reason} />
       </td>
       <td className="px-4 py-3">
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 flex-wrap">
           {complianceLow && <AlertTriangle className="h-3.5 w-3.5 text-red-500 flex-shrink-0" />}
           <RiskBadge level={c.complianceIndicator} type="compliance" compliance={c.compliance} />
+          {c.gpEscalation?.escalated && (
+            <span
+              title={`GP cert expired ${c.gpEscalation.daysOverdue} days ago — chase GP or trigger IME`}
+              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-medium border bg-orange-50 text-orange-700 border-orange-300"
+              data-testid={`badge-gp-escalation-${c.id}`}
+            >
+              <Stethoscope className="h-3 w-3" />
+              GP {c.gpEscalation.daysOverdue}d
+            </span>
+          )}
         </div>
       </td>
       <td className="px-4 py-3">
@@ -175,6 +186,7 @@ const CaseRow = memo(function CaseRow({ c, isSelected, onCaseClick }: CaseRowPro
 
 export function CasesTable({ cases, selectedCaseId, onCaseClick, currentUserId, currentUserName }: CasesTableProps) {
   const [myCasesOnly, setMyCasesOnly] = useState(false);
+  const [gpEscalationOnly, setGpEscalationOnly] = useState(false);
   const [sortField, setSortField] = useState<SortField>("urgency");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [filters, setFilters] = useState<Filters>({
@@ -200,6 +212,7 @@ export function CasesTable({ cases, selectedCaseId, onCaseClick, currentUserId, 
   const filteredSorted = useMemo(() => {
     let result = cases.filter(c => {
       if (myCasesOnly && currentUserId && c.caseManagerId !== currentUserId) return false;
+      if (gpEscalationOnly && !c.gpEscalation?.escalated) return false;
 
       const q = filters.search.toLowerCase();
       if (q && !c.workerName.toLowerCase().includes(q) && !c.id.toLowerCase().includes(q)) return false;
@@ -230,7 +243,9 @@ export function CasesTable({ cases, selectedCaseId, onCaseClick, currentUserId, 
     });
 
     return result;
-  }, [cases, myCasesOnly, currentUserId, filters, sortField, sortDir]);
+  }, [cases, myCasesOnly, gpEscalationOnly, currentUserId, filters, sortField, sortDir]);
+
+  const gpEscalationCount = useMemo(() => cases.filter(c => c.gpEscalation?.escalated).length, [cases]);
 
   function toggleSort(field: SortField) {
     if (sortField === field) setSortDir(d => d === "asc" ? "desc" : "asc");
@@ -254,7 +269,7 @@ export function CasesTable({ cases, selectedCaseId, onCaseClick, currentUserId, 
     return sortDir === "asc" ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />;
   }
 
-  const hasActiveFilters = filters.lifecycleStages.length > 0 || filters.riskLevels.length > 0 || filters.employer || myCasesOnly;
+  const hasActiveFilters = filters.lifecycleStages.length > 0 || filters.riskLevels.length > 0 || filters.employer || myCasesOnly || gpEscalationOnly;
 
   return (
     <div className="flex flex-col gap-3">
@@ -275,6 +290,28 @@ export function CasesTable({ cases, selectedCaseId, onCaseClick, currentUserId, 
             My Cases
           </button>
         </div>
+
+        {/* GP Escalation toggle */}
+        {gpEscalationCount > 0 && (
+          <button
+            onClick={() => setGpEscalationOnly(v => !v)}
+            className={cn(
+              "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border text-sm transition-colors",
+              gpEscalationOnly
+                ? "bg-orange-600 text-white border-orange-600"
+                : "bg-card text-muted-foreground border-border hover:bg-orange-50 hover:text-orange-700 hover:border-orange-300"
+            )}
+            data-testid="filter-gp-escalation"
+            title="Filter to cases where the GP cert is overdue"
+          >
+            <Stethoscope className="h-3.5 w-3.5" />
+            GP escalation
+            <span className={cn(
+              "px-1.5 py-0.5 rounded-full text-[10px] font-semibold",
+              gpEscalationOnly ? "bg-white/20" : "bg-orange-100 text-orange-700"
+            )}>{gpEscalationCount}</span>
+          </button>
+        )}
 
         {/* Search */}
         <div className="relative flex-1 min-w-[200px] max-w-xs">
@@ -363,7 +400,7 @@ export function CasesTable({ cases, selectedCaseId, onCaseClick, currentUserId, 
 
           {hasActiveFilters && (
             <button
-              onClick={() => { setFilters({ search: "", lifecycleStages: [], riskLevels: [], complianceStatuses: [], rtwStatuses: [], employer: "" }); setMyCasesOnly(false); }}
+              onClick={() => { setFilters({ search: "", lifecycleStages: [], riskLevels: [], complianceStatuses: [], rtwStatuses: [], employer: "" }); setMyCasesOnly(false); setGpEscalationOnly(false); }}
               className="text-xs text-primary hover:underline"
             >
               Clear all filters
