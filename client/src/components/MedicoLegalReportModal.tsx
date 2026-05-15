@@ -64,10 +64,10 @@ export function MedicoLegalReportModal({ report, open, onOpenChange }: Props): R
           </div>
         </DialogHeader>
 
-        <article className="prose prose-sm max-w-none print:prose dark:prose-invert print:text-black">
+        <article className="prose prose-sm max-w-none print:prose bg-white text-slate-900 print:text-black">
           {/* Document header */}
           <div className="border-b-2 border-indigo-700 pb-3 mb-4 print:border-black">
-            <h1 className="text-xl font-bold tracking-tight text-indigo-950 dark:text-indigo-100 print:text-black mb-1">
+            <h1 className="text-xl font-bold tracking-tight text-indigo-950 print:text-black mb-1">
               INDEPENDENT MEDICAL EXAMINATION
             </h1>
             <p className="text-xs text-muted-foreground print:text-gray-700">
@@ -104,28 +104,28 @@ export function MedicoLegalReportModal({ report, open, onOpenChange }: Props): R
           </table>
 
           <section className="mb-4">
-            <h2 className="text-base font-bold uppercase tracking-wide text-indigo-900 dark:text-indigo-200 print:text-black mb-1.5">
+            <h2 className="text-base font-bold uppercase tracking-wide text-indigo-900 print:text-black mb-1.5">
               Clinical history
             </h2>
             <p className="text-sm">{report.clinicalHistory}</p>
           </section>
 
           <section className="mb-4">
-            <h2 className="text-base font-bold uppercase tracking-wide text-indigo-900 dark:text-indigo-200 print:text-black mb-1.5">
+            <h2 className="text-base font-bold uppercase tracking-wide text-indigo-900 print:text-black mb-1.5">
               Current status
             </h2>
             <p className="text-sm">{report.currentStatus}</p>
           </section>
 
           <section className="mb-4">
-            <h2 className="text-base font-bold uppercase tracking-wide text-indigo-900 dark:text-indigo-200 print:text-black mb-1.5">
+            <h2 className="text-base font-bold uppercase tracking-wide text-indigo-900 print:text-black mb-1.5">
               Examination findings
             </h2>
             <p className="text-sm">{report.examinationFindings}</p>
           </section>
 
           <section className="mb-4">
-            <h2 className="text-base font-bold uppercase tracking-wide text-indigo-900 dark:text-indigo-200 print:text-black mb-1.5">
+            <h2 className="text-base font-bold uppercase tracking-wide text-indigo-900 print:text-black mb-1.5">
               Diagnosis
             </h2>
             <ol className="list-decimal pl-5 text-sm space-y-0.5">
@@ -136,7 +136,7 @@ export function MedicoLegalReportModal({ report, open, onOpenChange }: Props): R
           </section>
 
           <section className="mb-4">
-            <h2 className="text-base font-bold uppercase tracking-wide text-indigo-900 dark:text-indigo-200 print:text-black mb-1.5">
+            <h2 className="text-base font-bold uppercase tracking-wide text-indigo-900 print:text-black mb-1.5">
               Prognosis
             </h2>
             <p className="text-sm">{report.prognosis}</p>
@@ -149,7 +149,7 @@ export function MedicoLegalReportModal({ report, open, onOpenChange }: Props): R
           </section>
 
           <section className="mb-4">
-            <h2 className="text-base font-bold uppercase tracking-wide text-indigo-900 dark:text-indigo-200 print:text-black mb-1.5">
+            <h2 className="text-base font-bold uppercase tracking-wide text-indigo-900 print:text-black mb-1.5">
               Capacity for work
             </h2>
             <p className="text-sm mb-2">
@@ -166,7 +166,7 @@ export function MedicoLegalReportModal({ report, open, onOpenChange }: Props): R
           </section>
 
           <section className="mb-4">
-            <h2 className="text-base font-bold uppercase tracking-wide text-indigo-900 dark:text-indigo-200 print:text-black mb-1.5">
+            <h2 className="text-base font-bold uppercase tracking-wide text-indigo-900 print:text-black mb-1.5">
               Recommendations
             </h2>
             <ol className="list-decimal pl-5 text-sm space-y-2">

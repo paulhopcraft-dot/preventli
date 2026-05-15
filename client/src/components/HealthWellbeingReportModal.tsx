@@ -93,7 +93,7 @@ export function HealthWellbeingReportModal({
           </div>
         </DialogHeader>
 
-        <div className="px-6 pb-6 print:px-0 print:pb-0 font-sans text-[15px] leading-relaxed text-slate-900 dark:text-slate-100 print:text-black">
+        <div className="px-6 pb-6 print:px-0 print:pb-0 font-sans text-[15px] leading-relaxed bg-white text-slate-900 print:text-black">
           {/* 1. Title header */}
           <div
             style={{ backgroundColor: NAVY }}
