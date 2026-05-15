@@ -1076,6 +1076,10 @@ export const users = pgTable("users", {
   organizationId: varchar("organization_id").notNull(), // Added in migration 0003
   companyId: varchar("company_id"), // Deprecated - use organizationId
   insurerId: varchar("insurer_id"), // UUID reference to insurer
+  // How Alex addresses the user ("morning {preferredName}"). Captured at
+  // setup or in profile settings. Nullable: falls back to email-derived
+  // first name when missing.
+  preferredName: text("preferred_name"),
   isActive: boolean("is_active").notNull().default(true),
   emailVerified: boolean("email_verified").notNull().default(false),
   emailVerifiedAt: timestamp("email_verified_at"),
