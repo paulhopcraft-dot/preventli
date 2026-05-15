@@ -17,11 +17,16 @@ export function GlobalChatWidget() {
     ? { workerId: workerIdMatch[1] }
     : undefined;
 
-  const firstName = user?.email
+  // Prefer the user's explicit preferredName (Alex training surface) over
+  // email-derivation. Falls back to the email-split heuristic when unset.
+  const preferred = user?.preferredName?.trim();
+  const fromEmail = user?.email
     ? user.email.split("@")[0].split(".")[0].replace(/\d/g, "")
     : undefined;
-  const userName = firstName
-    ? firstName.charAt(0).toUpperCase() + firstName.slice(1)
+  const userName = preferred
+    ? preferred
+    : fromEmail
+    ? fromEmail.charAt(0).toUpperCase() + fromEmail.slice(1)
     : undefined;
 
   return (

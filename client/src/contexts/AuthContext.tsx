@@ -11,6 +11,8 @@ export interface User {
   subrole: string | null;
   companyId: string | null;
   insurerId: string | null;
+  /** How Alex addresses the user. Null when unset → fall back to email derivation. */
+  preferredName?: string | null;
   organizationId?: string;
   // Partner-tier: the picked client org id when partner user has chosen one;
   // null for partner users who haven't picked yet; equal to organizationId
