@@ -25,6 +25,7 @@ const ACTIVE_STATUSES = new Set([
   "on_hold",
   "planned_not_started",
   "pending_employer_review",
+  "approved",
   "completed",
 ]);
 
