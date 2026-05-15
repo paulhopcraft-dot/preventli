@@ -3,8 +3,6 @@ import { motion } from "framer-motion";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { fetchWithCsrf } from "@/lib/queryClient";
 import {
-  LineChart,
-  Line,
   AreaChart,
   Area,
   XAxis,
@@ -15,7 +13,6 @@ import {
   ResponsiveContainer,
   ReferenceLine,
   ReferenceDot,
-  ComposedChart,
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -399,9 +396,8 @@ export const DynamicRecoveryTimeline: React.FC<DynamicRecoveryTimelineProps> = (
         .filter(p => p.week < point.week)
         .sort((a, b) => b.week - a.week)[0];
 
-      if (previousActual) {
+      if (previousActual && previousActual.actualCapacity != null) {
         // Linear interpolation assumption
-        const weekDiff = point.week - previousActual.week;
         const estimatedProgress = point.estimatedCapacity - previousActual.actualCapacity;
         actualValue = Math.max(0, previousActual.actualCapacity + (estimatedProgress * 0.7)); // Conservative 70% of estimated progress
       } else {
