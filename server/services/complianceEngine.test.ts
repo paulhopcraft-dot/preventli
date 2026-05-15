@@ -491,4 +491,70 @@ describe('Compliance Engine', () => {
       expect(result[0].status).toBe('compliant');
     });
   });
+
+  describe('Preventative cases (no claim)', () => {
+    it('should short-circuit to compliant for cases with null claimNumber', async () => {
+      const mockPreventativeCase = {
+        id: 'case-naomi',
+        workerName: 'Naomi Wright',
+        company: 'Wallara',
+        currentStatus: 'At work',
+        dateOfInjury: new Date('2026-05-11'),
+        workStatus: 'At work',
+        clinicalStatusJson: null,
+        claimNumber: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      mockDb.select.mockReturnValue(mockDb);
+      mockDb.from.mockReturnValue(mockDb);
+      mockDb.where.mockReturnValue(mockDb);
+      mockDb.limit.mockResolvedValue([mockPreventativeCase]);
+      mockDb.update = vi.fn().mockReturnValue({
+        set: vi.fn().mockReturnValue({
+          where: vi.fn().mockResolvedValue([]),
+        }),
+      });
+
+      const result = await evaluateCase('case-naomi');
+
+      expect(result.caseId).toBe('case-naomi');
+      expect(result.overallStatus).toBe('compliant');
+      expect(result.complianceScore).toBe(100);
+      expect(result.checks).toEqual([]);
+      expect(result.criticalIssues).toBe(0);
+      expect(result.highIssues).toBe(0);
+    });
+
+    it('should short-circuit to compliant for cases with empty-string claimNumber', async () => {
+      const mockPreventativeCase = {
+        id: 'case-empty-claim',
+        workerName: 'Preventative Worker',
+        company: 'Test',
+        currentStatus: 'At work',
+        dateOfInjury: new Date('2026-05-01'),
+        workStatus: 'At work',
+        clinicalStatusJson: null,
+        claimNumber: '   ',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      mockDb.select.mockReturnValue(mockDb);
+      mockDb.from.mockReturnValue(mockDb);
+      mockDb.where.mockReturnValue(mockDb);
+      mockDb.limit.mockResolvedValue([mockPreventativeCase]);
+      mockDb.update = vi.fn().mockReturnValue({
+        set: vi.fn().mockReturnValue({
+          where: vi.fn().mockResolvedValue([]),
+        }),
+      });
+
+      const result = await evaluateCase('case-empty-claim');
+
+      expect(result.overallStatus).toBe('compliant');
+      expect(result.checks).toEqual([]);
+    });
+  });
 });
