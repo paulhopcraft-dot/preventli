@@ -148,9 +148,16 @@ export function PartnerSelfSetupForm({ open, onOpenChange }: Props) {
 
   const submitMutation = useMutation({
     mutationFn: async (values: FormValues) => {
+      // Send only fields the user actually touched. Empty-string for a
+      // dirty field is a deliberate "clear" — the server's
+      // updatePartnerSelfSchema turns "" into undefined and the PATCH
+      // handler writes that as null. Untouched empties (the form's
+      // initial state) must stay out of the payload so we don't nuke
+      // fields the user never opened.
+      const dirty = form.formState.dirtyFields as Record<string, boolean | undefined>;
       const payload: Record<string, string> = {};
       for (const [k, v] of Object.entries(values)) {
-        if (v !== "" && v !== undefined) payload[k] = v;
+        if (dirty[k]) payload[k] = v ?? "";
       }
       const res = await fetchWithCsrf("/api/partner/me", {
         method: "PATCH",
