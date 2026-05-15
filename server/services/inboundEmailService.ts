@@ -21,7 +21,7 @@ export interface InboundEmailPayload {
     sizeBytes: number;
     base64Data?: string;
   }>;
-  source?: "sendgrid" | "demo" | "freshdesk" | "manual";
+  source?: "sendgrid" | "postmark" | "demo" | "freshdesk" | "manual";
   /** Optional simulated date for demo/test scenarios (ISO string or Date) */
   receivedAt?: string | Date;
 }
