@@ -1772,6 +1772,8 @@ export const organizations = pgTable("organizations", {
   notificationEmails: text("notification_emails"), // comma-separated; trimmed + lowercased on write
   employeeCount: text("employee_count").$type<EmployeeCountBand>(),
   notes: text("notes"),
+  // GP escalation detection: days past latest cert expiry before flagging the case
+  gpEscalationThresholdDays: integer("gp_escalation_threshold_days").notNull().default(7),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
