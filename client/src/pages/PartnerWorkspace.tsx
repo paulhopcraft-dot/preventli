@@ -11,6 +11,7 @@ import {
   Layers,
   ChevronRight,
   ChevronDown,
+  Settings,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -40,6 +41,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { ClientSetupForm } from "@/components/partner/ClientSetupForm";
+import { PartnerSelfSetupForm } from "@/components/partner/PartnerSelfSetupForm";
 import { apiRequest } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
 
@@ -183,6 +185,7 @@ export default function PartnerWorkspace() {
   const [activeTab, setActiveTab] = useState<ViewTab>("cases");
   const [formOpen, setFormOpen] = useState(false);
   const [editingClientId, setEditingClientId] = useState<string | undefined>(undefined);
+  const [partnerFormOpen, setPartnerFormOpen] = useState(false);
   const [openingCaseId, setOpeningCaseId] = useState<string | null>(null);
   const [openingWorkerId, setOpeningWorkerId] = useState<string | null>(null);
   /** When set, opens the client-picker dialog before navigating to `path`. */
@@ -399,6 +402,16 @@ export default function PartnerWorkspace() {
             <span className="hidden text-sm text-muted-foreground sm:inline">
               {user?.email}
             </span>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setPartnerFormOpen(true)}
+              data-testid="partner-settings"
+              title="Organisation details"
+            >
+              <Settings className="mr-2 h-4 w-4" />
+              Settings
+            </Button>
             <Button variant="ghost" size="sm" onClick={() => logout()} data-testid="sign-out">
               <LogOut className="mr-2 h-4 w-4" />
               Sign out
@@ -683,6 +696,11 @@ export default function PartnerWorkspace() {
           if (!o) setEditingClientId(undefined);
         }}
         clientId={editingClientId}
+      />
+
+      <PartnerSelfSetupForm
+        open={partnerFormOpen}
+        onOpenChange={setPartnerFormOpen}
       />
 
       <AlertDialog
