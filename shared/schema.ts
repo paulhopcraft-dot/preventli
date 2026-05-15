@@ -754,6 +754,15 @@ export interface WorkerCase {
 
   // Phase 11.2 — Disputed Claims
   disputeStatus?: DisputeStatus;
+
+  // GP escalation detection (computed, not stored). Surfaces cases where the
+  // latest medical certificate expired beyond the org's threshold without a
+  // fresh cert arriving — signal to chase the GP or trigger an IME.
+  gpEscalation?: {
+    escalated: boolean;
+    daysOverdue: number;
+    reason: "no_certificate" | "no_end_date" | "cert_current" | "cert_expired_no_followup";
+  };
 }
 
 // Paginated response for cases list endpoint
