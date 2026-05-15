@@ -75,7 +75,7 @@ router.get(
   requireCaseOwnership(),
   async (req: AuthRequest, res: Response) => {
     try {
-      const { caseId } = req.params;
+      const caseId = req.params.caseId as string;
       const organizationId = req.user!.organizationId;
       const includeInactive = req.query.includeInactive === "true";
 
@@ -145,7 +145,7 @@ router.post(
   requireCaseOwnership(),
   async (req: AuthRequest, res: Response) => {
     try {
-      const { caseId } = req.params;
+      const caseId = req.params.caseId as string;
       const organizationId = req.user!.organizationId;
 
       // Validate request body
@@ -208,7 +208,8 @@ router.get(
   requireCaseOwnership(),
   async (req: AuthRequest, res: Response) => {
     try {
-      const { caseId, contactId } = req.params;
+      const caseId = req.params.caseId as string;
+      const contactId = req.params.contactId as string;
       const organizationId = req.user!.organizationId;
 
       const contact = await storage.getCaseContactById(contactId, organizationId);
@@ -238,7 +239,8 @@ router.patch(
   requireCaseOwnership(),
   async (req: AuthRequest, res: Response) => {
     try {
-      const { caseId, contactId } = req.params;
+      const caseId = req.params.caseId as string;
+      const contactId = req.params.contactId as string;
       const organizationId = req.user!.organizationId;
 
       // Validate request body
@@ -293,7 +295,8 @@ router.delete(
   requireCaseOwnership(),
   async (req: AuthRequest, res: Response) => {
     try {
-      const { caseId, contactId } = req.params;
+      const caseId = req.params.caseId as string;
+      const contactId = req.params.contactId as string;
       const organizationId = req.user!.organizationId;
 
       // Verify contact exists and belongs to this case
@@ -339,7 +342,7 @@ router.post(
   requireCaseOwnership(),
   async (req: AuthRequest, res: Response) => {
     try {
-      const { caseId } = req.params;
+      const caseId = req.params.caseId as string;
       const organizationId = req.user!.organizationId;
 
       // Validate request body is an array

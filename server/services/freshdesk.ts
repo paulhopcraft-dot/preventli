@@ -1172,7 +1172,7 @@ export class FreshdeskService {
         riskFlags: riskFlags.length > 0 ? riskFlags : null,
         updatesCompliance: lowerText.includes('compliance') || lowerText.includes('certificate'),
         updatesRecoveryTimeline: lowerText.includes('recovery') || lowerText.includes('timeline') || lowerText.includes('rtw'),
-      });
+      } as any);
     }
 
     return discussionNotes;

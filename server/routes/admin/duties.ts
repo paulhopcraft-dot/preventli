@@ -67,7 +67,7 @@ const copyRoleSchema = z.object({
  */
 router.get("/role/:roleId", async (req: AuthRequest, res: Response) => {
   try {
-    const { roleId } = req.params;
+    const roleId = req.params.roleId as string;
 
     // First verify the role exists
     const role = await db
@@ -125,7 +125,7 @@ router.get("/role/:roleId", async (req: AuthRequest, res: Response) => {
  */
 router.get("/:id", async (req: AuthRequest, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
 
     const result = await db
       .select({
@@ -209,7 +209,7 @@ router.post("/", async (req: AuthRequest, res: Response) => {
           description: description || null,
           isModifiable: isModifiable ?? false,
           riskFlags: riskFlags || [],
-        })
+        } as any)
         .returning();
 
       // Create demands record (always create, with defaults if not provided)
@@ -236,7 +236,7 @@ router.post("/", async (req: AuthRequest, res: Response) => {
 
       const [newDemands] = await tx
         .insert(rtwDutyDemands)
-        .values(demandValues)
+        .values(demandValues as any)
         .returning();
 
       return { duty: newDuty, demands: newDemands };
@@ -265,7 +265,7 @@ router.post("/", async (req: AuthRequest, res: Response) => {
  */
 router.put("/:id", async (req: AuthRequest, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
 
     // Check duty exists
     const existing = await db
@@ -308,7 +308,7 @@ router.put("/:id", async (req: AuthRequest, res: Response) => {
       // Update duty
       const [updatedDuty] = await tx
         .update(rtwDuties)
-        .set(dutyUpdate)
+        .set(dutyUpdate as any)
         .where(eq(rtwDuties.id, id))
         .returning();
 
@@ -349,7 +349,7 @@ router.put("/:id", async (req: AuthRequest, res: Response) => {
           // Update existing demands
           [updatedDemands] = await tx
             .update(rtwDutyDemands)
-            .set(demandUpdate)
+            .set(demandUpdate as any)
             .where(eq(rtwDutyDemands.dutyId, id))
             .returning();
         } else {
@@ -359,7 +359,7 @@ router.put("/:id", async (req: AuthRequest, res: Response) => {
             .values({
               dutyId: id,
               ...demandUpdate,
-            })
+            } as any)
             .returning();
         }
       } else {
@@ -398,7 +398,7 @@ router.put("/:id", async (req: AuthRequest, res: Response) => {
  */
 router.delete("/:id", async (req: AuthRequest, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
 
     // Check duty exists
     const existing = await db
@@ -420,7 +420,7 @@ router.delete("/:id", async (req: AuthRequest, res: Response) => {
       .set({
         isActive: false,
         updatedAt: new Date(),
-      })
+      } as any)
       .where(eq(rtwDuties.id, id));
 
     res.json({
@@ -442,7 +442,7 @@ router.delete("/:id", async (req: AuthRequest, res: Response) => {
  */
 router.post("/role/:roleId/copy", async (req: AuthRequest, res: Response) => {
   try {
-    const { roleId } = req.params;
+    const roleId = req.params.roleId as string;
 
     // Validate input
     const validation = copyRoleSchema.safeParse(req.body);
@@ -494,7 +494,7 @@ router.post("/role/:roleId/copy", async (req: AuthRequest, res: Response) => {
           organizationId: sourceRole.organizationId,
           name: newName || `${sourceRole.name} (Copy)`,
           description: sourceRole.description,
-        })
+        } as any)
         .returning();
 
       // Copy each duty with its demands
@@ -510,7 +510,7 @@ router.post("/role/:roleId/copy", async (req: AuthRequest, res: Response) => {
             description: duty.description,
             isModifiable: duty.isModifiable,
             riskFlags: duty.riskFlags || [],
-          })
+          } as any)
           .returning();
 
         // Copy demands if they exist
@@ -537,7 +537,7 @@ router.post("/role/:roleId/copy", async (req: AuthRequest, res: Response) => {
               concentration: demands.concentration,
               stressTolerance: demands.stressTolerance,
               workPace: demands.workPace,
-            })
+            } as any)
             .returning();
         }
 

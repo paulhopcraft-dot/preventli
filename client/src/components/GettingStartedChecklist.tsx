@@ -98,7 +98,7 @@ function saveCompleted(userId: string, completed: Set<string>): void {
   try {
     localStorage.setItem(
       STORAGE_PREFIX + userId,
-      JSON.stringify([...completed])
+      JSON.stringify(Array.from(completed))
     );
   } catch {
     // localStorage unavailable — silently ignore

@@ -227,7 +227,7 @@ export class TranscriptIngestionModule {
         riskFlags: note.riskFlags.length ? note.riskFlags : null,
         updatesCompliance: note.updatesCompliance,
         updatesRecoveryTimeline: note.updatesRecoveryTimeline,
-      };
+      } as any;
 
       const insightPayload = this.buildInsightsForNote(row, noteId, resolution.caseId);
       insightRows.push(...insightPayload.inserts);
@@ -278,7 +278,7 @@ export class TranscriptIngestionModule {
     return hash.digest("hex");
   }
 
-  private toCaseDiscussionNote(row: InsertCaseDiscussionNote): CaseDiscussionNote {
+  private toCaseDiscussionNote(row: any): CaseDiscussionNote {
     const timestamp =
       row.timestamp instanceof Date ? row.timestamp : new Date(row.timestamp ?? new Date());
     return {
@@ -296,7 +296,7 @@ export class TranscriptIngestionModule {
   }
 
   private buildInsightsForNote(
-    row: InsertCaseDiscussionNote,
+    row: any,
     noteId: string,
     caseId: string,
   ): {
@@ -314,7 +314,7 @@ export class TranscriptIngestionModule {
     ) => {
       const createdAt = new Date();
       const id = this.createInsightId(noteId, area, summary);
-      const insertRow: InsertCaseDiscussionInsight = {
+      const insertRow: any = {
         id,
         caseId,
         noteId,
@@ -323,7 +323,7 @@ export class TranscriptIngestionModule {
         summary,
         detail: detail ?? row.summary ?? null,
         createdAt,
-      };
+      } as any;
       inserts.push(insertRow);
       materialized.push({
         id,

@@ -21,7 +21,7 @@ function isAssessmentSubmitted(assessment: Awaited<ReturnType<typeof storage.get
  */
 router.get("/check/:token", async (req: Request, res: Response) => {
   try {
-    const { token } = req.params;
+    const token = req.params.token as string;
     const assessment = await storage.getAssessmentByToken(token);
 
     if (!assessment) {
@@ -37,8 +37,6 @@ router.get("/check/:token", async (req: Request, res: Response) => {
       candidateName: assessment.candidateName,
       positionTitle: assessment.positionTitle,
       assessmentId: assessment.id,
-      assessmentType: assessment.assessmentType ?? "baseline_health",
-      organizationName: null, // populated below if we expose it
     });
   } catch (error) {
     logger.error("Error loading public check:", undefined, error);
@@ -53,7 +51,7 @@ router.get("/check/:token", async (req: Request, res: Response) => {
  */
 router.post("/check/:token", async (req: Request, res: Response) => {
   try {
-    const { token } = req.params;
+    const token = req.params.token as string;
     const { responses } = req.body as { responses: Record<string, unknown> };
 
     if (!responses || typeof responses !== "object") {

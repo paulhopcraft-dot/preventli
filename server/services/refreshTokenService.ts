@@ -116,7 +116,7 @@ export async function generateRefreshToken(
     ipAddress: deviceInfo.ipAddress,
     userAgent: deviceInfo.userAgent,
     expiresAt,
-  });
+  } as any);
 
   logger.auth.info("Refresh token generated", {
     userId,
@@ -173,7 +173,7 @@ export async function validateAndRotateRefreshToken(
     // Revoke ALL tokens in this family (security measure)
     await db
       .update(refreshTokens)
-      .set({ revokedAt: new Date() })
+      .set({ revokedAt: new Date() } as any)
       .where(
         and(
           eq(refreshTokens.tokenFamily, tokenRecord.tokenFamily),
@@ -196,7 +196,7 @@ export async function validateAndRotateRefreshToken(
   // Revoke the current token (rotation)
   await db
     .update(refreshTokens)
-    .set({ revokedAt: new Date() })
+    .set({ revokedAt: new Date() } as any)
     .where(eq(refreshTokens.id, tokenRecord.id));
 
   // Generate new token in the same family
@@ -229,7 +229,7 @@ export async function revokeRefreshToken(token: string): Promise<boolean> {
 
   const result = await db
     .update(refreshTokens)
-    .set({ revokedAt: new Date() })
+    .set({ revokedAt: new Date() } as any)
     .where(
       and(
         eq(refreshTokens.tokenHash, tokenHash),
@@ -255,7 +255,7 @@ export async function revokeRefreshToken(token: string): Promise<boolean> {
 export async function revokeAllUserTokens(userId: string): Promise<number> {
   const result = await db
     .update(refreshTokens)
-    .set({ revokedAt: new Date() })
+    .set({ revokedAt: new Date() } as any)
     .where(
       and(
         eq(refreshTokens.userId, userId),
@@ -380,7 +380,7 @@ export async function revokeSession(
 ): Promise<boolean> {
   const result = await db
     .update(refreshTokens)
-    .set({ revokedAt: new Date() })
+    .set({ revokedAt: new Date() } as any)
     .where(
       and(
         eq(refreshTokens.userId, userId),

@@ -23,6 +23,7 @@ import {
   createPartnerClientSchema,
   updatePartnerClientSchema,
 } from "@shared/partnerClient";
+import { updatePartnerSelfSchema } from "@shared/partnerSelf";
 import { authorize, type AuthRequest } from "../middleware/auth";
 import { generateAccessToken, setAuthCookieExternal } from "../controllers/auth";
 import { logger } from "../lib/logger";
@@ -197,7 +198,8 @@ router.delete("/active-org", requirePartner, async (req: AuthRequest, res: Respo
  * GET /api/partner/me
  *
  * Returns header-relevant context: partner org info and active org info.
- * Used by the header component to render "{partnerName} | {activeName}".
+ * Used by the header component to render "{partnerName} | {activeName}"
+ * and by the partner self-edit dialog to pre-fill contact details.
  */
 router.get("/me", requirePartner, async (req: AuthRequest, res: Response) => {
   try {
@@ -221,6 +223,22 @@ router.get("/me", requirePartner, async (req: AuthRequest, res: Response) => {
         name: organizations.name,
         logoUrl: organizations.logoUrl,
         kind: organizations.kind,
+        addressLine1: organizations.addressLine1,
+        addressLine2: organizations.addressLine2,
+        suburb: organizations.suburb,
+        state: organizations.state,
+        postcode: organizations.postcode,
+        contactName: organizations.contactName,
+        contactEmail: organizations.contactEmail,
+        contactPhone: organizations.contactPhone,
+        rtwCoordinatorName: organizations.rtwCoordinatorName,
+        rtwCoordinatorEmail: organizations.rtwCoordinatorEmail,
+        rtwCoordinatorPhone: organizations.rtwCoordinatorPhone,
+        hrContactName: organizations.hrContactName,
+        hrContactEmail: organizations.hrContactEmail,
+        hrContactPhone: organizations.hrContactPhone,
+        notificationEmails: organizations.notificationEmails,
+        notes: organizations.notes,
       })
       .from(organizations)
       .where(eq(organizations.id, partnerOrgId))
@@ -249,6 +267,94 @@ router.get("/me", requirePartner, async (req: AuthRequest, res: Response) => {
   } catch (err) {
     logger.api.error("[partner] GET /me failed", {}, err);
     res.status(500).json({ error: "Internal Server Error", message: "Failed to load partner context" });
+  }
+});
+
+/**
+ * PATCH /api/partner/me
+ *
+ * Update the partner's own home org details (contacts, address, notification
+ * emails, etc.). Writes ONLY to users.organizationId — never to the active
+ * org context, so a partner viewing a client cannot accidentally mutate the
+ * client's row via this endpoint. PII fields stripped before audit log.
+ */
+router.patch("/me", requirePartner, async (req: AuthRequest, res: Response) => {
+  try {
+    const parsed = updatePartnerSelfSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({
+        error: "Bad Request",
+        message: "Invalid partner data",
+        details: parsed.error.flatten(),
+      });
+    }
+    const userId = req.user!.id;
+    const data = parsed.data;
+
+    // Home org id — never trust activeOrganizationId here.
+    const homeRow = await db
+      .select({ orgId: users.organizationId })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+    if (homeRow.length === 0) {
+      return res.status(401).json({ error: "Unauthorized", message: "User not found" });
+    }
+    const partnerOrgId = homeRow[0].orgId;
+
+    // Build a partial update — only fields the partner can edit. Empty
+    // strings have already been stripped by the schema's optionalEmpty.
+    const updates: Record<string, unknown> = { updatedAt: new Date() };
+    const editableKeys: Array<keyof typeof data> = [
+      "name",
+      "logoUrl",
+      "addressLine1",
+      "addressLine2",
+      "suburb",
+      "state",
+      "postcode",
+      "contactName",
+      "contactEmail",
+      "contactPhone",
+      "rtwCoordinatorName",
+      "rtwCoordinatorEmail",
+      "rtwCoordinatorPhone",
+      "hrContactName",
+      "hrContactEmail",
+      "hrContactPhone",
+      "notificationEmails",
+      "notes",
+    ];
+    for (const k of editableKeys) {
+      if (k in data) updates[k] = data[k] ?? null;
+    }
+
+    const [updated] = await db
+      .update(organizations)
+      .set(updates as any)
+      .where(eq(organizations.id, partnerOrgId))
+      .returning();
+
+    if (!updated) {
+      return res.status(404).json({ error: "Not Found", message: "Partner org not found" });
+    }
+
+    const meta = getRequestMetadata(req);
+    await logAuditEvent({
+      userId,
+      organizationId: partnerOrgId,
+      eventType: AuditEventTypes.PARTNER_SELF_UPDATED,
+      resourceType: "organization",
+      resourceId: partnerOrgId,
+      metadata: { partner: auditSafeOrg(updated) },
+      ipAddress: meta.ipAddress,
+      userAgent: meta.userAgent,
+    });
+
+    res.json({ partnerOrg: updated });
+  } catch (err) {
+    logger.api.error("[partner] PATCH /me failed", {}, err);
+    res.status(500).json({ error: "Internal Server Error", message: "Failed to update partner details" });
   }
 });
 
@@ -359,14 +465,14 @@ router.post("/clients", requirePartner, async (req: AuthRequest, res: Response) 
           notificationEmails: data.notificationEmails ?? null,
           employeeCount: data.employeeCount ?? null,
           notes: data.notes ?? null,
-        })
+        } as any)
         .returning();
 
       await tx.insert(partnerUserOrganizations).values({
         userId,
         organizationId: inserted.id,
         grantedBy: userId,
-      });
+      } as any);
 
       return inserted;
     });
@@ -404,7 +510,7 @@ router.post("/clients", requirePartner, async (req: AuthRequest, res: Response) 
 router.get("/clients/:id", requirePartner, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
-    const { id } = req.params;
+    const id = req.params.id as string;
 
     const access = await db
       .select({ orgId: partnerUserOrganizations.organizationId })
@@ -446,7 +552,7 @@ router.get("/clients/:id", requirePartner, async (req: AuthRequest, res: Respons
 router.patch("/clients/:id", requirePartner, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
-    const { id } = req.params;
+    const id = req.params.id as string;
 
     const parsed = updatePartnerClientSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -556,6 +662,68 @@ router.patch("/clients/:id", requirePartner, async (req: AuthRequest, res: Respo
 });
 
 /**
+ * DELETE /api/partner/clients/:id
+ *
+ * Remove a client the calling partner user created. Blocked if the org has
+ * any worker cases — prevents accidental data loss. Access-checked.
+ */
+router.delete("/clients/:id", requirePartner, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const id = req.params.id as string;
+
+    // Access check.
+    const access = await db
+      .select({ orgId: partnerUserOrganizations.organizationId })
+      .from(partnerUserOrganizations)
+      .where(
+        and(
+          eq(partnerUserOrganizations.userId, userId),
+          eq(partnerUserOrganizations.organizationId, id),
+        ),
+      )
+      .limit(1);
+
+    if (access.length === 0) {
+      return res.status(403).json({ error: "Forbidden", message: "No access to this client." });
+    }
+
+    // Block deletion if there are any cases attached.
+    const [{ n }] = await db
+      .select({ n: count() })
+      .from(workerCases)
+      .where(eq(workerCases.organizationId, id));
+
+    if (Number(n) > 0) {
+      return res.status(409).json({
+        error: "Conflict",
+        message: `Cannot delete client with ${n} existing case(s). Archive cases first.`,
+      });
+    }
+
+    // Remove the org record (cascades to partnerUserOrganizations via FK).
+    await db.delete(organizations).where(eq(organizations.id, id));
+
+    const meta = getRequestMetadata(req);
+    await logAuditEvent({
+      userId,
+      organizationId: id,
+      eventType: AuditEventTypes.PARTNER_CLIENT_UPDATED,
+      resourceType: "organization",
+      resourceId: id,
+      metadata: { action: "deleted" },
+      ipAddress: meta.ipAddress,
+      userAgent: meta.userAgent,
+    });
+
+    res.status(204).send();
+  } catch (err) {
+    logger.api.error("[partner] DELETE /clients/:id failed", {}, err);
+    res.status(500).json({ error: "Internal Server Error", message: "Failed to delete client" });
+  }
+});
+
+/**
  * GET /api/partner/cases
  *
  * Cross-client cases list for the partner workspace. Returns every case
@@ -620,181 +788,6 @@ router.get("/cases", requirePartner, async (req: AuthRequest, res: Response) => 
   } catch (err) {
     logger.api.error("[partner] GET /cases failed", {}, err);
     res.status(500).json({ error: "Internal Server Error", message: "Failed to load cases" });
-  }
-});
-
-/**
- * GET /api/partner/cases/:id
- *
- * Single case detail for the partner workspace. Returns the case row plus a
- * deterministic, synthesised recovery timeline derived from the injury text
- * and dateOfInjury. No new schema — the timeline is pure logic so the demo
- * looks lived-in without needing seeded events/certificates/RTW rows.
- *
- * Access check: case's organizationId must be in the partner user's
- * accessible orgs.
- */
-router.get("/cases/:id", requirePartner, async (req: AuthRequest, res: Response) => {
-  try {
-    const userId = req.user!.id;
-    const caseId = req.params.id;
-
-    const accessRows = await db
-      .select({ orgId: partnerUserOrganizations.organizationId })
-      .from(partnerUserOrganizations)
-      .where(eq(partnerUserOrganizations.userId, userId));
-    const accessibleOrgIds = accessRows.map((r) => r.orgId);
-
-    if (accessibleOrgIds.length === 0) {
-      return res.status(404).json({ error: "Not Found", message: "Case not found" });
-    }
-
-    const rows = await db
-      .select({
-        id: workerCases.id,
-        organizationId: workerCases.organizationId,
-        organizationName: organizations.name,
-        workerName: workerCases.workerName,
-        company: workerCases.company,
-        riskLevel: workerCases.riskLevel,
-        workStatus: workerCases.workStatus,
-        summary: workerCases.summary,
-        currentStatus: workerCases.currentStatus,
-        nextStep: workerCases.nextStep,
-        dueDate: workerCases.dueDate,
-        caseStatus: workerCases.caseStatus,
-        dateOfInjury: workerCases.dateOfInjury,
-        claimNumber: workerCases.claimNumber,
-      })
-      .from(workerCases)
-      .innerJoin(organizations, eq(workerCases.organizationId, organizations.id))
-      .where(eq(workerCases.id, caseId))
-      .limit(1);
-
-    if (rows.length === 0) {
-      return res.status(404).json({ error: "Not Found", message: "Case not found" });
-    }
-    const c = rows[0];
-
-    if (!accessibleOrgIds.includes(c.organizationId)) {
-      return res.status(403).json({ error: "Forbidden", message: "No access to this case." });
-    }
-
-    // ---- Synthesised recovery timeline ----
-    // Maps injury keywords → expected weeks of recovery + milestone events.
-    // Pure deterministic logic (no LLM); tweak the lookup table to add new
-    // injury types as the demo expands.
-    const summary = (c.summary ?? "").toLowerCase();
-    const recoveryWeeksByKeyword: { match: RegExp; weeks: number }[] = [
-      { match: /pre-employment/, weeks: 0 },
-      { match: /wellness|ergonomic|preventative/, weeks: 0 },
-      { match: /ankle sprain|sprain/, weeks: 4 },
-      { match: /tendinopathy|wrist|tennis elbow/, weeks: 6 },
-      { match: /lower back|back strain|lumbar/, weeks: 8 },
-      { match: /shoulder|rotator cuff|impingement/, weeks: 12 },
-      { match: /crush|fracture|hand|finger/, weeks: 16 },
-    ];
-    const matched = recoveryWeeksByKeyword.find((r) => r.match.test(summary));
-    const recoveryWeeks = matched?.weeks ?? 8;
-    const isInjury = recoveryWeeks > 0;
-
-    const startDate = new Date(c.dateOfInjury);
-    const today = new Date();
-    const daysSinceInjury = Math.max(
-      0,
-      Math.floor((today.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)),
-    );
-    const expectedReturnDate = new Date(startDate.getTime() + recoveryWeeks * 7 * 24 * 60 * 60 * 1000);
-
-    function addDays(base: Date, days: number): string {
-      const d = new Date(base.getTime() + days * 24 * 60 * 60 * 1000);
-      return d.toISOString().slice(0, 10);
-    }
-
-    type TimelineEvent = {
-      date: string;
-      label: string;
-      detail: string;
-      kind: "milestone" | "completed" | "upcoming" | "overdue";
-    };
-
-    const milestones: TimelineEvent[] = isInjury
-      ? [
-          {
-            date: addDays(startDate, 0),
-            label: "Date of injury",
-            detail: c.summary,
-            kind: "completed",
-          },
-          {
-            date: addDays(startDate, 1),
-            label: "Initial GP assessment",
-            detail: "Worker presented to GP, first medical certificate issued.",
-            kind: "completed",
-          },
-          {
-            date: addDays(startDate, 7),
-            label: "Week-1 review",
-            detail: "Symptoms tracked, return-to-work plan drafted.",
-            kind: daysSinceInjury > 7 ? "completed" : "upcoming",
-          },
-          {
-            date: addDays(startDate, Math.round(recoveryWeeks * 7 * 0.4)),
-            label: "Modified duties begin",
-            detail: "Graded return — light duties, reduced hours.",
-            kind: daysSinceInjury > Math.round(recoveryWeeks * 7 * 0.4) ? "completed" : "upcoming",
-          },
-          {
-            date: addDays(startDate, Math.round(recoveryWeeks * 7 * 0.75)),
-            label: "Occupational physio review",
-            detail: "Functional capacity assessment, RTW plan refresh.",
-            kind: daysSinceInjury > Math.round(recoveryWeeks * 7 * 0.75) ? "completed" : "upcoming",
-          },
-          {
-            date: addDays(startDate, recoveryWeeks * 7),
-            label: "Expected return to full duties",
-            detail: `Target ${recoveryWeeks}-week recovery — based on injury type.`,
-            kind: daysSinceInjury > recoveryWeeks * 7 ? "overdue" : "milestone",
-          },
-        ]
-      : [
-          {
-            date: addDays(startDate, 0),
-            label: "Case opened",
-            detail: c.summary,
-            kind: "completed",
-          },
-          {
-            date: addDays(startDate, 7),
-            label: "Documentation review",
-            detail: "Medical questionnaire screened, GP referral if needed.",
-            kind: daysSinceInjury > 7 ? "completed" : "upcoming",
-          },
-          {
-            date: addDays(startDate, 14),
-            label: "Sign-off / clearance",
-            detail: "WorkBetter to confirm fitness-for-duty / preventative recommendations.",
-            kind: daysSinceInjury > 14 ? "completed" : "milestone",
-          },
-        ];
-
-    res.json({
-      case: {
-        ...c,
-        dateOfInjury: c.dateOfInjury instanceof Date ? c.dateOfInjury.toISOString().slice(0, 10) : c.dateOfInjury,
-      },
-      recovery: {
-        weeks: recoveryWeeks,
-        isInjury,
-        daysSinceInjury,
-        expectedReturnDate: expectedReturnDate.toISOString().slice(0, 10),
-        progressPct: isInjury ? Math.min(100, Math.round((daysSinceInjury / (recoveryWeeks * 7)) * 100)) : 100,
-      },
-      timeline: milestones,
-    });
-  } catch (err) {
-    logger.api.error("[partner] GET /cases/:id failed", { caseId: req.params.id }, err);
-    res.status(500).json({ error: "Internal Server Error", message: "Failed to load case" });
   }
 });
 

@@ -6,7 +6,7 @@ const log = createLogger("EmailMatcher");
 export interface MatchResult {
   caseId: string | null;
   organizationId: string | null;
-  method: "thread" | "claim_number" | "sender_email" | "worker_name" | "new_case" | "none";
+  method: "thread" | "claim_number" | "sender_email" | "worker_name" | "llm" | "new_case" | "none";
   confidence: number;
 }
 

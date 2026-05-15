@@ -2,7 +2,7 @@ import { Router } from "express";
 import { authorize } from "../middleware/auth";
 import { logAuditEvent, AuditEventTypes, getRequestMetadata } from "../services/auditLogger";
 import { db } from "../db";
-import { workerCases, complianceRules } from "@shared/schema";
+import { workerCases } from "@shared/schema";
 import { sql } from "drizzle-orm";
 
 const router = Router();
@@ -49,7 +49,7 @@ router.get("/summary", authorize(), async (req, res) => {
       metadata: getRequestMetadata(req),
     });
 
-    // Get all cases for the organization
+    // Get all cases for the organization (include createdAt for trend calculation)
     const allCases = await db
       .select({
         id: workerCases.id,
@@ -57,6 +57,7 @@ router.get("/summary", authorize(), async (req, res) => {
         workStatus: workerCases.workStatus,
         riskLevel: workerCases.riskLevel,
         caseStatus: workerCases.caseStatus,
+        createdAt: workerCases.createdAt,
       })
       .from(workerCases)
       .where(sql`${workerCases.organizationId} = ${organizationId}`);
@@ -96,15 +97,50 @@ router.get("/summary", authorize(), async (req, res) => {
       critical: activeCases.filter(c => c.riskLevel === "Critical").length,
     };
 
-    // Mock trend data (would be calculated from historical data in real implementation)
-    const previousRate = Math.max(0, overallComplianceRate - (Math.random() * 10 - 5));
-    const changePercentage = overallComplianceRate - previousRate;
+    // Derive trend data deterministically from month-over-month compliance rates.
+    // "Current month" = cases created in the current calendar month.
+    // "Previous month" = cases created in the previous calendar month.
+    // A compliance rate is computable only when ≥1 evaluated case exists in that window.
+    const now = new Date();
+    const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
 
-    const trendData = {
-      previousRate,
-      isImproving: changePercentage > 0,
-      changePercentage: Math.round(changePercentage * 10) / 10,
+    const isCompliant = (indicator: string | null): boolean =>
+      indicator === "Very High" || indicator === "High";
+
+    const rateForWindow = (
+      cases: typeof activeCases,
+      from: Date,
+      to: Date
+    ): number | null => {
+      const windowCases = cases.filter(
+        (c) => c.createdAt && c.createdAt >= from && c.createdAt < to
+      );
+      const evaluated = windowCases.filter((c) => c.complianceIndicator).length;
+      if (evaluated === 0) return null;
+      const compliant = windowCases.filter((c) => isCompliant(c.complianceIndicator)).length;
+      return (compliant / evaluated) * 100;
     };
+
+    const currentMonthRate = rateForWindow(activeCases, thisMonthStart, now);
+    const prevMonthRate = rateForWindow(activeCases, prevMonthStart, thisMonthStart);
+
+    let trendData: { previousRate: number; isImproving: boolean; changePercentage: number };
+    if (currentMonthRate !== null && prevMonthRate !== null) {
+      const changePercentage = currentMonthRate - prevMonthRate;
+      trendData = {
+        previousRate: Math.round(prevMonthRate * 10) / 10,
+        isImproving: changePercentage > 0,
+        changePercentage: Math.round(changePercentage * 10) / 10,
+      };
+    } else {
+      // Insufficient monthly data — report no change
+      trendData = {
+        previousRate: Math.round(overallComplianceRate * 10) / 10,
+        isImproving: false,
+        changePercentage: 0,
+      };
+    }
 
     // Get top compliance issues (mock data based on common WorkSafe issues)
     const topIssues = [

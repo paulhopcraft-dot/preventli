@@ -1,5 +1,6 @@
 import { storage } from "../storage";
 import { matchEmailToCase, detectsCertificateContent } from "./emailMatcher";
+import { llmMatchEmailToCase } from "./llmEmailMatcher";
 import { createLogger } from "../lib/logger";
 import type { InsertCaseEmail, InsertEmailAttachment, CaseEmailDB } from "@shared/schema";
 
@@ -92,7 +93,7 @@ export async function processInboundEmail(payload: InboundEmailPayload): Promise
     processingStatus: "received",
     source,
     receivedAt: effectiveDate,
-  };
+  } as any;
 
   const savedEmail = await storage.createCaseEmail(emailData);
   log.info("Email stored", { emailId: savedEmail.id, subject });
@@ -106,12 +107,12 @@ export async function processInboundEmail(payload: InboundEmailPayload): Promise
       sizeBytes: att.sizeBytes,
       base64Data: att.base64Data || null,
       isCertificate: isCertificateAttachment(att.filename, att.contentType),
-    };
+    } as any;
     await storage.createEmailAttachment(attachmentData);
   }
 
-  // 3. Match email to case
-  const match = await matchEmailToCase({
+  // 3. Match email to case (heuristic: thread / claim / sender / worker name)
+  let match = await matchEmailToCase({
     messageId: savedEmail.messageId,
     inReplyTo: savedEmail.inReplyTo,
     fromEmail,
@@ -119,6 +120,22 @@ export async function processInboundEmail(payload: InboundEmailPayload): Promise
     subject,
     bodyText,
   });
+
+  // 3a. LLM fuzzy-match fallback. Only runs when heuristics returned no match
+  // AND a single-tenant default org is configured via env var. Tenant-safe by
+  // design: searches one org only. Skipped when env var unset.
+  if (!match.caseId) {
+    const fallbackOrgId = process.env.PREVENTLI_DEFAULT_INBOUND_ORG_ID;
+    if (fallbackOrgId) {
+      const llmMatch = await llmMatchEmailToCase(
+        { fromEmail, fromName, subject, bodyText },
+        fallbackOrgId,
+      );
+      if (llmMatch) {
+        match = llmMatch;
+      }
+    }
+  }
 
   let caseId = match.caseId;
   let organizationId = match.organizationId;
@@ -161,7 +178,7 @@ export async function processInboundEmail(payload: InboundEmailPayload): Promise
     processingStatus,
     matchMethod: match.method,
     matchConfidence: match.confidence ? String(match.confidence) : null,
-  });
+  } as any);
 
   // 6. Create discussion note from email body
   let discussionNoteCreated = false;
@@ -183,7 +200,7 @@ export async function processInboundEmail(payload: InboundEmailPayload): Promise
         riskFlags: null,
         updatesCompliance: false,
         updatesRecoveryTimeline: detectsCertificateContent(subject, bodyText),
-      }]);
+      } as any]);
       discussionNoteCreated = true;
     } catch (err) {
       log.error("Failed to create discussion note", {}, err);
@@ -390,7 +407,7 @@ async function createCertificateFromEmail(
     sourceReference: `inbound-email`,
     certificateType: "medical_certificate",
     treatingPractitioner: fromName || null,
-  });
+  } as any);
 
   log.info("Certificate created from email", { caseId, capacity, startDate: startDate.toISOString(), endDate: endDate.toISOString() });
 }

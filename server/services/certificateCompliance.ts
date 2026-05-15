@@ -261,7 +261,7 @@ export async function processComplianceForCase(
   const { workerCases } = await import("@shared/schema");
   const { eq, and } = await import("drizzle-orm");
   await db.update(workerCases)
-    .set({ hasCertificate: hasActiveCert, updatedAt: new Date() })
+    .set({ hasCertificate: hasActiveCert, updatedAt: new Date() } as any)
     .where(and(eq(workerCases.id, caseId), eq(workerCases.organizationId, organizationId)));
 
   // Auto-advance lifecycle stage if case is stuck at "intake"

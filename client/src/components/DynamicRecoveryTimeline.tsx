@@ -3,8 +3,6 @@ import { motion } from "framer-motion";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { fetchWithCsrf } from "@/lib/queryClient";
 import {
-  LineChart,
-  Line,
   AreaChart,
   Area,
   XAxis,
@@ -15,7 +13,6 @@ import {
   ResponsiveContainer,
   ReferenceLine,
   ReferenceDot,
-  ComposedChart,
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -54,8 +51,32 @@ interface ChartDataPoint {
   label?: string;
 }
 
+type RestrictionCapability = "can" | "with_modifications" | "cannot" | "not_assessed";
+
+interface FunctionalRestrictions {
+  sitting: RestrictionCapability;
+  standingWalking: RestrictionCapability;
+  bending: RestrictionCapability;
+  squatting: RestrictionCapability;
+  kneelingClimbing: RestrictionCapability;
+  twisting: RestrictionCapability;
+  reachingOverhead: RestrictionCapability;
+  reachingForward: RestrictionCapability;
+  neckMovement: RestrictionCapability;
+  lifting: RestrictionCapability;
+  liftingMaxKg?: number;
+  carrying: RestrictionCapability;
+  pushing: RestrictionCapability;
+  pulling: RestrictionCapability;
+  repetitiveMovements: RestrictionCapability;
+  useOfInjuredLimb: RestrictionCapability;
+  maxWorkHoursPerDay?: number;
+  maxWorkDaysPerWeek?: number;
+}
+
 interface CertificateMarker {
   date: string;
+  endDate: string;
   week: number;
   capacity: number;
   certificateNumber: number;
@@ -63,6 +84,7 @@ interface CertificateMarker {
   color: string;
   certificateId: string;
   documentUrl?: string | null;
+  functionalRestrictions?: FunctionalRestrictions | null;
 }
 
 interface RecoveryPhaseDisplay {
@@ -374,9 +396,8 @@ export const DynamicRecoveryTimeline: React.FC<DynamicRecoveryTimelineProps> = (
         .filter(p => p.week < point.week)
         .sort((a, b) => b.week - a.week)[0];
 
-      if (previousActual) {
+      if (previousActual && previousActual.actualCapacity != null) {
         // Linear interpolation assumption
-        const weekDiff = point.week - previousActual.week;
         const estimatedProgress = point.estimatedCapacity - previousActual.actualCapacity;
         actualValue = Math.max(0, previousActual.actualCapacity + (estimatedProgress * 0.7)); // Conservative 70% of estimated progress
       } else {
@@ -611,32 +632,54 @@ export const DynamicRecoveryTimeline: React.FC<DynamicRecoveryTimelineProps> = (
                 {data.certificateMarkers
                   .filter(marker => {
                     // Only show markers within the chart range and with valid data
-                    return marker.week >= 0 && 
-                           marker.week <= (data.weeksElapsed + 2) && 
-                           marker.capacity >= 0 && 
+                    return marker.week >= 0 &&
+                           marker.week <= (data.weeksElapsed + 2) &&
+                           marker.capacity >= 0 &&
                            marker.capacity <= 100;
                   })
                   .map((marker, index) => {
-                    console.log(`Rendering certificate marker ${index + 1}:`, {
-                      week: marker.week,
-                      capacity: marker.capacity,
-                      certificateId: marker.certificateId,
-                      color: marker.color
-                    });
-                    
+                    const isExpired = marker.endDate ? new Date(marker.endDate) < new Date() : false;
+                    const markerFill = isExpired ? "#f59e0b" : "#3b82f6";
+                    const tooltipLines = [
+                      `Cert #${marker.certificateNumber} — ${new Date(marker.date).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })}`,
+                      `Capacity: ${marker.capacityLabel}`,
+                      isExpired ? "Status: Expired" : "Status: Current",
+                    ].join("\n");
+
                     return (
                       <ReferenceDot
                         key={`cert-${marker.certificateId}-${index}`}
                         x={marker.week}
                         y={marker.capacity}
-                        r={7}
-                        fill={marker.color}
+                        r={8}
+                        fill={markerFill}
                         stroke="#ffffff"
-                        strokeWidth={2}
+                        strokeWidth={2.5}
                         style={{ cursor: 'pointer' }}
-                        onClick={() => {
-                          console.log('Certificate dot clicked:', marker);
-                          setSelectedCertificate(marker);
+                        onClick={() => setSelectedCertificate(marker)}
+                        shape={(props: any) => {
+                          const { cx, cy } = props;
+                          return (
+                            <g style={{ cursor: 'pointer' }} onClick={() => setSelectedCertificate(marker)}>
+                              <title>{tooltipLines}</title>
+                              <circle
+                                cx={cx}
+                                cy={cy}
+                                r={8}
+                                fill={markerFill}
+                                stroke="#ffffff"
+                                strokeWidth={2.5}
+                              />
+                              {/* Clipboard icon path scaled to fit inside 8px radius circle */}
+                              <g transform={`translate(${cx - 5}, ${cy - 6})`}>
+                                <rect x="2" y="1" width="7" height="9" rx="0.8" fill="none" stroke="#ffffff" strokeWidth="1" />
+                                <rect x="3.5" y="0" width="4" height="2" rx="0.5" fill="#ffffff" />
+                                <line x1="3.5" y1="4.5" x2="7.5" y2="4.5" stroke="#ffffff" strokeWidth="0.8" />
+                                <line x1="3.5" y1="6.5" x2="7.5" y2="6.5" stroke="#ffffff" strokeWidth="0.8" />
+                                <line x1="3.5" y1="8" x2="6" y2="8" stroke="#ffffff" strokeWidth="0.8" />
+                              </g>
+                            </g>
+                          );
                         }}
                       />
                     );
@@ -722,21 +765,25 @@ export const DynamicRecoveryTimeline: React.FC<DynamicRecoveryTimelineProps> = (
             </div>
             {data.certificateMarkers.length > 0 ? (
               <div className="max-h-32 overflow-y-auto flex flex-wrap gap-2 p-2 bg-gray-50 rounded-lg">
-                {data.certificateMarkers.map((marker) => (
-                  <div
-                    key={marker.certificateNumber}
-                    className="flex items-center gap-2 text-xs bg-white px-2 py-1 rounded border cursor-pointer hover:bg-gray-100 transition-colors"
-                    onClick={() => setSelectedCertificate(marker)}
-                  >
+                {data.certificateMarkers.map((marker) => {
+                  const isExpired = marker.endDate ? new Date(marker.endDate) < new Date() : false;
+                  const chipColor = isExpired ? "#f59e0b" : "#3b82f6";
+                  return (
                     <div
-                      className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                      style={{ backgroundColor: marker.color }}
-                    />
-                    <span className="whitespace-nowrap">
-                      #{marker.certificateNumber} - Week {marker.week} - {marker.capacity}%
-                    </span>
-                  </div>
-                ))}
+                      key={marker.certificateNumber}
+                      className="flex items-center gap-2 text-xs bg-white px-2 py-1 rounded border cursor-pointer hover:bg-gray-100 transition-colors"
+                      onClick={() => setSelectedCertificate(marker)}
+                    >
+                      <div
+                        className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                        style={{ backgroundColor: chipColor }}
+                      />
+                      <span className="whitespace-nowrap">
+                        #{marker.certificateNumber} - Week {marker.week} - {marker.capacity}%{isExpired ? " (expired)" : ""}
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
             ) : (
               <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-600">
@@ -1127,6 +1174,38 @@ export const DynamicRecoveryTimeline: React.FC<DynamicRecoveryTimelineProps> = (
                     Week {selectedCertificate.week}
                   </p>
                 </div>
+
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <div className="flex items-center gap-2 text-gray-700 text-xs mb-1">
+                    <Calendar className="h-3 w-3" />
+                    Expires
+                  </div>
+                  <p className="font-medium text-gray-900">
+                    {selectedCertificate.endDate
+                      ? new Date(selectedCertificate.endDate).toLocaleDateString('en-AU', {
+                          day: 'numeric',
+                          month: 'short',
+                          year: 'numeric'
+                        })
+                      : "—"}
+                  </p>
+                </div>
+
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <div className="flex items-center gap-2 text-gray-700 text-xs mb-1">
+                    <FileText className="h-3 w-3" />
+                    Fitness Status
+                  </div>
+                  {selectedCertificate.endDate && new Date(selectedCertificate.endDate) < new Date() ? (
+                    <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">
+                      Expired
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 text-xs font-medium text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full">
+                      Current
+                    </span>
+                  )}
+                </div>
               </div>
 
               {/* Capacity Visual Bar */}
@@ -1146,6 +1225,64 @@ export const DynamicRecoveryTimeline: React.FC<DynamicRecoveryTimelineProps> = (
                   />
                 </div>
               </div>
+
+              {/* Functional Restrictions Matrix */}
+              {selectedCertificate.functionalRestrictions && (() => {
+                const r = selectedCertificate.functionalRestrictions!;
+                const capabilityColor = (v: RestrictionCapability) => {
+                  if (v === "can") return "text-emerald-700 bg-emerald-50";
+                  if (v === "with_modifications") return "text-amber-700 bg-amber-50";
+                  if (v === "cannot") return "text-red-700 bg-red-50";
+                  return "text-gray-500 bg-gray-50";
+                };
+                const capabilityLabel = (v: RestrictionCapability) => {
+                  if (v === "can") return "Can";
+                  if (v === "with_modifications") return "Modified";
+                  if (v === "cannot") return "Cannot";
+                  return "N/A";
+                };
+                const rows: Array<{ label: string; value: RestrictionCapability; note?: string }> = [
+                  { label: "Sitting", value: r.sitting },
+                  { label: "Standing / Walking", value: r.standingWalking },
+                  { label: "Bending", value: r.bending },
+                  { label: "Lifting", value: r.lifting, note: r.liftingMaxKg ? `max ${r.liftingMaxKg}kg` : undefined },
+                  { label: "Carrying", value: r.carrying },
+                  { label: "Reaching Overhead", value: r.reachingOverhead },
+                  { label: "Reaching Forward", value: r.reachingForward },
+                  { label: "Twisting", value: r.twisting },
+                  { label: "Repetitive Movements", value: r.repetitiveMovements },
+                  { label: "Injured Limb Use", value: r.useOfInjuredLimb },
+                ];
+                return (
+                  <div className="pt-2">
+                    <p className="text-xs font-semibold text-gray-700 mb-2 uppercase tracking-wide">Functional Restrictions</p>
+                    {(r.maxWorkHoursPerDay || r.maxWorkDaysPerWeek) && (
+                      <div className="mb-2 flex flex-wrap gap-2">
+                        {r.maxWorkHoursPerDay && (
+                          <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full font-medium">
+                            Max {r.maxWorkHoursPerDay}h/day
+                          </span>
+                        )}
+                        {r.maxWorkDaysPerWeek && (
+                          <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full font-medium">
+                            Max {r.maxWorkDaysPerWeek} days/week
+                          </span>
+                        )}
+                      </div>
+                    )}
+                    <div className="space-y-1">
+                      {rows.map(({ label, value, note }) => (
+                        <div key={label} className="flex items-center justify-between text-xs">
+                          <span className="text-gray-600">{label}</span>
+                          <span className={cn("px-2 py-0.5 rounded-full font-medium", capabilityColor(value))}>
+                            {capabilityLabel(value)}{note ? ` (${note})` : ""}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
 
             {/* Modal Footer */}

@@ -424,7 +424,7 @@ async function generateCertificateNotifications(
       });
 
       // Create notification
-      const notification: InsertNotification = {
+      const notification: any = {
         organizationId: workerCase.organizationId,
         type,
         priority: getCertificatePriority(daysValue),
@@ -510,7 +510,7 @@ async function generateRTWPlanNotifications(
       });
 
       // Create notification
-      const notification: InsertNotification = {
+      const notification: any = {
         organizationId: workerCase.organizationId,
         type,
         priority: getRTWPlanPriority(daysValue),
@@ -602,7 +602,7 @@ async function generateActionNotifications(
       });
 
       // Create notification
-      const notification: InsertNotification = {
+      const notification: any = {
         organizationId: action.organizationId,
         type: "action_overdue",
         priority: getActionPriority(daysOverdue),
@@ -700,7 +700,7 @@ async function generateCheckInNotifications(
       });
 
       // Create notification
-      const notification: InsertNotification = {
+      const notification: any = {
         organizationId: workerCase.organizationId,
         type: "check_in_follow_up",
         priority: "medium",
@@ -796,7 +796,7 @@ async function generateHealthCheckNotifications(
         workerUrl: `${APP_URL}/workers/${worker.id}`,
       });
 
-      const notification: InsertNotification = {
+      const notification: any = {
         organizationId,
         type: "health_check_due",
         priority: urgency === "overdue" ? "high" : "medium",
@@ -1071,7 +1071,7 @@ export async function sendWorkerCertificateAlerts(
         });
 
         // Create notification record
-        const notification: InsertNotification = {
+        const notification: any = {
           organizationId: workerCase.organizationId,
           type: "certificate_expiring",
           priority: getCertificatePriority(daysUntilExpiry),

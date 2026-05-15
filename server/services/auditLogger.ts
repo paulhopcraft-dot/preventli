@@ -63,6 +63,16 @@ export const AuditEventTypes = {
   // Partner-tier client management (slice 2)
   PARTNER_CLIENT_CREATED: "partner_client_created",
   PARTNER_CLIENT_UPDATED: "partner_client_updated",
+  PARTNER_CLIENT_REMOVED: "partner_client_removed",
+  PARTNER_SELF_UPDATED: "partner_self_updated",
+
+  // Password management
+  USER_PASSWORD_CHANGE: "user.password_change",
+  USER_PASSWORD_CHANGE_FAILED: "user.password_change_failed",
+
+  // RTW Auto-Draft
+  RTW_AUTO_DRAFT_CREATED: "rtw_plan.auto_draft.created",
+  RTW_AUTO_DRAFT_SKIPPED: "rtw_plan.auto_draft.skipped",
 } as const;
 
 export type AuditEventType = typeof AuditEventTypes[keyof typeof AuditEventTypes];
@@ -102,7 +112,7 @@ export async function logAuditEvent(params: AuditLogParams): Promise<void> {
         userAgent: params.userAgent,
         timestamp: new Date().toISOString(),
       },
-    });
+    } as any);
   } catch (error) {
     // CRITICAL: Don't let audit logging failures break the application
     // Log for ops monitoring, but don't throw
