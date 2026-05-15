@@ -199,6 +199,7 @@ function makeStorage(overrides: Partial<IStorage> = {}): IStorage {
   const base: Partial<IStorage> = {
     caseHasMedicalConstraintsGate: vi.fn().mockResolvedValue(true),
     getActiveDraftPlan: vi.fn().mockResolvedValue(null),
+    getLatestRTWPlanByCase: vi.fn().mockResolvedValue(null),
     getCaseRoleContext: vi
       .fn()
       .mockResolvedValue({ workerId: WORKER_ID, preInjuryRoleOverrideId: null }),
@@ -285,9 +286,9 @@ describe("rtwAutoDrafter", () => {
 
     it("skips with existing_active_draft when an active draft exists (idempotency)", async () => {
       const storage = makeStorage({
-        getActiveDraftPlan: vi
+        getLatestRTWPlanByCase: vi
           .fn()
-          .mockResolvedValue({ id: "existing-plan", status: "draft" }),
+          .mockResolvedValue({ plan: { id: "existing-plan", status: "draft", version: 1 } }),
       });
       const result = (await draftRTWPlanForCase(CASE_ID, ORG, "nightly_sweep", USER, {
         storage,
