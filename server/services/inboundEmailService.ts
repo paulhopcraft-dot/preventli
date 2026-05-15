@@ -142,10 +142,12 @@ export async function processInboundEmail(payload: InboundEmailPayload): Promise
   let isNewCase = false;
   let processingStatus = "matched";
 
-  // 4. If no match, create new case from email content
+  // 4. If no match, create new case from email content — only when we have
+  //    an explicit organizationId from the env-var fallback. Refuses to guess
+  //    tenant: a wrong-org case write is a clinical-data leak.
   if (!caseId) {
-    const newCaseInfo = extractCaseInfoFromEmail(subject, bodyText, fromEmail, fromName);
-    if (newCaseInfo.workerName) {
+    const newCaseInfo = extractCaseInfoFromEmail(subject, bodyText, fromEmail, fromName, process.env.PREVENTLI_DEFAULT_INBOUND_ORG_ID || null);
+    if (newCaseInfo.workerName && newCaseInfo.organizationId) {
       try {
         const newCase = await storage.createCase({
           organizationId: newCaseInfo.organizationId,
@@ -167,7 +169,11 @@ export async function processInboundEmail(payload: InboundEmailPayload): Promise
       }
     } else {
       processingStatus = "failed";
-      log.warn("Could not extract worker name from email", { subject });
+      if (!newCaseInfo.organizationId) {
+        log.warn("Refusing to auto-create case — no organizationId resolvable from inbound email", { subject, fromEmail });
+      } else {
+        log.warn("Could not extract worker name from email", { subject });
+      }
     }
   }
 
@@ -211,12 +217,23 @@ export async function processInboundEmail(payload: InboundEmailPayload): Promise
   const certificateDetected = detectsCertificateContent(subject, bodyText) ||
     attachments.some(a => isCertificateAttachment(a.filename, a.contentType));
 
-  // 8. If certificate detected, add a medical certificate record
+  // 8. If certificate detected, add a medical certificate record — gated on
+  //    match trust. High-trust methods (thread / sender_email / claim_number)
+  //    write unconditionally; LLM fuzzy-matches must clear a confidence floor
+  //    so we don't write clinical data into the wrong worker's case.
   if (certificateDetected && caseId) {
-    try {
-      await createCertificateFromEmail(caseId, subject, bodyText, fromName, effectiveDate);
-    } catch (err) {
-      log.error("Failed to create certificate from email", {}, err);
+    if (shouldAutoCreateCertificate(match.method, match.confidence ?? null)) {
+      try {
+        await createCertificateFromEmail(caseId, subject, bodyText, fromName, effectiveDate);
+      } catch (err) {
+        log.error("Failed to create certificate from email", {}, err);
+      }
+    } else {
+      log.warn("Skipping cert auto-create — match confidence below threshold", {
+        caseId,
+        matchMethod: match.method,
+        matchConfidence: match.confidence,
+      });
     }
   }
 
@@ -232,17 +249,49 @@ export async function processInboundEmail(payload: InboundEmailPayload): Promise
 }
 
 /**
- * Extract case info from email content for new case creation.
+ * Methods we trust to write clinical data (medical certificates) without
+ * a confidence check. These are deterministic: a matching thread header,
+ * a known sender email registered as a case contact, or an extracted
+ * claim number that maps to exactly one case.
  */
-function extractCaseInfoFromEmail(
+const HIGH_TRUST_MATCH_METHODS = new Set(["thread", "sender_email", "claim_number"]);
+
+/**
+ * Minimum LLM match confidence required to auto-write a medical certificate.
+ * Below this we still attach the email as a discussion note, but defer the
+ * cert write to a human review path.
+ */
+export const LLM_CERT_CONFIDENCE_FLOOR = 0.9;
+
+/**
+ * Decide whether an inbound email's match is trustworthy enough to auto-create
+ * a medical certificate row. Pure function — easy to test, easy to audit.
+ */
+export function shouldAutoCreateCertificate(method: string, confidence: number | null): boolean {
+  if (HIGH_TRUST_MATCH_METHODS.has(method)) return true;
+  if (method === "llm") return (confidence ?? 0) >= LLM_CERT_CONFIDENCE_FLOOR;
+  return false;
+}
+
+/**
+ * Extract case info from email content for new case creation.
+ *
+ * The orgId parameter is REQUIRED for the case to actually be created —
+ * `null` indicates the caller has no resolvable tenant for this email and
+ * propagates through, telling processInboundEmail to fail the email rather
+ * than guess. Historically this returned a hardcoded `"org-alpha"`, which
+ * would leak cases cross-tenant the moment a second tenant was active.
+ */
+export function extractCaseInfoFromEmail(
   subject: string,
   bodyText: string | undefined,
   fromEmail: string,
   fromName: string | undefined,
+  orgId: string | null,
 ): {
   workerName: string | null;
   company: string;
-  organizationId: string;
+  organizationId: string | null;
   workStatus: string;
   riskLevel: string;
 } {
@@ -275,14 +324,10 @@ function extractCaseInfoFromEmail(
   // Determine work status
   let workStatus = "Off work";
 
-  // Default organization: Symmetry HR (org ID from seed data)
-  // In production, this would be looked up from the sender's domain
-  const organizationId = "org-alpha";
-
   return {
     workerName,
     company: "Symmetry HR",
-    organizationId,
+    organizationId: orgId,
     workStatus,
     riskLevel,
   };
