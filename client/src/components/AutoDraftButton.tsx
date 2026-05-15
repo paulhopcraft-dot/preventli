@@ -26,7 +26,7 @@ interface Props {
 interface EligibilityResponse {
   eligible: boolean;
   hasActiveDraft: boolean;
-  reason?: string;
+  reason?: string | "existing_plan_can_supersede";
 }
 
 interface AutoDraftResponse {
@@ -76,6 +76,7 @@ export function AutoDraftButton({ caseId }: Props) {
   const isLoading = eligibilityLoading;
   const eligible = !!eligibility?.eligible;
   const hasActiveDraft = !!eligibility?.hasActiveDraft;
+  const canSupersede = eligibility?.reason === "existing_plan_can_supersede";
   const disabled = isLoading || isPending || !eligible || hasActiveDraft;
 
   const disabledReason =
@@ -87,6 +88,16 @@ export function AutoDraftButton({ caseId }: Props) {
       ? eligibility?.reason || "This case is not yet eligible for auto-drafting."
       : null;
 
+  const buttonLabel = isPending
+    ? "Drafting..."
+    : canSupersede
+    ? "Draft updated plan"
+    : "Draft RTW Plan";
+
+  const buttonTooltip = canSupersede
+    ? "Generate a new plan version based on latest medical certificate"
+    : null;
+
   const button = (
     <Button
       onClick={() => draftMutation.mutate()}
@@ -97,11 +108,11 @@ export function AutoDraftButton({ caseId }: Props) {
       data-testid="auto-draft-rtw-button"
     >
       <Sparkles className="h-4 w-4" />
-      {isPending ? "Drafting..." : "Draft RTW Plan"}
+      {buttonLabel}
     </Button>
   );
 
-  if (!disabledReason) {
+  if (!disabledReason && !buttonTooltip) {
     return button;
   }
 
@@ -112,7 +123,7 @@ export function AutoDraftButton({ caseId }: Props) {
           {/* Wrapper span so tooltip works even when button is disabled */}
           <span className="inline-flex">{button}</span>
         </TooltipTrigger>
-        <TooltipContent>{disabledReason}</TooltipContent>
+        <TooltipContent>{disabledReason ?? buttonTooltip}</TooltipContent>
       </Tooltip>
     </TooltipProvider>
   );

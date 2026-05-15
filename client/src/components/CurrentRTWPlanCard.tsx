@@ -7,12 +7,15 @@
  * - Renders nothing if no active plan exists
  */
 
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
-import { ClipboardList, ChevronRight, Calendar } from "lucide-react";
+import { ClipboardList, ChevronRight, Calendar, Sparkles } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { RTW_PLAN_STATUS_LABELS } from "@shared/schema";
+import { fetchWithCsrf } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
 interface Props {
   caseId: string;
@@ -89,11 +92,43 @@ function statusBadgeClasses(status: string): string {
   }
 }
 
+const SUPERSEDABLE_STATUSES = new Set(["approved", "completed"]);
+
 export function CurrentRTWPlanCard({ caseId }: Props) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
   const { data: latest } = useQuery<LatestPlanResponse>({
     queryKey: [`/api/rtw-plans?caseId=${caseId}`],
     enabled: !!caseId,
     retry: false,
+  });
+
+  const draftNewVersionMutation = useMutation({
+    mutationFn: async () => {
+      const response = await fetchWithCsrf(`/api/cases/${caseId}/auto-draft-rtw-plan`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "New draft RTW plan ready",
+        description: "Review the updated plan before approving.",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/cases"] });
+      queryClient.invalidateQueries({ queryKey: [`/api/rtw-plans?caseId=${caseId}`] });
+      queryClient.invalidateQueries({ queryKey: ["rtw-plans", caseId] });
+      queryClient.invalidateQueries({ queryKey: [`/api/cases/${caseId}/auto-draft-eligibility`] });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Draft failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
   });
 
   const plan = latest?.data?.plan;
@@ -110,6 +145,7 @@ export function CurrentRTWPlanCard({ caseId }: Props) {
   const statusLabel = RTW_PLAN_STATUS_LABELS[plan.status] || plan.status;
   const startLabel = formatDate(plan.startDate);
   const endLabel = formatDate(plan.targetEndDate);
+  const canDraftNewVersion = SUPERSEDABLE_STATUSES.has(plan.status);
 
   const allDuties = details?.data?.duties ?? [];
   const suitable = allDuties.filter((d) => d.isIncluded);
@@ -144,14 +180,29 @@ export function CurrentRTWPlanCard({ caseId }: Props) {
               )}
             </div>
           </div>
-          <Link
-            to={`/rtw/plans/${plan.id}`}
-            className="shrink-0 inline-flex items-center gap-1 text-xs font-medium text-emerald-700 hover:text-emerald-900 dark:text-emerald-300 dark:hover:text-emerald-100"
-            data-testid="current-rtw-plan-view-link"
-          >
-            View full plan
-            <ChevronRight className="h-3 w-3" />
-          </Link>
+          <div className="shrink-0 flex flex-col items-end gap-1">
+            <Link
+              to={`/rtw/plans/${plan.id}`}
+              className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700 hover:text-emerald-900 dark:text-emerald-300 dark:hover:text-emerald-100"
+              data-testid="current-rtw-plan-view-link"
+            >
+              View full plan
+              <ChevronRight className="h-3 w-3" />
+            </Link>
+            {canDraftNewVersion && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-6 px-2 text-xs gap-1"
+                onClick={() => draftNewVersionMutation.mutate()}
+                disabled={draftNewVersionMutation.isPending}
+                data-testid="current-rtw-plan-draft-new-version"
+              >
+                <Sparkles className="h-3 w-3" />
+                {draftNewVersionMutation.isPending ? "Drafting..." : "Draft new version"}
+              </Button>
+            )}
+          </div>
         </div>
 
         {(suitable.length > 0 || restricted.length > 0) && (
