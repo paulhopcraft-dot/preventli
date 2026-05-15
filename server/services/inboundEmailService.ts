@@ -1,5 +1,6 @@
 import { storage } from "../storage";
 import { matchEmailToCase, detectsCertificateContent } from "./emailMatcher";
+import { llmMatchEmailToCase } from "./llmEmailMatcher";
 import { createLogger } from "../lib/logger";
 import type { InsertCaseEmail, InsertEmailAttachment, CaseEmailDB } from "@shared/schema";
 
@@ -110,8 +111,8 @@ export async function processInboundEmail(payload: InboundEmailPayload): Promise
     await storage.createEmailAttachment(attachmentData);
   }
 
-  // 3. Match email to case
-  const match = await matchEmailToCase({
+  // 3. Match email to case (heuristic: thread / claim / sender / worker name)
+  let match = await matchEmailToCase({
     messageId: savedEmail.messageId,
     inReplyTo: savedEmail.inReplyTo,
     fromEmail,
@@ -119,6 +120,22 @@ export async function processInboundEmail(payload: InboundEmailPayload): Promise
     subject,
     bodyText,
   });
+
+  // 3a. LLM fuzzy-match fallback. Only runs when heuristics returned no match
+  // AND a single-tenant default org is configured via env var. Tenant-safe by
+  // design: searches one org only. Skipped when env var unset.
+  if (!match.caseId) {
+    const fallbackOrgId = process.env.PREVENTLI_DEFAULT_INBOUND_ORG_ID;
+    if (fallbackOrgId) {
+      const llmMatch = await llmMatchEmailToCase(
+        { fromEmail, fromName, subject, bodyText },
+        fallbackOrgId,
+      );
+      if (llmMatch) {
+        match = llmMatch;
+      }
+    }
+  }
 
   let caseId = match.caseId;
   let organizationId = match.organizationId;
