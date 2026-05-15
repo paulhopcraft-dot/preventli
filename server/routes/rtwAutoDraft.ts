@@ -90,12 +90,20 @@ router.post(
   },
 );
 
+// Statuses that mean an in-flight draft exists — block new auto-draft.
+const IN_FLIGHT_STATUSES = new Set(["draft", "pending_employer_review"]);
+
+// Statuses that mean the existing plan can be superseded — allow new auto-draft.
+const SUPERSEDABLE_STATUSES = new Set(["approved", "completed"]);
+
 /**
  * GET /api/cases/:caseId/auto-draft-eligibility
  * Lightweight check used by the UI to render the "Draft RTW plan" button
  * as enabled/disabled. Does NOT invoke the orchestrator.
  *
- * Eligibility = medical-constraints gate passes AND no active auto-generated draft.
+ * Eligibility = medical-constraints gate passes AND no in-flight draft.
+ * An approved or completed plan is supersedable — eligible returns true
+ * with reason "existing_plan_can_supersede" so the UI can adjust button text.
  */
 router.get(
   "/:caseId/auto-draft-eligibility",
@@ -106,14 +114,17 @@ router.get(
     const organizationId = req.user!.organizationId;
 
     try {
-      const [hasGate, activeDraft] = await Promise.all([
+      const [hasGate, latestPlan] = await Promise.all([
         storage.caseHasMedicalConstraintsGate(caseId, organizationId),
-        storage.getActiveDraftPlan(caseId, organizationId),
+        storage.getLatestRTWPlanByCase(caseId, organizationId),
       ]);
 
-      const hasActiveDraft = activeDraft !== null;
+      const latestStatus = latestPlan?.plan.status ?? null;
+      const hasActiveDraft = latestStatus !== null && IN_FLIGHT_STATUSES.has(latestStatus);
+      const canSupersede = latestStatus !== null && SUPERSEDABLE_STATUSES.has(latestStatus);
+
       let eligible = true;
-      let reason: AutoDraftSkipReason | undefined;
+      let reason: AutoDraftSkipReason | "existing_plan_can_supersede" | undefined;
 
       if (!hasGate) {
         eligible = false;
@@ -121,6 +132,9 @@ router.get(
       } else if (hasActiveDraft) {
         eligible = false;
         reason = "existing_active_draft";
+      } else if (canSupersede) {
+        // Eligible — existing approved/completed plan will be superseded by new draft
+        reason = "existing_plan_can_supersede";
       }
 
       return res.json({
