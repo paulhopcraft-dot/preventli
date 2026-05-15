@@ -23,6 +23,7 @@ import {
   createPartnerClientSchema,
   updatePartnerClientSchema,
 } from "@shared/partnerClient";
+import { updatePartnerSelfSchema } from "@shared/partnerSelf";
 import { authorize, type AuthRequest } from "../middleware/auth";
 import { generateAccessToken, setAuthCookieExternal } from "../controllers/auth";
 import { logger } from "../lib/logger";
@@ -197,7 +198,8 @@ router.delete("/active-org", requirePartner, async (req: AuthRequest, res: Respo
  * GET /api/partner/me
  *
  * Returns header-relevant context: partner org info and active org info.
- * Used by the header component to render "{partnerName} | {activeName}".
+ * Used by the header component to render "{partnerName} | {activeName}"
+ * and by the partner self-edit dialog to pre-fill contact details.
  */
 router.get("/me", requirePartner, async (req: AuthRequest, res: Response) => {
   try {
@@ -221,6 +223,22 @@ router.get("/me", requirePartner, async (req: AuthRequest, res: Response) => {
         name: organizations.name,
         logoUrl: organizations.logoUrl,
         kind: organizations.kind,
+        addressLine1: organizations.addressLine1,
+        addressLine2: organizations.addressLine2,
+        suburb: organizations.suburb,
+        state: organizations.state,
+        postcode: organizations.postcode,
+        contactName: organizations.contactName,
+        contactEmail: organizations.contactEmail,
+        contactPhone: organizations.contactPhone,
+        rtwCoordinatorName: organizations.rtwCoordinatorName,
+        rtwCoordinatorEmail: organizations.rtwCoordinatorEmail,
+        rtwCoordinatorPhone: organizations.rtwCoordinatorPhone,
+        hrContactName: organizations.hrContactName,
+        hrContactEmail: organizations.hrContactEmail,
+        hrContactPhone: organizations.hrContactPhone,
+        notificationEmails: organizations.notificationEmails,
+        notes: organizations.notes,
       })
       .from(organizations)
       .where(eq(organizations.id, partnerOrgId))
@@ -249,6 +267,94 @@ router.get("/me", requirePartner, async (req: AuthRequest, res: Response) => {
   } catch (err) {
     logger.api.error("[partner] GET /me failed", {}, err);
     res.status(500).json({ error: "Internal Server Error", message: "Failed to load partner context" });
+  }
+});
+
+/**
+ * PATCH /api/partner/me
+ *
+ * Update the partner's own home org details (contacts, address, notification
+ * emails, etc.). Writes ONLY to users.organizationId — never to the active
+ * org context, so a partner viewing a client cannot accidentally mutate the
+ * client's row via this endpoint. PII fields stripped before audit log.
+ */
+router.patch("/me", requirePartner, async (req: AuthRequest, res: Response) => {
+  try {
+    const parsed = updatePartnerSelfSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({
+        error: "Bad Request",
+        message: "Invalid partner data",
+        details: parsed.error.flatten(),
+      });
+    }
+    const userId = req.user!.id;
+    const data = parsed.data;
+
+    // Home org id — never trust activeOrganizationId here.
+    const homeRow = await db
+      .select({ orgId: users.organizationId })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+    if (homeRow.length === 0) {
+      return res.status(401).json({ error: "Unauthorized", message: "User not found" });
+    }
+    const partnerOrgId = homeRow[0].orgId;
+
+    // Build a partial update — only fields the partner can edit. Empty
+    // strings have already been stripped by the schema's optionalEmpty.
+    const updates: Record<string, unknown> = { updatedAt: new Date() };
+    const editableKeys: Array<keyof typeof data> = [
+      "name",
+      "logoUrl",
+      "addressLine1",
+      "addressLine2",
+      "suburb",
+      "state",
+      "postcode",
+      "contactName",
+      "contactEmail",
+      "contactPhone",
+      "rtwCoordinatorName",
+      "rtwCoordinatorEmail",
+      "rtwCoordinatorPhone",
+      "hrContactName",
+      "hrContactEmail",
+      "hrContactPhone",
+      "notificationEmails",
+      "notes",
+    ];
+    for (const k of editableKeys) {
+      if (k in data) updates[k] = data[k] ?? null;
+    }
+
+    const [updated] = await db
+      .update(organizations)
+      .set(updates as any)
+      .where(eq(organizations.id, partnerOrgId))
+      .returning();
+
+    if (!updated) {
+      return res.status(404).json({ error: "Not Found", message: "Partner org not found" });
+    }
+
+    const meta = getRequestMetadata(req);
+    await logAuditEvent({
+      userId,
+      organizationId: partnerOrgId,
+      eventType: AuditEventTypes.PARTNER_SELF_UPDATED,
+      resourceType: "organization",
+      resourceId: partnerOrgId,
+      metadata: { partner: auditSafeOrg(updated) },
+      ipAddress: meta.ipAddress,
+      userAgent: meta.userAgent,
+    });
+
+    res.json({ partnerOrg: updated });
+  } catch (err) {
+    logger.api.error("[partner] PATCH /me failed", {}, err);
+    res.status(500).json({ error: "Internal Server Error", message: "Failed to update partner details" });
   }
 });
 
