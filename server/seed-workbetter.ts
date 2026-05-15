@@ -102,6 +102,7 @@ const ALPINE_TEST_EMPTY_ID = "org-alpine-test-empty";
 
 const PRIMARY_PARTNER_USER_ID = "user-workbetter-primary";
 const SCOPED_PARTNER_USER_ID = "user-workbetter-scoped";
+const WORKBETTER_REAL_USER_ID = "user-workbetter-real";
 
 const ALPINE_COMPANIES = [
   { id: ALPINE_HEALTH_ID, name: "Alpine Health" },
@@ -500,23 +501,25 @@ async function seed(): Promise<void> {
     SET created_by = NULL
     WHERE created_by = ${PRIMARY_PARTNER_USER_ID}
        OR created_by = ${SCOPED_PARTNER_USER_ID}
+       OR created_by = ${WORKBETTER_REAL_USER_ID}
   `);
   await db.execute(sql`
     UPDATE email_templates
     SET created_by = NULL
     WHERE created_by = ${PRIMARY_PARTNER_USER_ID}
        OR created_by = ${SCOPED_PARTNER_USER_ID}
+       OR created_by = ${WORKBETTER_REAL_USER_ID}
   `);
   // 10. User invites created by our partner users
   await db.delete(userInvites).where(
-    inArray(userInvites.invitedByUserId, [PRIMARY_PARTNER_USER_ID, SCOPED_PARTNER_USER_ID])
+    inArray(userInvites.invitedByUserId, [PRIMARY_PARTNER_USER_ID, SCOPED_PARTNER_USER_ID, WORKBETTER_REAL_USER_ID])
   );
   // 11. Partner access grants, then users, then orgs
   await db.delete(partnerUserOrganizations).where(
-    inArray(partnerUserOrganizations.userId, [PRIMARY_PARTNER_USER_ID, SCOPED_PARTNER_USER_ID])
+    inArray(partnerUserOrganizations.userId, [PRIMARY_PARTNER_USER_ID, SCOPED_PARTNER_USER_ID, WORKBETTER_REAL_USER_ID])
   );
   await db.delete(users).where(
-    inArray(users.id, [PRIMARY_PARTNER_USER_ID, SCOPED_PARTNER_USER_ID])
+    inArray(users.id, [PRIMARY_PARTNER_USER_ID, SCOPED_PARTNER_USER_ID, WORKBETTER_REAL_USER_ID])
   );
   await db.delete(organizations).where(
     inArray(organizations.id, [PARTNER_ORG_ID, ...allClientOrgIds])
@@ -633,6 +636,16 @@ async function seed(): Promise<void> {
       id: SCOPED_PARTNER_USER_ID,
       organizationId: PARTNER_ORG_ID,
       email: "testpartner-scoped@testpartner.com.au",
+      password: passwordHash,
+      role: "partner",
+      subrole: null,
+      companyId: null,
+      insurerId: null,
+    },
+    {
+      id: WORKBETTER_REAL_USER_ID,
+      organizationId: PARTNER_ORG_ID,
+      email: "workbetter@workbetter.net.au",
       password: passwordHash,
       role: "partner",
       subrole: null,
