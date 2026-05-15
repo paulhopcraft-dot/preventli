@@ -1,22 +1,27 @@
 import { useEffect, useState } from "react";
-import { X, AlertCircle, Clock, CheckCircle2 } from "lucide-react";
+import { X, AlertCircle, Stethoscope, ShieldAlert, CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 
-interface Action {
+type AlertSeverity = "high" | "medium" | "low";
+type AlertCategory = "gp_escalation" | "compliance";
+
+interface BriefingAlert {
   id: string;
+  severity: AlertSeverity;
+  category: AlertCategory;
   title: string;
-  description?: string;
-  priorityLevel?: string;
-  workerName?: string;
-  actionType?: string;
+  detail: string;
+  caseId: string;
+  workerName: string;
+  suggestedAction: string;
 }
 
 interface BriefingData {
+  firstName: string;
   summary: string | null;
   generatedAt: string | null;
-  overdueActions: Action[];
-  pendingActions: Action[];
+  alerts: BriefingAlert[];
   hasData: boolean;
 }
 
@@ -25,20 +30,28 @@ function getTodayKey(userId: string): string {
   return `alex_briefing_shown_${userId}_${today}`;
 }
 
-function getPriorityColor(priority?: string): string {
-  switch (priority) {
-    case "critical": return "text-red-600 bg-red-50 border-red-200";
-    case "high": return "text-orange-600 bg-orange-50 border-orange-200";
-    case "medium": return "text-yellow-600 bg-yellow-50 border-yellow-200";
-    default: return "text-blue-600 bg-blue-50 border-blue-200";
-  }
-}
+const SEVERITY_STYLES: Record<AlertSeverity, string> = {
+  high: "bg-red-50 border-red-200 text-red-900",
+  medium: "bg-orange-50 border-orange-200 text-orange-900",
+  low: "bg-yellow-50 border-yellow-200 text-yellow-900",
+};
+
+const CATEGORY_ICON: Record<AlertCategory, typeof Stethoscope> = {
+  gp_escalation: Stethoscope,
+  compliance: ShieldAlert,
+};
+
+const SEVERITY_ICON_COLOR: Record<AlertSeverity, string> = {
+  high: "text-red-500",
+  medium: "text-orange-500",
+  low: "text-yellow-500",
+};
 
 export function MorningBriefingModal() {
   const { user, isAuthenticated } = useAuth();
   const [open, setOpen] = useState(false);
   const [briefing, setBriefing] = useState<BriefingData | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [, setLoading] = useState(false);
 
   useEffect(() => {
     if (!isAuthenticated || !user) return;
@@ -77,12 +90,8 @@ export function MorningBriefingModal() {
   if (!open || !briefing) return null;
 
   const hour = new Date().getHours();
-  const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
-
-  const allActions = [
-    ...briefing.overdueActions.map(a => ({ ...a, isOverdue: true })),
-    ...briefing.pendingActions.map(a => ({ ...a, isOverdue: false })),
-  ].slice(0, 5);
+  const timeOfDay = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+  const greeting = `${timeOfDay} ${briefing.firstName}`;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -90,6 +99,7 @@ export function MorningBriefingModal() {
       <div
         className="absolute inset-0 bg-black/40 backdrop-blur-sm"
         onClick={dismiss}
+        data-testid="briefing-backdrop"
       />
 
       {/* Modal */}
@@ -100,7 +110,7 @@ export function MorningBriefingModal() {
             <p className="text-primary-foreground/70 text-xs font-medium uppercase tracking-wide mb-1">
               Alex
             </p>
-            <h2 className="text-primary-foreground text-xl font-semibold">
+            <h2 className="text-primary-foreground text-xl font-semibold" data-testid="briefing-greeting">
               {greeting} 👋
             </h2>
             <p className="text-primary-foreground/80 text-sm mt-1">
@@ -110,13 +120,14 @@ export function MorningBriefingModal() {
           <button
             onClick={dismiss}
             className="text-primary-foreground/60 hover:text-primary-foreground transition-colors mt-1"
+            aria-label="Dismiss briefing"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         <div className="px-6 py-5 space-y-5 max-h-[60vh] overflow-y-auto">
-          {/* Alex's narrative summary */}
+          {/* Alex's narrative summary (optional) */}
           {briefing.summary && (
             <div className="bg-muted/50 rounded-xl px-4 py-4">
               <p className="text-sm text-foreground leading-relaxed">
@@ -130,57 +141,42 @@ export function MorningBriefingModal() {
             </div>
           )}
 
-          {/* Action cards */}
-          {allActions.length > 0 && (
+          {/* Alert cards */}
+          {briefing.alerts.length > 0 && (
             <div className="space-y-2">
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                {briefing.overdueActions.length > 0
-                  ? `${briefing.overdueActions.length} overdue · ${briefing.pendingActions.length} pending`
-                  : `${briefing.pendingActions.length} pending`}
+                {briefing.alerts.length} {briefing.alerts.length === 1 ? "case needs" : "cases need"} your attention
               </p>
-              {allActions.map((action) => (
-                <div
-                  key={action.id}
-                  className={cn(
-                    "flex items-start gap-3 rounded-xl border px-4 py-3",
-                    action.isOverdue
-                      ? "bg-red-50 border-red-200"
-                      : "bg-muted/30 border-border"
-                  )}
-                >
-                  {action.isOverdue ? (
-                    <AlertCircle className="w-4 h-4 text-red-500 mt-0.5 shrink-0" />
-                  ) : (
-                    <Clock className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
-                  )}
-                  <div className="min-w-0">
-                    <p className={cn(
-                      "text-sm font-medium",
-                      action.isOverdue ? "text-red-700" : "text-foreground"
-                    )}>
-                      {action.title}
-                    </p>
-                    {action.workerName && (
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        {action.workerName}
-                      </p>
+              {briefing.alerts.map((alert) => {
+                const Icon = CATEGORY_ICON[alert.category] ?? AlertCircle;
+                return (
+                  <div
+                    key={alert.id}
+                    className={cn(
+                      "flex items-start gap-3 rounded-xl border px-4 py-3",
+                      SEVERITY_STYLES[alert.severity],
                     )}
-                    {action.description && (
-                      <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
-                        {action.description}
+                    data-testid={`briefing-alert-${alert.category}-${alert.caseId}`}
+                  >
+                    <Icon className={cn("w-4 h-4 mt-0.5 shrink-0", SEVERITY_ICON_COLOR[alert.severity])} />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium">{alert.title}</p>
+                      <p className="text-xs opacity-80 mt-0.5">{alert.detail}</p>
+                      <p className="text-xs italic opacity-70 mt-1.5">
+                        ↳ {alert.suggestedAction}
                       </p>
-                    )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
 
-          {/* No actions fallback */}
-          {allActions.length === 0 && briefing.summary && (
+          {/* No alerts fallback */}
+          {briefing.alerts.length === 0 && briefing.summary && (
             <div className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-xl px-4 py-3">
               <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0" />
-              <p className="text-sm text-green-700">No urgent actions — you're on top of it.</p>
+              <p className="text-sm text-green-700">No urgent cases — you're on top of it.</p>
             </div>
           )}
         </div>
