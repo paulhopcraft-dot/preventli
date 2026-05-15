@@ -1,18 +1,10 @@
 import { useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { ChatWidget } from "./ChatWidget";
+import { MorningBriefingModal } from "./MorningBriefingModal";
 
-/**
- * Mounts Alex (the floating chat widget) on every authenticated page.
- *
- * Gates on `isAuthenticated` so the widget never appears on /login,
- * /forgot-password, /reset-password, or the public /check/:token route.
- *
- * Derives `caseContext` from the URL so Alex knows which case the user is
- * looking at — same regex PageLayout used to use.
- */
 export function GlobalChatWidget() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const location = useLocation();
 
   if (!isAuthenticated) return null;
@@ -25,5 +17,17 @@ export function GlobalChatWidget() {
     ? { workerId: workerIdMatch[1] }
     : undefined;
 
-  return <ChatWidget caseContext={caseContext} />;
+  const firstName = user?.email
+    ? user.email.split("@")[0].split(".")[0].replace(/\d/g, "")
+    : undefined;
+  const userName = firstName
+    ? firstName.charAt(0).toUpperCase() + firstName.slice(1)
+    : undefined;
+
+  return (
+    <>
+      <MorningBriefingModal />
+      <ChatWidget caseContext={caseContext} userName={userName} />
+    </>
+  );
 }
