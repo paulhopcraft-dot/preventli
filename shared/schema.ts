@@ -435,6 +435,7 @@ export interface MedicalCertificate {
   updatedAt?: string;
   restrictions?: RestrictionItem[];
   practitionerName?: string;
+  functionalRestrictionsJson?: FunctionalRestrictionsExtracted | null;
 }
 
 export interface MedicalCertificateInput {

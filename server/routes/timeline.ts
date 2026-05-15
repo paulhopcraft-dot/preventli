@@ -108,6 +108,7 @@ export function registerTimelineRoutes(app: Express) {
           sourceReference: row.sourceReference ?? undefined,
           createdAt: row.createdAt?.toISOString(),
           updatedAt: row.updatedAt?.toISOString(),
+          functionalRestrictionsJson: (row as any).functionalRestrictionsJson ?? null,
         };
       });
 
