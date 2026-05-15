@@ -314,6 +314,10 @@ export function ClientSetupForm({ open, onOpenChange, clientId }: Props) {
               </div>
             </section>
 
+            <div className="rounded-md border border-dashed border-muted-foreground/30 bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+              Everything below is <span className="font-medium">optional</span> — fill in what you have, you can edit the rest later.
+            </div>
+
             {/* 2. Address */}
             <section className="space-y-4">
               <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
@@ -414,7 +418,7 @@ export function ClientSetupForm({ open, onOpenChange, clientId }: Props) {
                     data-testid="field-policy-number"
                   />
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Required for WorkSafe submission.
+                    Used later when lodging WorkSafe claims for this client.
                   </p>
                 </div>
                 <div>
