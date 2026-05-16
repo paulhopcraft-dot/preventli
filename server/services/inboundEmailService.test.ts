@@ -61,40 +61,70 @@ describe("extractCaseInfoFromEmail — tenant safety", () => {
 });
 
 describe("shouldAutoCreateCertificate — clinical-write gate", () => {
-  it("allows cert auto-create for thread match regardless of confidence", () => {
-    expect(shouldAutoCreateCertificate("thread", null)).toBe(true);
-    expect(shouldAutoCreateCertificate("thread", 0.1)).toBe(true);
+  describe("with a PDF cert attachment (hasCertAttachment=true)", () => {
+    it("allows cert auto-create for thread match regardless of confidence", () => {
+      expect(shouldAutoCreateCertificate("thread", null, true)).toBe(true);
+      expect(shouldAutoCreateCertificate("thread", 0.1, true)).toBe(true);
+    });
+
+    it("allows cert auto-create for sender_email match regardless of confidence", () => {
+      expect(shouldAutoCreateCertificate("sender_email", null, true)).toBe(true);
+      expect(shouldAutoCreateCertificate("sender_email", 0.2, true)).toBe(true);
+    });
+
+    it("allows cert auto-create for claim_number match regardless of confidence", () => {
+      expect(shouldAutoCreateCertificate("claim_number", null, true)).toBe(true);
+      expect(shouldAutoCreateCertificate("claim_number", 0.3, true)).toBe(true);
+    });
+
+    it("allows cert auto-create for subject_bracket match (new high-trust method)", () => {
+      expect(shouldAutoCreateCertificate("subject_bracket", null, true)).toBe(true);
+      expect(shouldAutoCreateCertificate("subject_bracket", 0.95, true)).toBe(true);
+    });
+
+    it("blocks cert auto-create for low-confidence LLM match", () => {
+      expect(shouldAutoCreateCertificate("llm", 0.6, true)).toBe(false);
+      expect(shouldAutoCreateCertificate("llm", 0.89, true)).toBe(false);
+      expect(shouldAutoCreateCertificate("llm", null, true)).toBe(false);
+    });
+
+    it("allows cert auto-create for high-confidence LLM match at the floor", () => {
+      expect(shouldAutoCreateCertificate("llm", LLM_CERT_CONFIDENCE_FLOOR, true)).toBe(true);
+      expect(shouldAutoCreateCertificate("llm", 0.95, true)).toBe(true);
+      expect(shouldAutoCreateCertificate("llm", 1.0, true)).toBe(true);
+    });
+
+    it("blocks cert auto-create for worker_name fuzzy match (not in trusted set)", () => {
+      expect(shouldAutoCreateCertificate("worker_name", 0.99, true)).toBe(false);
+    });
+
+    it("blocks cert auto-create for unknown / none / new_case methods", () => {
+      expect(shouldAutoCreateCertificate("none", null, true)).toBe(false);
+      expect(shouldAutoCreateCertificate("new_case", null, true)).toBe(false);
+      expect(shouldAutoCreateCertificate("unknown", 1.0, true)).toBe(false);
+    });
   });
 
-  it("allows cert auto-create for sender_email match regardless of confidence", () => {
-    expect(shouldAutoCreateCertificate("sender_email", null)).toBe(true);
-    expect(shouldAutoCreateCertificate("sender_email", 0.2)).toBe(true);
-  });
+  describe("without a PDF cert attachment (hasCertAttachment=false) — phantom-cert guard", () => {
+    it("blocks cert auto-create even for thread match (no PDF = no cert)", () => {
+      expect(shouldAutoCreateCertificate("thread", 1.0, false)).toBe(false);
+    });
 
-  it("allows cert auto-create for claim_number match regardless of confidence", () => {
-    expect(shouldAutoCreateCertificate("claim_number", null)).toBe(true);
-    expect(shouldAutoCreateCertificate("claim_number", 0.3)).toBe(true);
-  });
+    it("blocks cert auto-create even for sender_email match (no PDF = no cert)", () => {
+      // This is the "Alan forwards 'Dr Lee will send cert tomorrow'" case.
+      expect(shouldAutoCreateCertificate("sender_email", 0.9, false)).toBe(false);
+    });
 
-  it("blocks cert auto-create for low-confidence LLM match", () => {
-    expect(shouldAutoCreateCertificate("llm", 0.6)).toBe(false);
-    expect(shouldAutoCreateCertificate("llm", 0.89)).toBe(false);
-    expect(shouldAutoCreateCertificate("llm", null)).toBe(false);
-  });
+    it("blocks cert auto-create even for claim_number match (no PDF = no cert)", () => {
+      expect(shouldAutoCreateCertificate("claim_number", 1.0, false)).toBe(false);
+    });
 
-  it("allows cert auto-create for high-confidence LLM match at the floor", () => {
-    expect(shouldAutoCreateCertificate("llm", LLM_CERT_CONFIDENCE_FLOOR)).toBe(true);
-    expect(shouldAutoCreateCertificate("llm", 0.95)).toBe(true);
-    expect(shouldAutoCreateCertificate("llm", 1.0)).toBe(true);
-  });
+    it("blocks cert auto-create even for subject_bracket match (no PDF = no cert)", () => {
+      expect(shouldAutoCreateCertificate("subject_bracket", 1.0, false)).toBe(false);
+    });
 
-  it("blocks cert auto-create for worker_name fuzzy match (not in trusted set)", () => {
-    expect(shouldAutoCreateCertificate("worker_name", 0.99)).toBe(false);
-  });
-
-  it("blocks cert auto-create for unknown / none / new_case methods", () => {
-    expect(shouldAutoCreateCertificate("none", null)).toBe(false);
-    expect(shouldAutoCreateCertificate("new_case", null)).toBe(false);
-    expect(shouldAutoCreateCertificate("unknown", 1.0)).toBe(false);
+    it("blocks cert auto-create for high-confidence LLM match without PDF", () => {
+      expect(shouldAutoCreateCertificate("llm", 1.0, false)).toBe(false);
+    });
   });
 });

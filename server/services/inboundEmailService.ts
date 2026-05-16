@@ -217,26 +217,38 @@ export async function processInboundEmail(payload: InboundEmailPayload): Promise
     }
   }
 
-  // 7. Detect certificate content
-  const certificateDetected = detectsCertificateContent(subject, bodyText) ||
-    attachments.some(a => isCertificateAttachment(a.filename, a.contentType));
+  // 7. Detect certificate signals — separate the strong signal (an actual
+  //    PDF attachment that looks like a cert) from the weak signal (body
+  //    keywords). The strong signal is what authorises a clinical write;
+  //    the weak signal alone still surfaces the email via the discussion
+  //    note created in step 6.
+  const hasCertAttachment = attachments.some((a) =>
+    isCertificateAttachment(a.filename, a.contentType),
+  );
+  const certKeywordsInContent = detectsCertificateContent(subject, bodyText);
+  const certificateDetected = hasCertAttachment || certKeywordsInContent;
 
-  // 8. If certificate detected, add a medical certificate record — gated on
-  //    match trust. High-trust methods (thread / sender_email / claim_number)
-  //    write unconditionally; LLM fuzzy-matches must clear a confidence floor
-  //    so we don't write clinical data into the wrong worker's case.
+  // 8. If a certificate is present, add a medical certificate record —
+  //    gated on BOTH match trust AND an actual PDF attachment. High-trust
+  //    methods (thread / sender_email / claim_number / subject_bracket)
+  //    write unconditionally when an attachment is present; LLM fuzzy
+  //    matches must additionally clear the confidence floor. Body-only
+  //    keyword mentions never auto-write — they may be a phantom cert
+  //    (forwards like "Dr Lee will send the cert tomorrow").
   if (certificateDetected && caseId) {
-    if (shouldAutoCreateCertificate(match.method, match.confidence ?? null)) {
+    if (shouldAutoCreateCertificate(match.method, match.confidence ?? null, hasCertAttachment)) {
       try {
         await createCertificateFromEmail(caseId, subject, bodyText, fromName, effectiveDate);
       } catch (err) {
         log.error("Failed to create certificate from email", {}, err);
       }
     } else {
-      log.warn("Skipping cert auto-create — match confidence below threshold", {
+      log.warn("Skipping cert auto-create — no attachment or insufficient trust", {
         caseId,
         matchMethod: match.method,
         matchConfidence: match.confidence,
+        hasCertAttachment,
+        certKeywordsInContent,
       });
     }
   }
@@ -275,8 +287,30 @@ export const LLM_CERT_CONFIDENCE_FLOOR = 0.9;
 /**
  * Decide whether an inbound email's match is trustworthy enough to auto-create
  * a medical certificate row. Pure function — easy to test, easy to audit.
+ *
+ * TWO conditions must hold:
+ *
+ *  1. **Trust** — the match method must be high-trust (thread / sender_email /
+ *     claim_number / subject_bracket) OR an LLM match clearing the confidence
+ *     floor. Without trust, even an attached PDF doesn't justify writing
+ *     clinical data because we may not know which worker it belongs to.
+ *
+ *  2. **Cert signal** — an actual PDF attachment that looks like a cert
+ *     (filename keywords + content type). Body keywords alone are not
+ *     enough — forwards like "Dr Lee will send the cert tomorrow" trigger
+ *     keyword detection but contain no cert, and we used to write a
+ *     phantom cert with capacity="unknown" and a default 2-week duration.
+ *
+ * Body-keyword-only emails still create a discussion-note via step 6 in
+ * processInboundEmail, so the email is visible for human review — it just
+ * doesn't write a clinical row automatically.
  */
-export function shouldAutoCreateCertificate(method: string, confidence: number | null): boolean {
+export function shouldAutoCreateCertificate(
+  method: string,
+  confidence: number | null,
+  hasCertAttachment: boolean,
+): boolean {
+  if (!hasCertAttachment) return false;
   if (HIGH_TRUST_MATCH_METHODS.has(method)) return true;
   if (method === "llm") return (confidence ?? 0) >= LLM_CERT_CONFIDENCE_FLOOR;
   return false;
