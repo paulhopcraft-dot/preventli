@@ -2506,6 +2506,27 @@ export const insertCaseEmailSchema = createInsertSchema(caseEmails);
 export const insertEmailAttachmentSchema = createInsertSchema(emailAttachments);
 
 // =============================================================================
+// Org Inbound Email Aliases — multi-tenant email-to-org routing
+// Maps a destination email address (e.g. "support@preventli.ai") to the owning
+// org. Replaces the single-tenant PREVENTLI_DEFAULT_INBOUND_ORG_ID env var and
+// enables correct routing when multiple orgs share the same inbound gateway.
+// =============================================================================
+
+export const orgInboundAliases = pgTable("org_inbound_aliases", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  orgId: varchar("org_id")
+    .notNull()
+    .references(() => organizations.id, { onDelete: "cascade" }),
+  emailAlias: varchar("email_alias").notNull().unique(), // e.g. "support@preventli.ai"
+  isDefault: boolean("is_default").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export type OrgInboundAliasDB = typeof orgInboundAliases.$inferSelect;
+export type InsertOrgInboundAlias = typeof orgInboundAliases.$inferInsert;
+export const insertOrgInboundAliasSchema = createInsertSchema(orgInboundAliases);
+
+// =============================================================================
 // Agentic System — Agent Jobs & Actions
 // =============================================================================
 
