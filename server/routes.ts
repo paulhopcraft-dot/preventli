@@ -162,13 +162,6 @@ export async function registerRoutes(app: Express): Promise<void> {
     }
   };
   app.get("/api/cases", authorize(), casesListHandler);
-  // Deprecated alias — remove after rebrand Tier 3 follow-up (~1 week post-deploy)
-  app.get("/api/gpnet2/cases", authorize(), (req: AuthRequest, res) => {
-    routeLogger.warn("Deprecated route hit: /api/gpnet2/cases — migrate caller to /api/cases", {
-      userAgent: req.headers["user-agent"],
-    });
-    return casesListHandler(req, res);
-  });
 
   // Smart Summary Engine v1 routes (JWT-protected)
   app.use("/api/cases", smartSummaryRoutes);

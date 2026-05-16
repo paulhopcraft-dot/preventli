@@ -46,7 +46,6 @@ export interface JWTPayload {
 }
 
 const COOKIE_NAME = "preventli_auth";
-const LEGACY_COOKIE_NAME = "gpnet_auth"; // Pre-rebrand; read-only fallback for in-flight sessions
 
 export function authorize(allowedRoles?: UserRole[]) {
   return async (req: AuthRequest, res: Response, next: NextFunction) => {
@@ -55,7 +54,7 @@ export function authorize(allowedRoles?: UserRole[]) {
       // Fall back to Authorization header for backwards compatibility
       let token: string | undefined;
 
-      const cookieToken = req.cookies?.[COOKIE_NAME] ?? req.cookies?.[LEGACY_COOKIE_NAME];
+      const cookieToken = req.cookies?.[COOKIE_NAME];
       if (cookieToken) {
         token = cookieToken;
       } else {
