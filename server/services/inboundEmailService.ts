@@ -1,5 +1,9 @@
 import { storage } from "../storage";
-import { matchEmailToCase, detectsCertificateContent } from "./emailMatcher";
+import {
+  matchEmailToCase,
+  detectsCertificateContent,
+  parseBracketedWorkerName,
+} from "./emailMatcher";
 import { llmMatchEmailToCase } from "./llmEmailMatcher";
 import { createLogger } from "../lib/logger";
 import type { InsertCaseEmail, InsertEmailAttachment, CaseEmailDB } from "@shared/schema";
@@ -254,7 +258,12 @@ export async function processInboundEmail(payload: InboundEmailPayload): Promise
  * a known sender email registered as a case contact, or an extracted
  * claim number that maps to exactly one case.
  */
-const HIGH_TRUST_MATCH_METHODS = new Set(["thread", "sender_email", "claim_number"]);
+const HIGH_TRUST_MATCH_METHODS = new Set([
+  "thread",
+  "sender_email",
+  "claim_number",
+  "subject_bracket",
+]);
 
 /**
  * Minimum LLM match confidence required to auto-write a medical certificate.
@@ -304,13 +313,20 @@ export function extractCaseInfoFromEmail(
   ];
 
   let workerName: string | null = null;
-  const cleaned = subject.replace(/^(RE|FW|Fwd):\s*/gi, "").trim();
 
-  for (const pattern of namePatterns) {
-    const match = cleaned.match(pattern);
-    if (match) {
-      workerName = match[1].trim();
-      break;
+  // 1. Bracket convention wins — explicit sender intent
+  const bracketed = parseBracketedWorkerName(subject);
+  if (bracketed) {
+    workerName = bracketed;
+  } else {
+    // 2. Fall back to fuzzy regex patterns
+    const cleaned = subject.replace(/^(RE|FW|Fwd):\s*/gi, "").trim();
+    for (const pattern of namePatterns) {
+      const match = cleaned.match(pattern);
+      if (match) {
+        workerName = match[1].trim();
+        break;
+      }
     }
   }
 

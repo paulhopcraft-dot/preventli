@@ -6,8 +6,48 @@ const log = createLogger("EmailMatcher");
 export interface MatchResult {
   caseId: string | null;
   organizationId: string | null;
-  method: "thread" | "claim_number" | "sender_email" | "worker_name" | "llm" | "new_case" | "none";
+  method:
+    | "thread"
+    | "claim_number"
+    | "sender_email"
+    | "subject_bracket"
+    | "worker_name"
+    | "llm"
+    | "new_case"
+    | "none";
   confidence: number;
+}
+
+/**
+ * Extract a bracketed worker name from the start of a subject.
+ *
+ * Convention we ask senders (e.g. partner client gatekeepers like Alan)
+ * to follow when forwarding doctor / lawyer / insurer mail into Preventli:
+ *
+ *   `[Marcus Wallara] Updated medical cert`
+ *   `Re: [Sarah Chen] insurer claim ack`
+ *   `Fwd: [Naomi Wright] phone call summary`
+ *
+ * Bracket extraction is deliberately strict — it strips Re:/Fw:/Fwd:
+ * prefixes once, then requires the bracket at the very start. Anywhere
+ * else (e.g. inline `[note]`) is ignored to avoid false positives.
+ *
+ * Returns the trimmed bracket contents, or null if no bracket at start.
+ * Pure function — easy to test, no I/O.
+ */
+export function parseBracketedWorkerName(subject: string): string | null {
+  if (!subject) return null;
+  const stripped = subject.replace(/^\s*(?:RE|FW|FWD):\s*/i, "").trim();
+  const match = stripped.match(/^\[\s*([A-Za-z][A-Za-z\s'\-.]{0,98}[A-Za-z.])\s*\]/);
+  if (!match) return null;
+  const candidate = match[1].trim().replace(/\s+/g, " ");
+  // Require at least 2 whitespace-separated tokens — first + last name.
+  // Reject single tokens like `[Note]` or `[FYI]` that look like bracket
+  // metadata, not a person.
+  const parts = candidate.split(/\s+/);
+  if (parts.length < 2) return null;
+  if (parts.some((p) => p.length < 1)) return null;
+  return candidate;
 }
 
 /**
@@ -36,7 +76,29 @@ export async function matchEmailToCase(email: {
     }
   }
 
-  // 2. Claim number from subject (e.g., "08260050789" or "Claim #08260050789")
+  // 2. Subject bracket — explicit user convention. Higher trust than fuzzy
+  //    name regex because the sender deliberately tagged the worker.
+  const bracketName = parseBracketedWorkerName(email.subject);
+  if (bracketName) {
+    const caseMatch = await storage.findCaseByWorkerName(bracketName);
+    if (caseMatch && caseMatch.confidence > 0.7) {
+      log.info("Matched by subject bracket", {
+        bracketName,
+        caseId: caseMatch.caseId,
+        confidence: caseMatch.confidence,
+      });
+      return {
+        caseId: caseMatch.caseId,
+        organizationId: caseMatch.organizationId,
+        method: "subject_bracket",
+        // Bracket is explicit intent — use storage's confidence directly,
+        // no discount.
+        confidence: caseMatch.confidence,
+      };
+    }
+  }
+
+  // 3. Claim number from subject (e.g., "08260050789" or "Claim #08260050789")
   const claimNumberMatch = email.subject.match(/\b(0\d{10})\b/);
   if (claimNumberMatch) {
     const claimNumber = claimNumberMatch[1];
@@ -45,7 +107,7 @@ export async function matchEmailToCase(email: {
     log.debug("Found claim number in subject", { claimNumber });
   }
 
-  // 3. Sender email → case_contacts lookup
+  // 4. Sender email → case_contacts lookup
   const contactMatch = await storage.findCaseContactByEmail(email.fromEmail);
   if (contactMatch) {
     log.info("Matched by sender email via contacts", { email: email.fromEmail, caseId: contactMatch.caseId });
@@ -57,7 +119,7 @@ export async function matchEmailToCase(email: {
     };
   }
 
-  // 4. Worker name extraction from subject
+  // 5. Worker name extraction from subject (fuzzy regex fallback)
   const workerName = extractWorkerNameFromSubject(email.subject);
   if (workerName) {
     const caseMatch = await storage.findCaseByWorkerName(workerName);

@@ -5,7 +5,13 @@ import { describe, it, expect, vi } from "vitest";
 // rtwAutoDrafter.test.ts. We only test the pure helpers below.
 vi.mock("../storage", () => ({ storage: {} }));
 vi.mock("../lib/logger", () => ({ createLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn() }) }));
-vi.mock("./emailMatcher", () => ({ matchEmailToCase: vi.fn(), detectsCertificateContent: vi.fn() }));
+vi.mock("./emailMatcher", () => ({
+  matchEmailToCase: vi.fn(),
+  detectsCertificateContent: vi.fn(),
+  // Default to "no bracket found" so existing fuzzy-regex tests still hit
+  // the fallback path. Tests that want bracket behaviour mock this directly.
+  parseBracketedWorkerName: vi.fn(() => null),
+}));
 vi.mock("./llmEmailMatcher", () => ({ llmMatchEmailToCase: vi.fn() }));
 
 import {
