@@ -1,0 +1,6 @@
+[2026-05-16T10:16:33Z] step 1/6: done — server/storage.ts (getFailedCaseEmails + assignEmailToCase interface + impl)
+[2026-05-16T10:16:33Z] step 2/6: done — server/routes/admin/inbound-emails.ts (new file: GET + POST /:id/assign)
+[2026-05-16T10:16:33Z] step 3/6: done — server/routes.ts (import + app.use registration)
+[2026-05-16T10:16:33Z] step 4/6: done — client/src/pages/admin/InboundEmailTriagePage.tsx (new file: triage UI with table + inline assign form)
+[2026-05-16T10:16:33Z] step 5/6: done — client/src/App.tsx (lazy import + /admin/inbound-emails route)
+[2026-05-16T10:16:33Z] step 6/6: done — client/src/pages/admin/AdminDashboard.tsx (Email Triage stat card with Mail icon + amber scheme)
