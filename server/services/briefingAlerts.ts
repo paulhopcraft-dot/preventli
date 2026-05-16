@@ -20,7 +20,8 @@ export type AlertSeverity = "high" | "medium" | "low";
 
 export type AlertCategory =
   | "gp_escalation"
-  | "compliance";
+  | "compliance"
+  | "off_work";
 
 export interface BriefingAlert {
   id: string;
@@ -36,6 +37,9 @@ export interface BriefingAlert {
 
 const GP_HIGH_THRESHOLD_DAYS = 14;
 const LOW_COMPLIANCE: ComplianceIndicator[] = ["Low", "Very Low"];
+const OFF_WORK_MEDIUM_DAYS = 90;
+const OFF_WORK_HIGH_DAYS = 180;
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 function severityFromGpDays(daysOverdue: number): AlertSeverity {
   if (daysOverdue >= GP_HIGH_THRESHOLD_DAYS) return "high";
@@ -53,8 +57,15 @@ const SEVERITY_RANK: Record<AlertSeverity, number> = { high: 3, medium: 2, low: 
 /**
  * Compose alerts from a list of cases. Returns top N alerts, ordered by
  * severity desc, then by days overdue desc (for GP escalations).
+ *
+ * `today` defaults to `new Date()`; pass an explicit Date in tests so the
+ * off-work-duration math stays deterministic.
  */
-export function composeBriefingAlerts(cases: WorkerCase[], limit = 5): BriefingAlert[] {
+export function composeBriefingAlerts(
+  cases: WorkerCase[],
+  limit = 5,
+  today: Date = new Date(),
+): BriefingAlert[] {
   const alerts: BriefingAlert[] = [];
 
   for (const c of cases) {
@@ -94,6 +105,26 @@ export function composeBriefingAlerts(cases: WorkerCase[], limit = 5): BriefingA
       });
     }
 
+    // Off-work duration — long-tail cases drift if nobody reviews them.
+    if (c.workStatus === "Off work" && c.dateOfInjury) {
+      const injuryDate = new Date(c.dateOfInjury);
+      if (!Number.isNaN(injuryDate.getTime())) {
+        const daysOff = Math.floor((today.getTime() - injuryDate.getTime()) / MS_PER_DAY);
+        if (daysOff >= OFF_WORK_MEDIUM_DAYS) {
+          const severity: AlertSeverity = daysOff >= OFF_WORK_HIGH_DAYS ? "high" : "medium";
+          alerts.push({
+            id: `off-work-${c.id}`,
+            severity,
+            category: "off_work",
+            title: `${c.workerName} has been off work for ${daysOff} days`,
+            detail: c.currentStatus?.trim() || "Long-duration claim — drift risk if not actively managed.",
+            caseId: c.id,
+            workerName: c.workerName,
+            suggestedAction: "Review treatment plan and consider next steps.",
+          });
+        }
+      }
+    }
   }
 
   // Severity desc, then GP days overdue desc for tie-breaking.

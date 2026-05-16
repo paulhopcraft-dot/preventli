@@ -8,7 +8,10 @@ function makeCase(overrides: Partial<WorkerCase> & { id: string; workerName: str
     organizationId: "org-test",
     workerName: overrides.workerName,
     company: "TestCo",
-    dateOfInjury: "2026-01-01",
+    // Default to a recent injury date so pre-existing tests don't trip the
+    // off-work duration alert (>=90d threshold). Tests targeting off-work
+    // duration override this explicitly.
+    dateOfInjury: "2026-05-01",
     riskLevel: "Medium" as any,
     workStatus: "Off work" as any,
     hasCertificate: true,
@@ -163,6 +166,84 @@ describe("composeBriefingAlerts", () => {
     ]);
     expect(alerts[0].title).toContain("1 day overdue");
     expect(alerts[0].title).not.toContain("1 days");
+  });
+
+  it("does NOT flag off-work duration below 90 days", () => {
+    const today = new Date("2026-05-16T00:00:00.000Z");
+    const alerts = composeBriefingAlerts(
+      [
+        makeCase({
+          id: "c1",
+          workerName: "Recent Rick",
+          workStatus: "Off work" as any,
+          dateOfInjury: "2026-04-01", // ~45 days ago
+        }),
+      ],
+      5,
+      today,
+    );
+    expect(alerts).toHaveLength(0);
+  });
+
+  it("flags off-work duration at 90 days as medium", () => {
+    const today = new Date("2026-05-16T00:00:00.000Z");
+    const alerts = composeBriefingAlerts(
+      [
+        makeCase({
+          id: "c1",
+          workerName: "Three Month Tim",
+          workStatus: "Off work" as any,
+          dateOfInjury: "2026-02-15", // 90 days back from 2026-05-16
+          currentStatus: "Awaiting GP follow-up",
+        }),
+      ],
+      5,
+      today,
+    );
+    expect(alerts).toHaveLength(1);
+    expect(alerts[0].category).toBe("off_work");
+    expect(alerts[0].severity).toBe("medium");
+    expect(alerts[0].title).toBe("Three Month Tim has been off work for 90 days");
+    expect(alerts[0].detail).toBe("Awaiting GP follow-up");
+    expect(alerts[0].suggestedAction).toBe("Review treatment plan and consider next steps.");
+  });
+
+  it("escalates off-work duration to high at 180 days", () => {
+    const today = new Date("2026-05-16T00:00:00.000Z");
+    const alerts = composeBriefingAlerts(
+      [
+        makeCase({
+          id: "c1",
+          workerName: "Six Month Sam",
+          workStatus: "Off work" as any,
+          dateOfInjury: "2025-11-17", // 180 days back from 2026-05-16
+          currentStatus: "", // exercise the generic fallback
+        }),
+      ],
+      5,
+      today,
+    );
+    expect(alerts[0].severity).toBe("high");
+    expect(alerts[0].title).toContain("180 days");
+    // Generic detail when currentStatus absent
+    expect(alerts[0].detail).toContain("Long-duration claim");
+  });
+
+  it("does NOT flag long-duration cases that aren't currently off work", () => {
+    const today = new Date("2026-05-16T00:00:00.000Z");
+    const alerts = composeBriefingAlerts(
+      [
+        makeCase({
+          id: "c1",
+          workerName: "Working Wendy",
+          workStatus: "At work" as any,
+          dateOfInjury: "2025-01-01", // way past threshold but back at work
+        }),
+      ],
+      5,
+      today,
+    );
+    expect(alerts).toHaveLength(0);
   });
 
   it("can yield multiple alerts per case (independent dimensions)", () => {

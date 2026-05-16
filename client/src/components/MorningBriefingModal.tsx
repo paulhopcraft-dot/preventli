@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
-import { X, AlertCircle, Stethoscope, ShieldAlert, CheckCircle2 } from "lucide-react";
+import { X, AlertCircle, Stethoscope, ShieldAlert, CalendarClock, CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 
 type AlertSeverity = "high" | "medium" | "low";
-type AlertCategory = "gp_escalation" | "compliance";
+type AlertCategory = "gp_escalation" | "compliance" | "off_work";
 
 interface BriefingAlert {
   id: string;
@@ -39,6 +39,7 @@ const SEVERITY_STYLES: Record<AlertSeverity, string> = {
 const CATEGORY_ICON: Record<AlertCategory, typeof Stethoscope> = {
   gp_escalation: Stethoscope,
   compliance: ShieldAlert,
+  off_work: CalendarClock,
 };
 
 const SEVERITY_ICON_COLOR: Record<AlertSeverity, string> = {
