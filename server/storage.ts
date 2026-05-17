@@ -724,6 +724,8 @@ export interface IStorage {
   createEmailAttachment(attachment: InsertEmailAttachment): Promise<EmailAttachmentDB>;
   getEmailAttachments(emailId: string): Promise<EmailAttachmentDB[]>;
   findCaseContactByEmail(email: string): Promise<{ caseId: string; organizationId: string; role: string } | null>;
+  getFailedCaseEmails(): Promise<CaseEmailDB[]>;
+  assignEmailToCase(emailId: string, caseId: string): Promise<CaseEmailDB>;
 
   // Chat Memory — Dr. Alex per-case/worker conversation history
   getChatMemory(key: { caseId?: string; workerId?: string }, limit?: number): Promise<ChatMemoryDB[]>;
@@ -4188,6 +4190,25 @@ class DbStorage implements IStorage {
       .set(updates)
       .where(eq(caseEmails.id, id))
       .returning();
+    return updated;
+  }
+
+  async getFailedCaseEmails(): Promise<CaseEmailDB[]> {
+    return db
+      .select()
+      .from(caseEmails)
+      .where(isNull(caseEmails.caseId))
+      .orderBy(desc(caseEmails.receivedAt))
+      .limit(200);
+  }
+
+  async assignEmailToCase(emailId: string, caseId: string): Promise<CaseEmailDB> {
+    const [updated] = await db
+      .update(caseEmails)
+      .set({ caseId, processingStatus: "matched", matchMethod: "manual" } as any)
+      .where(eq(caseEmails.id, emailId))
+      .returning();
+    if (!updated) throw new Error(`Email ${emailId} not found`);
     return updated;
   }
 

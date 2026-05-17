@@ -36,6 +36,7 @@ const RoleForm = lazy(() => import("./pages/admin/roles/RoleForm"));
 const DutiesList = lazy(() => import("./pages/admin/duties/DutiesList"));
 const DutyForm = lazy(() => import("./pages/admin/duties/DutyForm"));
 
+const InboundEmailTriagePage = lazy(() => import("./pages/admin/InboundEmailTriagePage"));
 const CompanySettings = lazy(() => import("./pages/CompanySettings"));
 const CasesPage = lazy(() => import("./pages/CasesPage"));
 const CaseSummaryPage = lazy(() => import("./pages/CaseSummaryPage"));
@@ -628,6 +629,14 @@ export default function App() {
                       element={
                         <Suspense fallback={<PageLoader />}>
                           <ControlTowerPage />
+                        </Suspense>
+                      }
+                    />
+                    <Route
+                      path="inbound-emails"
+                      element={
+                        <Suspense fallback={<PageLoader />}>
+                          <InboundEmailTriagePage />
                         </Suspense>
                       }
                     />
