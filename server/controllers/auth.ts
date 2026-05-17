@@ -411,6 +411,7 @@ export async function me(req: AuthRequest, res: Response) {
         subrole: users.subrole,
         companyId: users.companyId,
         insurerId: users.insurerId,
+        preferredName: users.preferredName,
         createdAt: users.createdAt,
       })
       .from(users)

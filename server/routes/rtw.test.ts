@@ -15,7 +15,7 @@ const VALID_TRANSITIONS: Record<RTWPlanStatus, RTWPlanStatus[]> = {
   working_well: ["in_progress", "completed", "on_hold"],
   failing: ["in_progress", "on_hold", "not_planned"],
   on_hold: ["planned_not_started", "in_progress", "not_planned"],
-  completed: [], // Terminal state
+  completed: [], // Terminal state - no transitions out (admin override only)
 };
 
 function isValidTransition(from: RTWPlanStatus | undefined, to: RTWPlanStatus): boolean {

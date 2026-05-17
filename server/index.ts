@@ -111,6 +111,10 @@ app.get("/api/csrf-token", getCsrfToken);
 import inboundEmailRoutes from "./routes/inbound-email";
 app.use("/api/inbound-email", inboundEmailRoutes);
 
+// Postmark inbound webhook (basic-auth, before CSRF)
+import postmarkInboundRoutes from "./routes/postmark-inbound";
+app.use("/api/webhooks/postmark", postmarkInboundRoutes);
+
 // API docs imports (used inside startServer, after routes)
 import swaggerUi from "swagger-ui-express";
 import { openApiSpec } from "./lib/openapi";

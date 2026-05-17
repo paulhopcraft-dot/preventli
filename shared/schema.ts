@@ -754,6 +754,15 @@ export interface WorkerCase {
 
   // Phase 11.2 — Disputed Claims
   disputeStatus?: DisputeStatus;
+
+  // GP escalation detection (computed, not stored). Surfaces cases where the
+  // latest medical certificate expired beyond the org's threshold without a
+  // fresh cert arriving — signal to chase the GP or trigger an IME.
+  gpEscalation?: {
+    escalated: boolean;
+    daysOverdue: number;
+    reason: "no_certificate" | "no_end_date" | "cert_current" | "cert_expired_no_followup";
+  };
 }
 
 // Paginated response for cases list endpoint
@@ -1067,6 +1076,10 @@ export const users = pgTable("users", {
   organizationId: varchar("organization_id").notNull(), // Added in migration 0003
   companyId: varchar("company_id"), // Deprecated - use organizationId
   insurerId: varchar("insurer_id"), // UUID reference to insurer
+  // How Alex addresses the user ("morning {preferredName}"). Captured at
+  // setup or in profile settings. Nullable: falls back to email-derived
+  // first name when missing.
+  preferredName: text("preferred_name"),
   isActive: boolean("is_active").notNull().default(true),
   emailVerified: boolean("email_verified").notNull().default(false),
   emailVerifiedAt: timestamp("email_verified_at"),
@@ -1772,6 +1785,8 @@ export const organizations = pgTable("organizations", {
   notificationEmails: text("notification_emails"), // comma-separated; trimmed + lowercased on write
   employeeCount: text("employee_count").$type<EmployeeCountBand>(),
   notes: text("notes"),
+  // GP escalation detection: days past latest cert expiry before flagging the case
+  gpEscalationThresholdDays: integer("gp_escalation_threshold_days").notNull().default(7),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

@@ -215,13 +215,17 @@ router.post("/jobs/:jobId/reject-action", authorize(), async (req: AuthRequest, 
 // authenticated user's active organization. Used by the employer dashboard
 // to render the "Good morning {firstName}, ..." card.
 
-const FIRST_NAME_OVERRIDES: Record<string, string> = {
-  "wallara@wallara.com.au": "Ellen",
-};
-
-function deriveFirstName(email: string): string {
-  const override = FIRST_NAME_OVERRIDES[email.toLowerCase()];
-  if (override) return override;
+/**
+ * Pick the name Alex uses to address the user.
+ *
+ * Order: explicit `users.preferredName` → first token of the email local-part,
+ * title-cased → literal "there". The hardcoded per-email override map this
+ * function used to carry has been replaced by the database column so the
+ * behavior is data-driven and editable by the end-user (Alex training goal).
+ */
+export function deriveFirstName(email: string, preferredName: string | null | undefined): string {
+  const cleaned = (preferredName ?? "").trim();
+  if (cleaned) return cleaned;
   const prefix = (email.split("@")[0] || "").split(/[.\-_+]/)[0] || "";
   if (!prefix) return "there";
   return prefix.charAt(0).toUpperCase() + prefix.slice(1).toLowerCase();
@@ -247,13 +251,13 @@ router.get("/latest-briefing", authorize(), async (req: AuthRequest, res) => {
       .orderBy(desc(agentJobs.completedAt))
       .limit(1);
 
-    // Look up email for firstName derivation (User type has no name fields).
+    // Look up email + preferredName for greeting.
     const [u] = await db
-      .select({ email: users.email })
+      .select({ email: users.email, preferredName: users.preferredName })
       .from(users)
       .where(eq(users.id, req.user!.id))
       .limit(1);
-    const firstName = u ? deriveFirstName(u.email) : "there";
+    const firstName = u ? deriveFirstName(u.email, u.preferredName) : "there";
 
     if (!job || !job.summary) {
       return res.json({ summary: null, completedAt: null, firstName });

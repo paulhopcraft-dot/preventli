@@ -194,6 +194,7 @@ async function seedWallara(): Promise<void> {
     password: passwordHash,
     role: "employer",
     subrole: "people-and-culture-manager",
+    preferredName: "Ellen",
     companyId: null,
     insurerId: null,
     isActive: true,

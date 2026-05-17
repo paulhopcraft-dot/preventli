@@ -33,7 +33,7 @@ const inboundEmailSchema = z.object({
     sizeBytes: z.number().int().min(0),
     base64Data: z.string().optional(),
   })).optional(),
-  source: z.enum(["sendgrid", "demo", "freshdesk", "manual"]).optional(),
+  source: z.enum(["sendgrid", "postmark", "demo", "freshdesk", "manual"]).optional(),
   receivedAt: z.string().optional(),
 });
 

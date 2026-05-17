@@ -67,6 +67,7 @@ import { LIFECYCLE_TRANSITIONS } from "@shared/schema";
 import { db } from "./db";
 import {
   workerCases,
+  organizations,
   caseAttachments,
   isLegitimateCase,
   medicalCertificates,
@@ -109,6 +110,7 @@ import {
 } from "@shared/schema";
 import { evaluateClinicalEvidence } from "./services/clinicalEvidence";
 import { combineRestrictions } from "./services/restrictionMapper";
+import { detectGpEscalation } from "./services/gpEscalation";
 import { eq, desc, asc, inArray, ilike, sql, and, lte, gte, or, isNull, ne } from "drizzle-orm";
 import { logger } from "./lib/logger";
 
@@ -731,6 +733,16 @@ export interface IStorage {
 }
 
 class DbStorage implements IStorage {
+  private async resolveGpEscalationThreshold(organizationId: string | null | undefined): Promise<number> {
+    if (!organizationId) return 7;
+    const row = await db
+      .select({ days: organizations.gpEscalationThresholdDays })
+      .from(organizations)
+      .where(eq(organizations.id, organizationId))
+      .limit(1);
+    return row[0]?.days ?? 7;
+  }
+
   async getCases(organizationId: string, isAdmin?: boolean): Promise<WorkerCase[]> {
     const dbCases = await db
       .select()
@@ -814,9 +826,17 @@ class DbStorage implements IStorage {
       }
     }
 
+    const gpEscalationThresholdDays = await this.resolveGpEscalationThreshold(isAdmin ? null : organizationId);
+    const today = new Date();
+
     const casesWithAttachments = dbCases.map((dbCase: WorkerCaseDB) => {
         const attachments = attachmentsByCase.get(dbCase.id) || [];
         const latestCertificate = latestCertByCase.get(dbCase.id);
+        const gpEscalation = detectGpEscalation({
+          latestCert: latestCertificate ? { endDate: latestCertificate.endDate ?? null } : null,
+          today,
+          thresholdDays: gpEscalationThresholdDays,
+        });
 
         const workerCase: WorkerCase = {
           id: dbCase.id,
@@ -831,6 +851,7 @@ class DbStorage implements IStorage {
           certificateUrl: dbCase.certificateUrl || undefined,
           complianceIndicator: dbCase.complianceIndicator as any,
           compliance: dbCase.complianceJson as any, // Parse JSONB compliance object
+          gpEscalation,
           complianceOverride: (dbCase as any).complianceOverride || false,
           complianceOverrideValue: (dbCase as any).complianceOverrideValue || undefined,
           complianceOverrideReason: (dbCase as any).complianceOverrideReason || undefined,
@@ -984,9 +1005,17 @@ class DbStorage implements IStorage {
       }
     }
 
+    const gpEscalationThresholdDays = await this.resolveGpEscalationThreshold(organizationId);
+    const today = new Date();
+
     const casesWithAttachments = dbCases.map((dbCase: WorkerCaseDB) => {
         const attachments = attachmentsByCase.get(dbCase.id) || [];
         const latestCertificate = latestCertByCase.get(dbCase.id);
+        const gpEscalation = detectGpEscalation({
+          latestCert: latestCertificate ? { endDate: latestCertificate.endDate ?? null } : null,
+          today,
+          thresholdDays: gpEscalationThresholdDays,
+        });
 
         const workerCase: WorkerCase = {
           id: dbCase.id,
@@ -1001,6 +1030,7 @@ class DbStorage implements IStorage {
           certificateUrl: dbCase.certificateUrl || undefined,
           complianceIndicator: dbCase.complianceIndicator as any,
           compliance: dbCase.complianceJson as any,
+          gpEscalation,
           complianceOverride: (dbCase as any).complianceOverride || false,
           complianceOverrideValue: (dbCase as any).complianceOverrideValue || undefined,
           complianceOverrideReason: (dbCase as any).complianceOverrideReason || undefined,
@@ -1096,6 +1126,13 @@ class DbStorage implements IStorage {
     const discussionNotes = await this.getCaseDiscussionNotes(id, organizationId, 5);
     const discussionInsights = await this.getCaseDiscussionInsights(id, organizationId, 5);
 
+    const gpEscalationThresholdDays = await this.resolveGpEscalationThreshold(organizationId);
+    const gpEscalation = detectGpEscalation({
+      latestCert: latestCertificate ? { endDate: latestCertificate.endDate ?? null } : null,
+      today: new Date(),
+      thresholdDays: gpEscalationThresholdDays,
+    });
+
     const workerCase = dbCase[0];
     const caseData: WorkerCase = {
       id: workerCase.id,
@@ -1109,6 +1146,7 @@ class DbStorage implements IStorage {
       certificateUrl: workerCase.certificateUrl || undefined,
       complianceIndicator: workerCase.complianceIndicator as any,
       compliance: workerCase.complianceJson as any, // Parse JSONB compliance object
+      gpEscalation,
       medicalConstraints: workerCase.clinicalStatusJson?.medicalConstraints,
       functionalCapacity: workerCase.clinicalStatusJson?.functionalCapacity,
       rtwPlanStatus: workerCase.clinicalStatusJson?.rtwPlanStatus,
