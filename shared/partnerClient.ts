@@ -8,6 +8,12 @@ const optionalEmpty = (s: z.ZodString) =>
     .transform((v) => (v === undefined || v === "" ? undefined : v))
     .pipe(s.optional());
 
+const optionalEnumEmpty = <T extends readonly [string, ...string[]]>(values: T) =>
+  z.preprocess(
+    (v) => (v === "" ? undefined : v),
+    z.enum(values as unknown as [string, ...string[]]).optional()
+  );
+
 const abnSchema = z
   .string()
   .regex(/^\d{11}$/, "ABN must be exactly 11 digits");
@@ -50,13 +56,13 @@ const notificationEmailsSchema = z
 const baseFields = {
   name: z.string().min(2, "Name must be at least 2 characters").max(200),
   abn: optionalEmpty(abnSchema),
-  worksafeState: z.enum(auStateCodes).optional(),
+  worksafeState: optionalEnumEmpty(auStateCodes),
   policyNumber: optionalEmpty(z.string().max(100)),
   wicCode: optionalEmpty(z.string().max(20)),
   addressLine1: optionalEmpty(z.string().max(200)),
   addressLine2: optionalEmpty(z.string().max(200)),
   suburb: optionalEmpty(z.string().max(100)),
-  state: z.enum(auStateCodes).optional(),
+  state: optionalEnumEmpty(auStateCodes),
   postcode: optionalEmpty(postcodeSchema),
   insurerId: optionalEmpty(z.string()),
   insurerClaimContactEmail: optionalEmpty(z.string().email()),
@@ -70,7 +76,7 @@ const baseFields = {
   hrContactEmail: optionalEmpty(z.string().email()),
   hrContactPhone: optionalEmpty(phoneSchema),
   notificationEmails: notificationEmailsSchema.optional(),
-  employeeCount: z.enum(employeeCountBands).optional(),
+  employeeCount: optionalEnumEmpty(employeeCountBands),
   notes: optionalEmpty(z.string().max(2000)),
   logoUrl: optionalEmpty(z.string().max(500)),
 };
