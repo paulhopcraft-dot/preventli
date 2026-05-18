@@ -315,6 +315,20 @@ const startServer = async () => {
       )
     `);
     await pool.query(`CREATE INDEX IF NOT EXISTS worker_engagement_scores_worker_idx ON worker_engagement_scores(worker_id, created_at DESC)`);
+    // funding-bundle Phase 3: insurer_escalations table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS insurer_escalations (
+        id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+        case_id varchar NOT NULL REFERENCES worker_cases(id) ON DELETE CASCADE,
+        triggered_by_user_id varchar NOT NULL,
+        score_at_trigger numeric(5,2) NOT NULL,
+        threshold_at_trigger numeric(5,2) NOT NULL,
+        message_body text NOT NULL,
+        stub_response jsonb DEFAULT '{}'::jsonb,
+        created_at timestamp DEFAULT now() NOT NULL
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS insurer_escalations_case_idx ON insurer_escalations(case_id, created_at DESC)`);
     // funding-bundle Phase 2: case_cost_estimates table
     await pool.query(`
       CREATE TABLE IF NOT EXISTS case_cost_estimates (

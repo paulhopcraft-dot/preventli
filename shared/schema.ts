@@ -2597,6 +2597,25 @@ export type InsertWorkerEngagementScore = typeof workerEngagementScores.$inferIn
 export const insertWorkerEngagementScoreSchema = createInsertSchema(workerEngagementScores);
 
 // =============================================================================
+// Insurer Escalations — clinician triggers + stub responses
+// (funding-bundle Phase 3). Real adapter wires in v2 — see ADR-0002.
+// =============================================================================
+export const insurerEscalations = pgTable("insurer_escalations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  caseId: varchar("case_id").notNull().references(() => workerCases.id, { onDelete: "cascade" }),
+  triggeredByUserId: varchar("triggered_by_user_id").notNull(),
+  scoreAtTrigger: numeric("score_at_trigger", { precision: 5, scale: 2 }).notNull(),
+  thresholdAtTrigger: numeric("threshold_at_trigger", { precision: 5, scale: 2 }).notNull(),
+  messageBody: text("message_body").notNull(),
+  stubResponse: jsonb("stub_response").$type<Record<string, unknown>>().default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export type InsurerEscalationDB = typeof insurerEscalations.$inferSelect;
+export type InsertInsurerEscalation = typeof insurerEscalations.$inferInsert;
+export const insertInsurerEscalationSchema = createInsertSchema(insurerEscalations);
+
+// =============================================================================
 // Agentic System — Agent Jobs & Actions
 // =============================================================================
 

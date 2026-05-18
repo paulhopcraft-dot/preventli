@@ -8,6 +8,7 @@ import { LIFECYCLE_TRANSITIONS, LIFECYCLE_STAGE_LABELS, type CaseLifecycleStage 
 import { logger } from "../lib/logger";
 import { auditLog } from "../lib/auditLog";
 import { recomputeFor } from "../services/costEstimate";
+import { recomputeEngagementFor } from "../services/engagementRecompute";
 
 const router = express.Router();
 const requireAuth = authorize();
@@ -130,6 +131,11 @@ router.patch(
 
       // Recompute cost estimate after lifecycle change (best-effort, never throws)
       await recomputeFor(caseId);
+
+      // fire-and-forget — engagement recompute is best-effort
+      if (workerCase.workerId) {
+        recomputeEngagementFor(workerCase.workerId, "case.updated").catch(() => {});
+      }
 
       return res.json({
         success: true,

@@ -27,6 +27,7 @@ import { generateModificationSuggestions } from "../services/modificationSuggest
 import { logAuditEvent, getRequestMetadata } from "../services/auditLogger";
 import { auditLog } from "../lib/auditLog";
 import { logger } from "../lib/logger";
+import { recomputeEngagementFor } from "../services/engagementRecompute";
 import { generateRTWPlanEmail, type RTWPlanEmailContext } from "../services/rtwEmailService";
 import { sendEmail } from "../services/emailService";
 import { format } from "date-fns";
@@ -354,6 +355,11 @@ router.post("/", async (req: AuthRequest, res) => {
       caseId: planData.caseId,
       planType: planData.planType,
     });
+
+    // fire-and-forget — engagement recompute is best-effort
+    if (workerCase.workerId) {
+      recomputeEngagementFor(workerCase.workerId, "rtw-plan.updated").catch(() => {});
+    }
 
     res.status(201).json({
       success: true,

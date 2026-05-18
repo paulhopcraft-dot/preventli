@@ -26,3 +26,4 @@ Format: `[<ISO-8601>] step <N>/18: <status> — <files-touched-if-any>`
 [2026-05-19T00:00:00Z] step 2.4/18: done — client/src/components/ClaimCostCard.tsx, client/src/pages/CaseSummaryPage.tsx
 [2026-05-18T23:10:28Z] step 2.5/18: done — server/routes/portfolio-cost-summary.ts, server/routes.ts, server/storage.ts, client/src/components/PortfolioCostCard.tsx, client/src/pages/ReportsPage.tsx (executor stalled on report, verified manually 10/10)
 [2026-05-19T07:15:00Z] step 3.2/18: done — server/services/insurerStub.ts, server/services/insurerStub.test.ts
+[2026-05-19T08:30:00Z] step 3.3/18: done — shared/schema.ts, server/index.ts, server/storage.ts, server/services/engagementRecompute.ts, server/routes/certificates.ts, server/routes/contact-suppressions.ts, server/routes/lifecycle.ts, server/routes/rtwPlans.ts

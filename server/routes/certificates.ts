@@ -5,6 +5,7 @@ import { authorize } from "../middleware/auth";
 import { insertMedicalCertificateSchema, type FunctionalRestrictionsExtracted } from "@shared/schema";
 import { extractCertificateData } from "../services/certificateService";
 import { auditLog } from "../lib/auditLog";
+import { recomputeEngagementFor } from "../services/engagementRecompute";
 
 // Type guard to ensure functionalRestrictionsJson is properly typed
 function validateFunctionalRestrictions(value: any): FunctionalRestrictionsExtracted | null {
@@ -49,6 +50,11 @@ router.post("/", requireAuth, async (req: Request, res: Response) => {
       actor: req.user!.id,
       payload: { certificateId: certificate.id, organizationId: certificate.organizationId },
     });
+
+    // fire-and-forget — engagement recompute is best-effort
+    if (certificate.workerId) {
+      recomputeEngagementFor(certificate.workerId, "certificate.added").catch(() => {});
+    }
 
     res.json({ success: true, data: certificate });
   } catch (error: any) {

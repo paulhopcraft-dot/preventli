@@ -4,6 +4,7 @@ import { storage } from "../storage";
 import { authorize, type AuthRequest } from "../middleware/auth";
 import { auditLog } from "../lib/auditLog";
 import { logger } from "../lib/logger";
+import { recomputeEngagementFor } from "../services/engagementRecompute";
 
 const router = express.Router();
 const requireAuth = authorize(["admin", "employer", "clinician"]);
@@ -44,6 +45,9 @@ router.post(
         payload: { reason, suppressionId: created.id },
       });
 
+      // fire-and-forget — engagement recompute is best-effort
+      recomputeEngagementFor(workerId, "contact.suppressed").catch(() => {});
+
       return res.status(201).json(created);
     } catch (err) {
       logger.api.error("[ContactSuppressions] POST error", {}, err);
@@ -79,6 +83,9 @@ router.delete(
         actor,
         payload: { suppressionId: id, reason },
       });
+
+      // fire-and-forget — engagement recompute is best-effort
+      recomputeEngagementFor(updated.workerId, "contact.unsuppressed").catch(() => {});
 
       return res.status(200).json(updated);
     } catch (err) {

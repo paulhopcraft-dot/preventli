@@ -68,6 +68,10 @@
   InsertContactSuppression,
   CaseCostEstimateDB,
   InsertCaseCostEstimate,
+  WorkerEngagementScoreDB,
+  InsertWorkerEngagementScore,
+  InsurerEscalationDB,
+  InsertInsurerEscalation,
 } from "@shared/schema";
 import { LIFECYCLE_TRANSITIONS } from "@shared/schema";
 import { db } from "./db";
@@ -109,6 +113,8 @@ import {
   auditEvents,
   contactSuppressions,
   caseCostEstimates,
+  workerEngagementScores,
+  insurerEscalations,
   type RTWPlanDB,
   type RTWPlanVersionDB,
   type RTWPlanDutyDB,
@@ -756,6 +762,13 @@ export interface IStorage {
   getCaseCostEstimate(caseId: string): Promise<CaseCostEstimateDB | null>;
   getOrgCaseCostStats(organizationId: string): Promise<{ caseCount: number; avgCaseCostDollars: number | null }>;
   getOrgTotalEstimatedCost(organizationId: string): Promise<number>;
+
+  // Engagement Scores + Insurer Escalations (funding-bundle 3.3)
+  recordEngagementScore(score: InsertWorkerEngagementScore): Promise<WorkerEngagementScoreDB>;
+  getLatestEngagementScore(workerId: string): Promise<WorkerEngagementScoreDB | null>;
+  getEngagementHistory(workerId: string, limit?: number): Promise<WorkerEngagementScoreDB[]>;
+  createInsurerEscalation(escalation: InsertInsurerEscalation): Promise<InsurerEscalationDB>;
+  getInsurerEscalationsByCase(caseId: string): Promise<InsurerEscalationDB[]>;
 }
 
 class DbStorage implements IStorage {
@@ -4632,6 +4645,47 @@ class DbStorage implements IStorage {
     );
     const row = result.rows[0] as { total_cost: string | null } | undefined;
     return row?.total_cost != null ? parseFloat(row.total_cost) : 0;
+  }
+
+  // ============================================================================
+  // ENGAGEMENT SCORES + INSURER ESCALATIONS (funding-bundle 3.3)
+  // ============================================================================
+
+  async recordEngagementScore(score: InsertWorkerEngagementScore): Promise<WorkerEngagementScoreDB> {
+    const [row] = await db.insert(workerEngagementScores).values(score).returning();
+    return row;
+  }
+
+  async getLatestEngagementScore(workerId: string): Promise<WorkerEngagementScoreDB | null> {
+    const [row] = await db
+      .select()
+      .from(workerEngagementScores)
+      .where(eq(workerEngagementScores.workerId, workerId))
+      .orderBy(desc(workerEngagementScores.createdAt))
+      .limit(1);
+    return row ?? null;
+  }
+
+  async getEngagementHistory(workerId: string, limit = 50): Promise<WorkerEngagementScoreDB[]> {
+    return db
+      .select()
+      .from(workerEngagementScores)
+      .where(eq(workerEngagementScores.workerId, workerId))
+      .orderBy(desc(workerEngagementScores.createdAt))
+      .limit(limit);
+  }
+
+  async createInsurerEscalation(escalation: InsertInsurerEscalation): Promise<InsurerEscalationDB> {
+    const [row] = await db.insert(insurerEscalations).values(escalation).returning();
+    return row;
+  }
+
+  async getInsurerEscalationsByCase(caseId: string): Promise<InsurerEscalationDB[]> {
+    return db
+      .select()
+      .from(insurerEscalations)
+      .where(eq(insurerEscalations.caseId, caseId))
+      .orderBy(desc(insurerEscalations.createdAt));
   }
 }
 
