@@ -44,6 +44,7 @@ import { SmartRTWPlanning } from "@/components/unified-case-management/SmartRTWP
 import { CaseActionPanel } from "@/components/CaseActionPanel";
 import { MilestoneClock } from "@/components/MilestoneClock";
 import ContactSuppressionBadge from "@/components/ContactSuppressionBadge";
+import ClaimCostCard from "@/components/ClaimCostCard";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -277,6 +278,9 @@ export default function CaseSummaryPage() {
                   </CardContent>
                 </Card>
               </div>
+
+              {/* Claim cost estimate */}
+              <ClaimCostCard caseId={workerCase.id} />
 
               {/* AI Summary */}
               {workerCase.aiSummary && (
