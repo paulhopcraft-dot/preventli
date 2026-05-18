@@ -248,12 +248,30 @@ const startServer = async () => {
   try {
     const { pool } = await import("./db");
     await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS preferred_name text`);
+    // Fresh installs: create with full schema matching shared/schema.ts
     await pool.query(`
       CREATE TABLE IF NOT EXISTS org_inbound_aliases (
+        id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
         email_alias varchar NOT NULL UNIQUE,
         org_id varchar NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+        is_default boolean DEFAULT false,
         created_at timestamp DEFAULT now() NOT NULL
       )
+    `);
+    // Heal prod installs that were created by the earlier broken migration
+    // (missing id PK + is_default). All ops below are no-ops on correct tables.
+    await pool.query(`ALTER TABLE org_inbound_aliases ADD COLUMN IF NOT EXISTS id varchar DEFAULT gen_random_uuid()`);
+    await pool.query(`ALTER TABLE org_inbound_aliases ADD COLUMN IF NOT EXISTS is_default boolean DEFAULT false`);
+    await pool.query(`UPDATE org_inbound_aliases SET id = gen_random_uuid() WHERE id IS NULL`);
+    await pool.query(`
+      DO $$ BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.table_constraints
+          WHERE table_name = 'org_inbound_aliases' AND constraint_type = 'PRIMARY KEY'
+        ) THEN
+          ALTER TABLE org_inbound_aliases ADD PRIMARY KEY (id);
+        END IF;
+      END $$;
     `);
     logger.server.info("[migrations] Boot-time schema sync complete");
   } catch (err) {
