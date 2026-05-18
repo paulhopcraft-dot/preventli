@@ -56,6 +56,7 @@ import lifecycleRoutes from "./routes/lifecycle";
 import hrDecisionsRoutes from "./routes/hr-decisions";
 import supportRoutes from "./routes/support";
 import morningBriefingRoutes from "./routes/morning-briefing";
+import contactSuppressionRoutes from "./routes/contact-suppressions";
 import type { RecoveryTimelineSummary } from "@shared/schema";
 import { evaluateClinicalEvidence } from "./services/clinicalEvidence";
 import { authorize, type AuthRequest } from "./middleware/auth";
@@ -239,6 +240,9 @@ export async function registerRoutes(app: Express): Promise<void> {
 
   // Workers (normalized worker records — JWT-protected)
   app.use("/api/workers", workerRoutes);
+
+  // Contact Suppressions — outreach pause/unpause (funding-bundle Phase 1)
+  app.use("/api", contactSuppressionRoutes);
 
   // Telehealth Bookings (JWT-protected)
   app.use("/api/bookings", bookingRoutes);

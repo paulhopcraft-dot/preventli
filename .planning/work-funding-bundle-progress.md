@@ -14,3 +14,4 @@ Format: `[<ISO-8601>] step <N>/18: <status> — <files-touched-if-any>`
 [2026-05-18T11:55:58Z] step 0.1/18: done — shared/schema.ts, server/index.ts, server/storage.ts
 [2026-05-18T12:14:48Z] step 0.2/18: done — server/lib/auditLog.ts, server/routes/lifecycle.ts (cases substitute), server/routes/certificates.ts, server/routes/rtwPlans.ts
 [2026-05-18T20:00:00Z] step 1.1/18: done — shared/schema.ts, server/index.ts, server/storage.ts
+[2026-05-18T20:15:00Z] step 1.2/18: done — server/routes/contact-suppressions.ts, server/routes.ts
