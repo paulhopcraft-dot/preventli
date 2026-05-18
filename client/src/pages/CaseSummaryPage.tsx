@@ -43,6 +43,7 @@ import { ContextualHelpSystem } from "@/components/unified-case-management/Conte
 import { SmartRTWPlanning } from "@/components/unified-case-management/SmartRTWPlanning";
 import { CaseActionPanel } from "@/components/CaseActionPanel";
 import { MilestoneClock } from "@/components/MilestoneClock";
+import ContactSuppressionBadge from "@/components/ContactSuppressionBadge";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -179,6 +180,9 @@ export default function CaseSummaryPage() {
           >
             Compliance: {workerCase.complianceIndicator}
           </Badge>
+          {workerCase.workerId && (
+            <ContactSuppressionBadge workerId={workerCase.workerId} />
+          )}
           {workerCase.caseManagerName && (
             <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
               <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center text-xs font-medium text-primary">
