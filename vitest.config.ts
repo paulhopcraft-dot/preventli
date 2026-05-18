@@ -15,6 +15,7 @@ export default defineConfig({
       "shared/**/*.spec.ts",
       "client/**/*.test.ts",
       "client/**/*.test.tsx",
+      "config/**/*.test.ts",
     ],
     // Default to node for server tests
     environment: "node",
