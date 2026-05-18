@@ -27,6 +27,7 @@ import adminRolesRoutes from "./routes/admin/roles";
 import adminDutiesRoutes from "./routes/admin/duties";
 import adminSeedRoutes from "./routes/admin/seed";
 import adminInboundEmailRoutes from "./routes/admin/inbound-emails";
+import adminAuditEventsRoutes from "./routes/admin/audit-events";
 import organizationRoutes from "./routes/organization";
 // caseChatRoutes removed — consolidated into unified chat at /api/chat/message
 import workerRoutes from "./routes/workers";
@@ -102,6 +103,9 @@ export async function registerRoutes(app: Express): Promise<void> {
 
   // Admin inbound email triage (admin only — review and assign unmatched emails)
   app.use("/api/admin/inbound-emails", adminInboundEmailRoutes);
+
+  // Admin audit events read-side (admin only — WorkSafe auditor access)
+  app.use("/api/admin/audit-events", adminAuditEventsRoutes);
 
   // Organization self-service routes (authenticated users)
   app.use("/api/organization", organizationRoutes);

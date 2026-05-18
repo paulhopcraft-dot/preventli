@@ -6,6 +6,7 @@ Format: `[<ISO-8601>] step <N>/18: <status> — <files-touched-if-any>`
 
 ---
 
+[2026-05-19T00:00:00Z] step 0.3/18: done — server/routes/admin/audit-events.ts, server/routes.ts, client/src/components/AuditTrailLink.tsx, client/src/pages/CaseSummaryPage.tsx
 [2026-05-18T18:45:00Z] orchestrator preflight: baseline captured (tsc=1, eslint=0)
 [2026-05-18T18:46:00Z] step 1/4: PRD inline (docs/PRD-funding-bundle.md, commit f412414)
 [2026-05-18T18:48:00Z] step 2/4: 18 issues published (#69-#86, label funding-bundle, HITL=#77+#83)

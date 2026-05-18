@@ -47,6 +47,7 @@ import ContactSuppressionBadge from "@/components/ContactSuppressionBadge";
 import ClaimCostCard from "@/components/ClaimCostCard";
 import EngagementScoreBadge from "@/components/EngagementScoreBadge";
 import EscalateToInsurerButton from "@/components/EscalateToInsurerButton";
+import AuditTrailLink from "@/components/AuditTrailLink";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -197,8 +198,11 @@ export default function CaseSummaryPage() {
               <span>{workerCase.caseManagerName}</span>
             </div>
           )}
-          <div className="ml-auto text-sm text-muted-foreground">
-            Next Step Due: <span className="font-medium">{new Date(workerCase.dueDate).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" })}</span>
+          <div className="ml-auto flex items-center gap-2">
+            <div className="text-sm text-muted-foreground">
+              Next Step Due: <span className="font-medium">{new Date(workerCase.dueDate).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" })}</span>
+            </div>
+            <AuditTrailLink caseId={workerCase.id} />
           </div>
         </div>
 
