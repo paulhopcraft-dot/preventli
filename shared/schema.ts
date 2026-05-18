@@ -2556,6 +2556,30 @@ export type InsertOrgInboundAlias = typeof orgInboundAliases.$inferInsert;
 export const insertOrgInboundAliasSchema = createInsertSchema(orgInboundAliases);
 
 // =============================================================================
+// Contact Suppressions — outreach pause records (funding-bundle Phase 1)
+// Records every decision to pause/unpause contact with a worker. Mental-injury
+// liability protection — every suppression decision must be defensible.
+// =============================================================================
+export const contactSuppressions = pgTable("contact_suppressions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  workerId: varchar("worker_id").notNull(),
+  reason: text("reason").notNull(),
+  source: varchar("source").notNull(), // "clinician" | "alex"
+  // LLM-decision fields (nullable — only set when alex flagged it)
+  llmModel: text("llm_model"),
+  llmPrompt: text("llm_prompt"),
+  llmResponse: text("llm_response"),
+  unpausedAt: timestamp("unpaused_at"),
+  unpausedByUserId: varchar("unpaused_by_user_id"),
+  unpausedReason: text("unpaused_reason"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export type ContactSuppressionDB = typeof contactSuppressions.$inferSelect;
+export type InsertContactSuppression = typeof contactSuppressions.$inferInsert;
+export const insertContactSuppressionSchema = createInsertSchema(contactSuppressions);
+
+// =============================================================================
 // Agentic System — Agent Jobs & Actions
 // =============================================================================
 

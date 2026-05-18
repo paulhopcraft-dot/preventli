@@ -64,6 +64,8 @@
   InsertCaseLifecycleLog,
   AuditEventDB,
   InsertAuditEvent,
+  ContactSuppressionDB,
+  InsertContactSuppression,
 } from "@shared/schema";
 import { LIFECYCLE_TRANSITIONS } from "@shared/schema";
 import { db } from "./db";
@@ -103,6 +105,7 @@ import {
   chatMemory,
   caseLifecycleLogs,
   auditEvents,
+  contactSuppressions,
   type RTWPlanDB,
   type RTWPlanVersionDB,
   type RTWPlanDutyDB,
@@ -738,6 +741,12 @@ export interface IStorage {
   createAuditEvent(event: InsertAuditEvent): Promise<AuditEventDB>;
   getAuditEventsByCase(caseId: string, limit?: number): Promise<AuditEventDB[]>;
   getAuditEventsByWorker(workerId: string, limit?: number): Promise<AuditEventDB[]>;
+
+  // Contact Suppressions (funding-bundle Phase 1)
+  createContactSuppression(suppression: InsertContactSuppression): Promise<ContactSuppressionDB>;
+  getActiveSuppressionsForWorker(workerId: string): Promise<ContactSuppressionDB[]>;
+  unpauseSuppression(id: string, userId: string, reason: string): Promise<ContactSuppressionDB>;
+  getAllSuppressionsForWorker(workerId: string, limit?: number): Promise<ContactSuppressionDB[]>;
 }
 
 class DbStorage implements IStorage {
@@ -4521,6 +4530,41 @@ class DbStorage implements IStorage {
       .from(auditEvents)
       .where(eq(auditEvents.workerId, workerId))
       .orderBy(desc(auditEvents.createdAt))
+      .limit(limit);
+  }
+
+  // ============================================================================
+  // CONTACT SUPPRESSIONS (funding-bundle Phase 1)
+  // ============================================================================
+
+  async createContactSuppression(suppression: InsertContactSuppression): Promise<ContactSuppressionDB> {
+    const [created] = await db.insert(contactSuppressions).values(suppression).returning();
+    return created;
+  }
+
+  async getActiveSuppressionsForWorker(workerId: string): Promise<ContactSuppressionDB[]> {
+    return db
+      .select()
+      .from(contactSuppressions)
+      .where(and(eq(contactSuppressions.workerId, workerId), isNull(contactSuppressions.unpausedAt)))
+      .orderBy(desc(contactSuppressions.createdAt));
+  }
+
+  async unpauseSuppression(id: string, userId: string, reason: string): Promise<ContactSuppressionDB> {
+    const [updated] = await db
+      .update(contactSuppressions)
+      .set({ unpausedAt: new Date(), unpausedByUserId: userId, unpausedReason: reason } as any)
+      .where(eq(contactSuppressions.id, id))
+      .returning();
+    return updated;
+  }
+
+  async getAllSuppressionsForWorker(workerId: string, limit = 100): Promise<ContactSuppressionDB[]> {
+    return db
+      .select()
+      .from(contactSuppressions)
+      .where(eq(contactSuppressions.workerId, workerId))
+      .orderBy(desc(contactSuppressions.createdAt))
       .limit(limit);
   }
 }

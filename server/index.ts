@@ -285,6 +285,24 @@ const startServer = async () => {
     await pool.query(`CREATE INDEX IF NOT EXISTS audit_events_case_idx ON audit_events(case_id)`);
     await pool.query(`CREATE INDEX IF NOT EXISTS audit_events_worker_idx ON audit_events(worker_id)`);
     await pool.query(`CREATE INDEX IF NOT EXISTS audit_events_created_idx ON audit_events(created_at DESC)`);
+    // funding-bundle Phase 1: contact_suppressions table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS contact_suppressions (
+        id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+        worker_id varchar NOT NULL,
+        reason text NOT NULL,
+        source varchar NOT NULL,
+        llm_model text,
+        llm_prompt text,
+        llm_response text,
+        unpaused_at timestamp,
+        unpaused_by_user_id varchar,
+        unpaused_reason text,
+        created_at timestamp DEFAULT now() NOT NULL
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS contact_suppressions_worker_idx ON contact_suppressions(worker_id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS contact_suppressions_active_idx ON contact_suppressions(worker_id) WHERE unpaused_at IS NULL`);
     logger.server.info("[migrations] Boot-time schema sync complete");
   } catch (err) {
     logger.server.error("[migrations] Boot-time schema sync failed", {}, err);
