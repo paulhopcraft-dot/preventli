@@ -45,6 +45,8 @@ import { CaseActionPanel } from "@/components/CaseActionPanel";
 import { MilestoneClock } from "@/components/MilestoneClock";
 import ContactSuppressionBadge from "@/components/ContactSuppressionBadge";
 import ClaimCostCard from "@/components/ClaimCostCard";
+import EngagementScoreBadge from "@/components/EngagementScoreBadge";
+import EscalateToInsurerButton from "@/components/EscalateToInsurerButton";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -184,6 +186,9 @@ export default function CaseSummaryPage() {
           {workerCase.workerId && (
             <ContactSuppressionBadge workerId={workerCase.workerId} />
           )}
+          {workerCase.workerId && (
+            <EngagementScoreBadge workerId={workerCase.workerId} />
+          )}
           {workerCase.caseManagerName && (
             <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
               <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center text-xs font-medium text-primary">
@@ -281,6 +286,15 @@ export default function CaseSummaryPage() {
 
               {/* Claim cost estimate */}
               <ClaimCostCard caseId={workerCase.id} />
+
+              {/* Escalate to insurer */}
+              {workerCase.workerId && (
+                <EscalateToInsurerButton
+                  caseId={workerCase.id}
+                  workerId={workerCase.workerId}
+                  workerName={workerCase.workerName}
+                />
+              )}
 
               {/* AI Summary */}
               {workerCase.aiSummary && (
