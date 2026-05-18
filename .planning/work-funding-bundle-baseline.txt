@@ -1,0 +1,5 @@
+# Captured at 2026-05-18T10:38:30Z — orchestrator preflight
+# These are the BEFORE counts. Slice verify scripts must not increase them.
+tsc_errors_repo_wide=1
+eslint_errors_repo_wide=0
+note: tsc baseline is shallow due to 90s timeout on this large repo. Slice verify scripts MUST be scoped to changed dirs (per /work spec bug #17), not repo-wide.
