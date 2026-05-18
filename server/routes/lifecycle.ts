@@ -6,6 +6,7 @@ import { requireCaseOwnership } from "../middleware/caseOwnership";
 import { logAuditEvent, AuditEventTypes } from "../services/auditLogger";
 import { LIFECYCLE_TRANSITIONS, LIFECYCLE_STAGE_LABELS, type CaseLifecycleStage } from "@shared/schema";
 import { logger } from "../lib/logger";
+import { auditLog } from "../lib/auditLog";
 
 const router = express.Router();
 const requireAuth = authorize();
@@ -117,6 +118,13 @@ router.patch(
           toStage,
           reason: reason ?? null,
         },
+      });
+
+      await auditLog({
+        caseId,
+        eventType: "case.status-changed",
+        actor: user.id,
+        payload: { fromStage, toStage, reason: reason ?? null },
       });
 
       return res.json({

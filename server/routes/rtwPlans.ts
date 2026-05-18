@@ -25,6 +25,7 @@ import {
 import { calculateDutySuitability } from "../services/functionalAbilityCalculator";
 import { generateModificationSuggestions } from "../services/modificationSuggester";
 import { logAuditEvent, getRequestMetadata } from "../services/auditLogger";
+import { auditLog } from "../lib/auditLog";
 import { logger } from "../lib/logger";
 import { generateRTWPlanEmail, type RTWPlanEmailContext } from "../services/rtwEmailService";
 import { sendEmail } from "../services/emailService";
@@ -332,6 +333,19 @@ router.post("/", async (req: AuthRequest, res) => {
         versionId: result.versionId,
       },
       ...getRequestMetadata(req),
+    });
+
+    await auditLog({
+      caseId: planData.caseId,
+      eventType: "rtw-plan.updated",
+      actor: userId,
+      payload: {
+        planId: result.planId,
+        versionId: result.versionId,
+        planType: planData.planType,
+        weekCount: planData.schedule.length,
+        dutyCount: planData.selectedDutyIds.length,
+      },
     });
 
     logger.api.info("RTW plan created", {

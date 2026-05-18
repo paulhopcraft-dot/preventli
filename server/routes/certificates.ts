@@ -4,6 +4,7 @@ import { storage } from "../storage";
 import { authorize } from "../middleware/auth";
 import { insertMedicalCertificateSchema, type FunctionalRestrictionsExtracted } from "@shared/schema";
 import { extractCertificateData } from "../services/certificateService";
+import { auditLog } from "../lib/auditLog";
 
 // Type guard to ensure functionalRestrictionsJson is properly typed
 function validateFunctionalRestrictions(value: any): FunctionalRestrictionsExtracted | null {
@@ -41,6 +42,14 @@ router.post("/", requireAuth, async (req: Request, res: Response) => {
     };
 
     const certificate = await storage.createCertificate(certificateData as any);
+
+    await auditLog({
+      caseId: certificate.caseId ?? null,
+      eventType: "certificate.added",
+      actor: req.user!.id,
+      payload: { certificateId: certificate.id, organizationId: certificate.organizationId },
+    });
+
     res.json({ success: true, data: certificate });
   } catch (error: any) {
     res.status(400).json({ success: false, message: error.message });
