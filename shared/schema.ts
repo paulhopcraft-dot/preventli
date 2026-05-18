@@ -2580,6 +2580,23 @@ export type InsertContactSuppression = typeof contactSuppressions.$inferInsert;
 export const insertContactSuppressionSchema = createInsertSchema(contactSuppressions);
 
 // =============================================================================
+// Worker Engagement Scores — cooperation metric (funding-bundle Phase 3)
+// One row per scoring event. Latest by createdAt = current score.
+// =============================================================================
+export const workerEngagementScores = pgTable("worker_engagement_scores", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  workerId: varchar("worker_id").notNull(),
+  score: numeric("score", { precision: 5, scale: 2 }).notNull(), // 0.00 to 100.00
+  components: jsonb("components").$type<Record<string, number>>().default({}),
+  triggeredBy: text("triggered_by").notNull(), // event type that triggered recompute
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export type WorkerEngagementScoreDB = typeof workerEngagementScores.$inferSelect;
+export type InsertWorkerEngagementScore = typeof workerEngagementScores.$inferInsert;
+export const insertWorkerEngagementScoreSchema = createInsertSchema(workerEngagementScores);
+
+// =============================================================================
 // Agentic System — Agent Jobs & Actions
 // =============================================================================
 

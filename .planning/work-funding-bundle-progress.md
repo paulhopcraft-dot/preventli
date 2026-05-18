@@ -19,3 +19,4 @@ Format: `[<ISO-8601>] step <N>/18: <status> — <files-touched-if-any>`
 
 [2026-05-18T12:56:29Z] step 1.4/18: done — server/services/distressDetector.ts, server/services/distressDetector.test.ts, server/routes/inbound-email.ts
 [2026-05-18T13:10:00Z] step 1.5/18: done — client/src/components/ContactSuppressionBadge.tsx, client/src/pages/CaseSummaryPage.tsx
+[2026-05-18T13:11:50Z] step 3.1/18: done — shared/schema.ts, server/index.ts, server/services/engagementScore.ts, server/services/engagementScore.test.ts (executor stalled on report; verified manually — 9 tests pass, scoped tsc 0 errors)
