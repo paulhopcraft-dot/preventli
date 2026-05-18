@@ -273,6 +273,18 @@ const startServer = async () => {
         END IF;
       END $$;
     `);
+    // funding-bundle Phase 0: add new columns to existing audit_events table
+    await pool.query(`ALTER TABLE audit_events ADD COLUMN IF NOT EXISTS case_id varchar REFERENCES worker_cases(id) ON DELETE SET NULL`);
+    await pool.query(`ALTER TABLE audit_events ADD COLUMN IF NOT EXISTS worker_id varchar`);
+    await pool.query(`ALTER TABLE audit_events ADD COLUMN IF NOT EXISTS actor varchar`);
+    await pool.query(`ALTER TABLE audit_events ADD COLUMN IF NOT EXISTS payload jsonb`);
+    await pool.query(`ALTER TABLE audit_events ADD COLUMN IF NOT EXISTS llm_model text`);
+    await pool.query(`ALTER TABLE audit_events ADD COLUMN IF NOT EXISTS llm_prompt text`);
+    await pool.query(`ALTER TABLE audit_events ADD COLUMN IF NOT EXISTS llm_response text`);
+    await pool.query(`ALTER TABLE audit_events ADD COLUMN IF NOT EXISTS created_at timestamp DEFAULT now()`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS audit_events_case_idx ON audit_events(case_id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS audit_events_worker_idx ON audit_events(worker_id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS audit_events_created_idx ON audit_events(created_at DESC)`);
     logger.server.info("[migrations] Boot-time schema sync complete");
   } catch (err) {
     logger.server.error("[migrations] Boot-time schema sync failed", {}, err);

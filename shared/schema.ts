@@ -1037,7 +1037,21 @@ export const auditEvents = pgTable("audit_events", {
   resourceType: text("resource_type"),
   resourceId: varchar("resource_id"),
   metadata: jsonb("metadata"),
+  // funding-bundle Phase 0 additions
+  caseId: varchar("case_id").references(() => workerCases.id, { onDelete: "set null" }),
+  workerId: varchar("worker_id"), // not FK — workers come from a different table
+  actor: varchar("actor"), // user_id or literal "alex" (nullable for legacy rows)
+  payload: jsonb("payload").$type<Record<string, unknown>>(),
+  // LLM-decision fields (nullable — only set when decision was AI-driven)
+  llmModel: text("llm_model"),
+  llmPrompt: text("llm_prompt"),
+  llmResponse: text("llm_response"),
+  createdAt: timestamp("created_at").defaultNow(),
 });
+
+export type AuditEventDB = typeof auditEvents.$inferSelect;
+export type InsertAuditEvent = typeof auditEvents.$inferInsert;
+export const insertAuditEventSchema = createInsertSchema(auditEvents);
 
 export const certificateExpiryAlerts = pgTable("certificate_expiry_alerts", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -2701,3 +2715,4 @@ export const caseLifecycleLogs = pgTable("case_lifecycle_logs", {
 
 export type CaseLifecycleLogDB = typeof caseLifecycleLogs.$inferSelect;
 export type InsertCaseLifecycleLog = typeof caseLifecycleLogs.$inferInsert;
+

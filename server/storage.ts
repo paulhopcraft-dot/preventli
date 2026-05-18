@@ -62,6 +62,8 @@
   CaseLifecycleStage,
   CaseLifecycleLogDB,
   InsertCaseLifecycleLog,
+  AuditEventDB,
+  InsertAuditEvent,
 } from "@shared/schema";
 import { LIFECYCLE_TRANSITIONS } from "@shared/schema";
 import { db } from "./db";
@@ -100,6 +102,7 @@ import {
   caseDocuments,
   chatMemory,
   caseLifecycleLogs,
+  auditEvents,
   type RTWPlanDB,
   type RTWPlanVersionDB,
   type RTWPlanDutyDB,
@@ -730,6 +733,11 @@ export interface IStorage {
   // Chat Memory — Alex per-case/worker conversation history
   getChatMemory(key: { caseId?: string; workerId?: string }, limit?: number): Promise<ChatMemoryDB[]>;
   saveChatMessage(data: InsertChatMemory): Promise<void>;
+
+  // Audit Events (funding-bundle Phase 0)
+  createAuditEvent(event: InsertAuditEvent): Promise<AuditEventDB>;
+  getAuditEventsByCase(caseId: string, limit?: number): Promise<AuditEventDB[]>;
+  getAuditEventsByWorker(workerId: string, limit?: number): Promise<AuditEventDB[]>;
 }
 
 class DbStorage implements IStorage {
@@ -4487,6 +4495,33 @@ class DbStorage implements IStorage {
 
   async saveChatMessage(data: InsertChatMemory): Promise<void> {
     await db.insert(chatMemory).values(data);
+  }
+
+  // ============================================================================
+  // AUDIT EVENTS (funding-bundle Phase 0)
+  // ============================================================================
+
+  async createAuditEvent(event: InsertAuditEvent): Promise<AuditEventDB> {
+    const [created] = await db.insert(auditEvents).values(event).returning();
+    return created;
+  }
+
+  async getAuditEventsByCase(caseId: string, limit = 100): Promise<AuditEventDB[]> {
+    return db
+      .select()
+      .from(auditEvents)
+      .where(eq(auditEvents.caseId, caseId))
+      .orderBy(desc(auditEvents.createdAt))
+      .limit(limit);
+  }
+
+  async getAuditEventsByWorker(workerId: string, limit = 100): Promise<AuditEventDB[]> {
+    return db
+      .select()
+      .from(auditEvents)
+      .where(eq(auditEvents.workerId, workerId))
+      .orderBy(desc(auditEvents.createdAt))
+      .limit(limit);
   }
 }
 
