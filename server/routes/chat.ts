@@ -4,7 +4,7 @@ import { join } from "path";
 import { authorize, type AuthRequest } from "../middleware/auth";
 import { storage } from "../storage";
 import { createLogger } from "../lib/logger";
-import { callClaude, callClaudeMultiTurn, callClaudeWithTools, type ChatMessage } from "../lib/llm-client";
+import { callClaude, callClaudeMultiTurn, callClaudeWithTools, getLLMStreamConfig, type ChatMessage } from "../lib/llm-client";
 import { ALEX_TOOLS, executeAlexTool } from "../tools/alex-tools";
 import { getCaseCompliance } from "../services/certificateCompliance";
 import { getCaseRTWCompliance } from "../services/rtwCompliance";
@@ -212,7 +212,8 @@ router.post("/message", authorize(), async (req: AuthRequest, res: Response) => 
     // Use tool-use loop when Anthropic provider is configured, otherwise plain prompt
     const systemPrompt = `${SOUL}${orgCasesBlock}${memoryBlock}${contextBlock}\n\n---\nRespond as Alex. Keep it concise (2-4 sentences). If you want to suggest a booking, end your response with [SUGGEST_BOOKING].`;
     const provider = (process.env.LLM_PROVIDER ?? "claude-cli").toLowerCase();
-    const useTools = (provider === "anthropic" || provider === "openrouter") && !!process.env.OPENROUTER_API_KEY;
+    const useTools = (provider === "anthropic" || provider === "openrouter" || provider === "groq") &&
+      !!(provider === "groq" ? process.env.GROQ_API_KEY : process.env.OPENROUTER_API_KEY);
 
     // Sanitise history — only keep user/assistant turns, cap at last 10 messages
     const sessionHistory: ChatMessage[] = (history ?? [])
@@ -479,15 +480,13 @@ router.post("/stream", authorize(), async (req: AuthRequest, res: Response) => {
       .filter((m) => m.role === "user" || m.role === "assistant")
       .slice(-10);
 
-    // ── Stream via OpenRouter ─────────────────────────────────────────────
-    const apiKey = process.env.OPENROUTER_API_KEY;
-    const baseUrl = process.env.OPENROUTER_BASE_URL ?? "https://openrouter.ai/api/v1";
-    const model = process.env.LLM_MODEL ?? "anthropic/claude-sonnet-4-5";
+    // ── Stream via configured LLM provider ───────────────────────────────
+    const { apiKey, baseUrl, model, extraBody } = getLLMStreamConfig();
 
     if (!apiKey) {
       // Fallback: batch completion streamed as single delta
       const provider = (process.env.LLM_PROVIDER ?? "claude-cli").toLowerCase();
-      const useTools = (provider === "anthropic" || provider === "openrouter");
+      const useTools = (provider === "anthropic" || provider === "openrouter" || provider === "groq");
       let reply: string;
       if (useTools) {
         reply = await callClaudeWithTools(
@@ -527,15 +526,13 @@ router.post("/stream", authorize(), async (req: AuthRequest, res: Response) => {
       headers: {
         "Authorization": `Bearer ${apiKey}`,
         "Content-Type": "application/json",
-        "HTTP-Referer": process.env.APP_URL ?? "https://preventli.com.au",
-        "X-Title": "Preventli",
       },
-      body: JSON.stringify({ model, messages: oaiMessages, stream: true, temperature: 0.1 }),
+      body: JSON.stringify({ model, messages: oaiMessages, stream: true, temperature: 0.6, ...extraBody }),
     });
 
     if (!streamRes.ok || !streamRes.body) {
       const errBody = await streamRes.text().catch(() => "(no body)");
-      logger.error("OpenRouter stream error", { status: streamRes.status, body: errBody.slice(0, 300) });
+      logger.error("LLM stream error", { provider: process.env.LLM_PROVIDER ?? "openrouter", status: streamRes.status, body: errBody.slice(0, 300) });
       sendError("LLM stream failed");
       return;
     }
