@@ -40,6 +40,12 @@ vi.mock("./auditLogger", () => ({
   } as const,
 }));
 
+// Stub contactGuard — it uses the storage singleton which requires DATABASE_URL.
+// Default: outreach allowed (no suppression). Individual tests override as needed.
+vi.mock("../lib/contactGuard", () => ({
+  isOutreachAllowed: vi.fn().mockResolvedValue({ allowed: true }),
+}));
+
 import {
   draftRTWPlanForCase,
   type AutoDraftSkipped,
@@ -218,6 +224,8 @@ function makeStorage(overrides: Partial<IStorage> = {}): IStorage {
     createRTWPlan: vi
       .fn()
       .mockResolvedValue({ planId: "plan-1", versionId: "version-1" }),
+    // Default: no active suppression — happy path tests remain unaffected
+    getActiveSuppressionsForWorker: vi.fn().mockResolvedValue([]),
   };
   return { ...base, ...overrides } as IStorage;
 }

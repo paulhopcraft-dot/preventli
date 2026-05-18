@@ -11,6 +11,7 @@ import {
   processPendingNotifications,
 } from "./notificationService";
 import { logger } from "../lib/logger";
+import { isOutreachAllowed } from "../lib/contactGuard";
 import { db } from "../db";
 import { organizations } from "@shared/schema";
 import { eq } from "drizzle-orm";
@@ -151,7 +152,14 @@ export class NotificationScheduler {
   }
 
   /**
-   * Run notification sending for all active organizations
+   * Run notification sending for all active organizations.
+   * Pre-filters pending notifications via the contact guard before delegating
+   * to processPendingNotifications — any notification whose worker is suppressed
+   * is marked "skipped" so the send loop never reaches it.
+   *
+   * Integration point: isOutreachAllowed() is called per-case here because
+   * processPendingNotifications operates at org level with no per-worker loop
+   * internally. Marking before the delegate call keeps the service contract stable.
    */
   private async runSending(): Promise<void> {
     logger.notification.debug("Running notification sending...");
@@ -166,6 +174,14 @@ export class NotificationScheduler {
     let totalFailed = 0;
     for (const org of orgs) {
       try {
+        // ── Contact-guard pre-filter ──────────────────────────────────────────
+        // Fetch pending notifications and suppress any that belong to a worker
+        // currently under a contact suppression. We build a caseId→workerId map
+        // from getCases (already called downstream by processPendingNotifications)
+        // so the extra fetch cost is one round-trip per org per cycle.
+        await this.applyContactGuardForOrg(org.id);
+        // ─────────────────────────────────────────────────────────────────────
+
         const result = await processPendingNotifications(this.storage, org.id);
         totalSent += result.sent;
         totalFailed += result.failed;
@@ -188,6 +204,51 @@ export class NotificationScheduler {
       failed: totalFailed,
       organizationsProcessed: orgs.length
     });
+  }
+
+  /**
+   * For each pending notification in the org, check whether the associated
+   * worker is currently suppressed. If so, mark the notification "skipped"
+   * before the send loop runs so it is never dispatched.
+   */
+  private async applyContactGuardForOrg(organizationId: string): Promise<void> {
+    try {
+      const pending = await this.storage.getPendingNotifications(organizationId, 50);
+      if (pending.length === 0) return;
+
+      // Build caseId → workerId map for this org (one query for all cases)
+      const cases = await this.storage.getCases(organizationId);
+      const caseWorkerMap = new Map<string, string | null>(
+        cases.map((c) => [c.id, c.workerId ?? null])
+      );
+
+      for (const notification of pending) {
+        if (!notification.caseId) continue;
+        const workerId = caseWorkerMap.get(notification.caseId) ?? null;
+        if (!workerId) continue;
+
+        const guard = await isOutreachAllowed(workerId);
+        if (!guard.allowed) {
+          await this.storage.updateNotificationStatus(
+            notification.id,
+            "skipped",
+            `contact_suppressed: ${guard.reason ?? "suppression active"}`
+          );
+          logger.notification.info("Skipped send: worker contact suppressed", {
+            notificationId: notification.id,
+            caseId: notification.caseId,
+            workerId,
+            suppressionId: guard.suppressionId,
+            reason: guard.reason,
+          });
+        }
+      }
+    } catch (err) {
+      // Fail open — guard errors must not block the send cycle
+      logger.notification.error("applyContactGuardForOrg failed — proceeding without guard", {
+        organizationId,
+      }, err);
+    }
   }
 
   /**

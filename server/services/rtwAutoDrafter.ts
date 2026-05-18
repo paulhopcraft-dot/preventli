@@ -36,6 +36,7 @@ import {
 } from "./scheduleCalculator";
 import { logAuditEvent, AuditEventTypes } from "./auditLogger";
 import { logger } from "../lib/logger";
+import { isOutreachAllowed } from "../lib/contactGuard";
 
 export type AutoDraftSkipReason =
   | "no_medical_constraints_gate"
@@ -43,7 +44,8 @@ export type AutoDraftSkipReason =
   | "no_pre_injury_role"
   | "worker_unfit"
   | "confidence_below_threshold"
-  | "all_duties_not_suitable";
+  | "all_duties_not_suitable"
+  | "worker_contact_suppressed";
 
 // Statuses that mean an in-flight draft exists — block new auto-draft.
 const IN_FLIGHT_STATUSES = new Set(["draft", "pending_employer_review"]);
@@ -122,6 +124,20 @@ export async function draftRTWPlanForCase(
   const roleId = await resolveRoleId(caseCtx, storage);
   if (!roleId) {
     return skip(caseId, organizationId, "no_pre_injury_role", triggerSource, userId);
+  }
+
+  // ── Gate: contact suppression — do not draft for a suppressed worker
+  // isOutreachAllowed fails open (returns { allowed: true } on error) so a
+  // guard outage never silently blocks plan creation.
+  if (caseCtx.workerId) {
+    const guard = await isOutreachAllowed(caseCtx.workerId);
+    if (!guard.allowed) {
+      return skip(caseId, organizationId, "worker_contact_suppressed", triggerSource, userId, {
+        workerId: caseCtx.workerId,
+        suppressionId: guard.suppressionId,
+        suppressionReason: guard.reason,
+      });
+    }
   }
 
   // ── Gate 3: latest certificate worker capacity is not 'unfit'

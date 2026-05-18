@@ -33,6 +33,7 @@ const SKIP_REASON_STATUS: Record<AutoDraftSkipReason, number> = {
   worker_unfit: 400,
   confidence_below_threshold: 400,
   all_duties_not_suitable: 400,
+  worker_contact_suppressed: 403,
 };
 
 /**
