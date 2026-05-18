@@ -44,3 +44,12 @@ services:
         value: info
       - key: LOG_REQUESTS
         value: true
+      # Postmark inbound email webhook — basic-auth credentials
+      # Set POSTMARK_WEBHOOK_USER and POSTMARK_WEBHOOK_PASSWORD manually in Render dashboard
+      - key: POSTMARK_WEBHOOK_USER
+        sync: false
+      - key: POSTMARK_WEBHOOK_PASSWORD
+        sync: false
+      # Default org for inbound emails when no alias match found (Wallara pilot)
+      - key: PREVENTLI_DEFAULT_INBOUND_ORG_ID
+        sync: false
