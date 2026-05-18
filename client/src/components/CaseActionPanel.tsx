@@ -568,7 +568,7 @@ export function CaseActionPanel({ caseId, workerId, organizationId, nextStep }: 
         <CardHeader className="pb-2 pt-4 px-4">
           <CardTitle className="text-sm font-semibold flex items-center gap-2">
             <Bot className="w-4 h-4 text-muted-foreground" />
-            Ask Dr. Alex
+            Ask Alex
           </CardTitle>
         </CardHeader>
         <CardContent className="px-4 pb-4">

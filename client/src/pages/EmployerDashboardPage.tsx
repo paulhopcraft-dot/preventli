@@ -1,5 +1,6 @@
 import { PageLayout } from "@/components/PageLayout";
-import { useState, useEffect, type KeyboardEvent } from 'react';
+import { AlexMorningBriefing } from '@/components/AlexMorningBriefing';
+import { useState, type KeyboardEvent } from 'react';
 import { useAuth } from "@/hooks/useAuth";
 import { FirstTimeTour } from "@/components/FirstTimeTour";
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -88,12 +89,6 @@ function getPriorityIcon(type: string): string {
   }
 }
 
-interface LatestBriefing {
-  summary: string | null;
-  completedAt: string | null;
-  firstName: string;
-}
-
 function EmployerDashboardContent() {
   const navigate = useNavigate();
 
@@ -104,13 +99,7 @@ function EmployerDashboardContent() {
     staleTime: 60_000,
   });
 
-  const { data: briefing } = useQuery<LatestBriefing>({
-    queryKey: ['agents-latest-briefing'],
-    queryFn: () => fetch('/api/agents/latest-briefing').then(r => r.json()),
-    staleTime: 5 * 60_000,
-  });
-
-  const { data: allCasesData } = useQuery<PaginatedCasesResponse>({
+const { data: allCasesData } = useQuery<PaginatedCasesResponse>({
     queryKey: ['/api/cases'],
     staleTime: 60_000,
   });
@@ -171,7 +160,6 @@ function EmployerDashboardContent() {
   const actions = dashboardData?.priorityActions ?? [];
   const criticalActions = actions.filter(a => a.priority === 'critical');
   const pendingApprovals = allCasesData?.cases.filter(c => c.rtwPlanStatus === 'pending_employer_review') ?? [];
-  const highRiskCount = (allCasesData?.cases ?? []).filter(c => (c.riskLevel || '').toLowerCase() === 'high').length;
   const sortedCases = [...(allCasesData?.cases ?? [])].sort((a, b) => {
     const riskOrder: Record<string, number> = { high: 0, medium: 1, low: 2 };
     const aRisk = riskOrder[(a.riskLevel || '').toLowerCase()] ?? 2;
@@ -186,21 +174,8 @@ function EmployerDashboardContent() {
 
   return (
     <div className="space-y-6">
-      {/* Morning Briefing Card — coordinator agent's overnight summary */}
-      {briefing?.summary && (
-        <Card className="bg-card shadow-lg border-0">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-lg">
-              {`Good morning ${briefing.firstName}, here's your morning brief —`}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground whitespace-pre-line leading-relaxed">
-              {briefing.summary}
-            </p>
-          </CardContent>
-        </Card>
-      )}
+      {/* Alex Morning Briefing — always visible, driven by live priority actions */}
+      <AlexMorningBriefing actions={actions} />
 
       {/* RTW Approval Banner — only shown when employer action is needed */}
       {pendingApprovals.length > 0 && (

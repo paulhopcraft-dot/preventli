@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { Button } from "./ui/button";
 import { Stethoscope, X, Send, Phone } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getCsrfToken } from "@/lib/queryClient";
 
 interface Message {
   role: "user" | "assistant";
@@ -65,33 +66,93 @@ export function ChatWidget({ caseContext, userName }: ChatWidgetProps) {
     if (!text || loading) return;
 
     setInput("");
+    const currentMessages = messages;
     setMessages((prev) => [...prev, { role: "user", content: text }]);
     setLoading(true);
     setSuggestBooking(false);
 
+    // Add a placeholder streaming message
+    setMessages((prev) => [...prev, { role: "assistant", content: "" }]);
+
     try {
-      const res = await fetch("/api/chat/message", {
+      const csrfToken = await getCsrfToken().catch(() => "");
+
+      const res = await fetch("/api/chat/stream", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(csrfToken ? { "X-CSRF-Token": csrfToken } : {}),
+        },
         credentials: "include",
         body: JSON.stringify({
           message: text,
           sessionId: sessionId.current,
           context: caseContext,
-          history: messages,
+          history: currentMessages,
         }),
       });
 
-      if (!res.ok) throw new Error("Request failed");
+      if (!res.ok || !res.body) throw new Error("Request failed");
 
-      const data = (await res.json()) as { reply: string; sessionId: string; suggestBooking?: boolean };
-      setMessages((prev) => [...prev, { role: "assistant", content: data.reply }]);
-      if (data.suggestBooking) setSuggestBooking(true);
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let accumulatedText = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed || !trimmed.startsWith("data: ")) continue;
+
+          try {
+            const payload = JSON.parse(trimmed.slice(6)) as
+              | { type: "delta"; text: string }
+              | { type: "done" }
+              | { type: "error"; message: string };
+
+            if (payload.type === "delta") {
+              accumulatedText += payload.text;
+              // Strip booking signal from display text
+              const displayText = accumulatedText.replace("[SUGGEST_BOOKING]", "").trimEnd();
+              setMessages((prev) => {
+                const updated = [...prev];
+                updated[updated.length - 1] = { role: "assistant", content: displayText };
+                return updated;
+              });
+            } else if (payload.type === "done") {
+              setLoading(false);
+              if (accumulatedText.includes("[SUGGEST_BOOKING]")) {
+                setSuggestBooking(true);
+              }
+            } else if (payload.type === "error") {
+              throw new Error(payload.message);
+            }
+          } catch {
+            // Malformed line — skip
+          }
+        }
+      }
     } catch {
-      setMessages((prev) => [
-        ...prev,
-        { role: "assistant", content: "Sorry, I couldn't process that. Please try again." },
-      ]);
+      setMessages((prev) => {
+        const updated = [...prev];
+        // Replace the empty streaming placeholder with the error message
+        if (updated[updated.length - 1]?.content === "") {
+          updated[updated.length - 1] = {
+            role: "assistant",
+            content: "Sorry, I couldn't process that. Please try again.",
+          };
+        } else {
+          updated.push({ role: "assistant", content: "Sorry, I couldn't process that. Please try again." });
+        }
+        return updated;
+      });
     } finally {
       setLoading(false);
     }
@@ -127,22 +188,36 @@ export function ChatWidget({ caseContext, userName }: ChatWidgetProps) {
 
             {/* Messages */}
             <div className="flex-1 overflow-y-auto p-3 space-y-3 max-h-96">
-              {messages.map((msg, i) => (
-                <div
-                  key={i}
-                  className={cn(
-                    "max-w-[85%] rounded-xl px-3 py-2 text-sm",
-                    msg.role === "user"
-                      ? "ml-auto bg-primary text-primary-foreground"
-                      : "bg-muted text-muted-foreground"
-                  )}
-                >
-                  {msg.content}
-                </div>
-              ))}
-              {loading && (
-                <div className="bg-muted text-muted-foreground max-w-[85%] rounded-xl px-3 py-2 text-sm animate-pulse">
-                  Thinking...
+              {messages.map((msg, i) => {
+                const isStreamingMsg = loading && i === messages.length - 1 && msg.role === "assistant";
+                if (isStreamingMsg && msg.content === "") return null;
+                return (
+                  <div
+                    key={i}
+                    className={cn(
+                      "max-w-[85%] rounded-xl px-3 py-2 text-sm",
+                      msg.role === "user"
+                        ? "ml-auto bg-primary text-primary-foreground"
+                        : "bg-muted text-muted-foreground"
+                    )}
+                  >
+                    {msg.content}
+                    {isStreamingMsg && (
+                      <span className="inline-block w-0.5 h-3.5 bg-muted-foreground ml-0.5 animate-pulse align-middle" />
+                    )}
+                  </div>
+                );
+              })}
+              {loading && messages[messages.length - 1]?.content === "" && (
+                <div className="bg-muted text-muted-foreground max-w-[85%] rounded-xl px-3 py-2 text-sm">
+                  <span className="inline-flex items-center gap-1">
+                    Alex is thinking
+                    <span className="inline-flex gap-0.5">
+                      <span className="animate-bounce" style={{ animationDelay: "0ms" }}>.</span>
+                      <span className="animate-bounce" style={{ animationDelay: "150ms" }}>.</span>
+                      <span className="animate-bounce" style={{ animationDelay: "300ms" }}>.</span>
+                    </span>
+                  </span>
                 </div>
               )}
 

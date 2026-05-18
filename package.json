@@ -10,6 +10,7 @@
     "build": "vite build",
     "start": "NODE_ENV=production node --import tsx/esm server/index.ts",
     "db:push": "drizzle-kit push",
+    "db:push:ci": "drizzle-kit push --force",
     "drizzle:generate": "drizzle-kit generate --config=./drizzle.config.ts",
     "drizzle:migrate": "drizzle-kit push --config=./drizzle.config.ts",
     "db:inspect": "tsx server/scripts/inspectDb.ts",

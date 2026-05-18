@@ -424,7 +424,7 @@
     },
     {
       "id": "F026",
-      "name": "Dr. Alex Chat Widget",
+      "name": "Alex Chat Widget",
       "description": "Floating Talk with a Doctor FAB on all authenticated pages; soul loaded from DR_ALEX_SOUL.md",
       "passes": true,
       "last_updated": "2026-03-01T02:39:09Z",

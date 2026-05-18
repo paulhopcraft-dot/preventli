@@ -76,7 +76,7 @@
 │  │    /api/actions/*        → Case action queue               │     │
 │  │    /api/notifications/*  → Notification management         │     │
 │  │    /api/agents/*         → AI agent job management         │     │
-│  │    /api/chat/*           → Dr. Alex chat widget            │     │
+│  │    /api/chat/*           → Alex chat widget            │     │
 │  │    /api/admin/*          → Organization/user admin         │     │
 │  │    /api/intelligence/*   → Intelligence coordinator        │     │
 │  │    /api/webhooks/*       → Freshdesk webhooks              │     │
@@ -190,7 +190,7 @@
 |---|---|
 | `agent_jobs` | Background agent job tracking |
 | `agent_actions` | Actions taken by agents |
-| `chat_memory` | Dr. Alex chat history by case/worker |
+| `chat_memory` | Alex chat history by case/worker |
 | `audit_events` | System-wide audit log |
 
 ### Migration Status
@@ -225,7 +225,7 @@ Timeout: 30–60 seconds
 - No fallback if CLI unavailable — all AI features silently fail or throw
 
 **AI is used for:**
-- Dr. Alex chat widget (`/api/chat/message`) — advisory
+- Alex chat widget (`/api/chat/message`) — advisory
 - Case summaries (HybridSummaryService) — advisory
 - 4 background agents (coordinator, RTW, recovery, certificate) — **affects business logic**
 - Email draft generation — advisory
