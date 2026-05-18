@@ -57,6 +57,7 @@ import hrDecisionsRoutes from "./routes/hr-decisions";
 import supportRoutes from "./routes/support";
 import morningBriefingRoutes from "./routes/morning-briefing";
 import contactSuppressionRoutes from "./routes/contact-suppressions";
+import costEstimateRoutes from "./routes/cost-estimate";
 import type { RecoveryTimelineSummary } from "@shared/schema";
 import { evaluateClinicalEvidence } from "./services/clinicalEvidence";
 import { authorize, type AuthRequest } from "./middleware/auth";
@@ -243,6 +244,9 @@ export async function registerRoutes(app: Express): Promise<void> {
 
   // Contact Suppressions — outreach pause/unpause (funding-bundle Phase 1)
   app.use("/api", contactSuppressionRoutes);
+
+  // Claim Cost Estimate — GET /api/cases/:id/cost-estimate (funding-bundle Phase 2)
+  app.use("/api", costEstimateRoutes);
 
   // Telehealth Bookings (JWT-protected)
   app.use("/api/bookings", bookingRoutes);
