@@ -2757,3 +2757,21 @@ export const caseLifecycleLogs = pgTable("case_lifecycle_logs", {
 export type CaseLifecycleLogDB = typeof caseLifecycleLogs.$inferSelect;
 export type InsertCaseLifecycleLog = typeof caseLifecycleLogs.$inferInsert;
 
+// =============================================================================
+// Case Cost Estimates — materialized per-case dollar implication
+// (funding-bundle Phase 2). NOT a premium prediction — see ADR-0001.
+// =============================================================================
+export const caseCostEstimates = pgTable("case_cost_estimates", {
+  caseId: varchar("case_id").primaryKey().references(() => workerCases.id, { onDelete: "cascade" }),
+  estimatedCostDollars: numeric("estimated_cost_dollars", { precision: 12, scale: 2 }).notNull(),
+  baselineDollars: numeric("baseline_dollars", { precision: 12, scale: 2 }).notNull(),
+  components: jsonb("components").$type<Record<string, number>>().default({}),
+  formulaVersion: text("formula_version").notNull(),
+  baselineSource: text("baseline_source").notNull(), // "client_history" | "industry_baseline"
+  calculatedAt: timestamp("calculated_at").defaultNow(),
+});
+
+export type CaseCostEstimateDB = typeof caseCostEstimates.$inferSelect;
+export type InsertCaseCostEstimate = typeof caseCostEstimates.$inferInsert;
+export const insertCaseCostEstimateSchema = createInsertSchema(caseCostEstimates);
+

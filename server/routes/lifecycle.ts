@@ -7,6 +7,7 @@ import { logAuditEvent, AuditEventTypes } from "../services/auditLogger";
 import { LIFECYCLE_TRANSITIONS, LIFECYCLE_STAGE_LABELS, type CaseLifecycleStage } from "@shared/schema";
 import { logger } from "../lib/logger";
 import { auditLog } from "../lib/auditLog";
+import { recomputeFor } from "../services/costEstimate";
 
 const router = express.Router();
 const requireAuth = authorize();
@@ -126,6 +127,9 @@ router.patch(
         actor: user.id,
         payload: { fromStage, toStage, reason: reason ?? null },
       });
+
+      // Recompute cost estimate after lifecycle change (best-effort, never throws)
+      await recomputeFor(caseId);
 
       return res.json({
         success: true,

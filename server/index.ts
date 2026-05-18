@@ -315,6 +315,18 @@ const startServer = async () => {
       )
     `);
     await pool.query(`CREATE INDEX IF NOT EXISTS worker_engagement_scores_worker_idx ON worker_engagement_scores(worker_id, created_at DESC)`);
+    // funding-bundle Phase 2: case_cost_estimates table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS case_cost_estimates (
+        case_id varchar PRIMARY KEY REFERENCES worker_cases(id) ON DELETE CASCADE,
+        estimated_cost_dollars numeric(12,2) NOT NULL,
+        baseline_dollars numeric(12,2) NOT NULL,
+        components jsonb DEFAULT '{}'::jsonb,
+        formula_version text NOT NULL,
+        baseline_source text NOT NULL,
+        calculated_at timestamp DEFAULT now() NOT NULL
+      )
+    `);
     logger.server.info("[migrations] Boot-time schema sync complete");
   } catch (err) {
     logger.server.error("[migrations] Boot-time schema sync failed", {}, err);

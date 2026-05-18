@@ -66,6 +66,8 @@
   InsertAuditEvent,
   ContactSuppressionDB,
   InsertContactSuppression,
+  CaseCostEstimateDB,
+  InsertCaseCostEstimate,
 } from "@shared/schema";
 import { LIFECYCLE_TRANSITIONS } from "@shared/schema";
 import { db } from "./db";
@@ -106,6 +108,7 @@ import {
   caseLifecycleLogs,
   auditEvents,
   contactSuppressions,
+  caseCostEstimates,
   type RTWPlanDB,
   type RTWPlanVersionDB,
   type RTWPlanDutyDB,
@@ -747,6 +750,11 @@ export interface IStorage {
   getActiveSuppressionsForWorker(workerId: string): Promise<ContactSuppressionDB[]>;
   unpauseSuppression(id: string, userId: string, reason: string): Promise<ContactSuppressionDB>;
   getAllSuppressionsForWorker(workerId: string, limit?: number): Promise<ContactSuppressionDB[]>;
+
+  // Case Cost Estimates (funding-bundle Phase 2)
+  upsertCaseCostEstimate(estimate: InsertCaseCostEstimate): Promise<CaseCostEstimateDB>;
+  getCaseCostEstimate(caseId: string): Promise<CaseCostEstimateDB | null>;
+  getOrgCaseCostStats(organizationId: string): Promise<{ caseCount: number; avgCaseCostDollars: number | null }>;
 }
 
 class DbStorage implements IStorage {
@@ -4566,6 +4574,52 @@ class DbStorage implements IStorage {
       .where(eq(contactSuppressions.workerId, workerId))
       .orderBy(desc(contactSuppressions.createdAt))
       .limit(limit);
+  }
+
+  // ============================================================================
+  // CASE COST ESTIMATES (funding-bundle Phase 2)
+  // ============================================================================
+
+  async upsertCaseCostEstimate(estimate: InsertCaseCostEstimate): Promise<CaseCostEstimateDB> {
+    const [row] = await db
+      .insert(caseCostEstimates)
+      .values(estimate)
+      .onConflictDoUpdate({
+        target: caseCostEstimates.caseId,
+        set: ({
+          estimatedCostDollars: sql`excluded.estimated_cost_dollars`,
+          baselineDollars: sql`excluded.baseline_dollars`,
+          components: sql`excluded.components`,
+          formulaVersion: sql`excluded.formula_version`,
+          baselineSource: sql`excluded.baseline_source`,
+          calculatedAt: sql`now()`,
+        } as any),
+      })
+      .returning();
+    return row;
+  }
+
+  async getCaseCostEstimate(caseId: string): Promise<CaseCostEstimateDB | null> {
+    const [row] = await db
+      .select()
+      .from(caseCostEstimates)
+      .where(eq(caseCostEstimates.caseId, caseId))
+      .limit(1);
+    return row ?? null;
+  }
+
+  async getOrgCaseCostStats(organizationId: string): Promise<{ caseCount: number; avgCaseCostDollars: number | null }> {
+    const result = await db.execute(
+      sql`SELECT COUNT(*)::int AS case_count, AVG(cce.estimated_cost_dollars)::float AS avg_cost
+          FROM case_cost_estimates cce
+          JOIN worker_cases wc ON wc.id = cce.case_id
+          WHERE wc.organization_id = ${organizationId}`
+    );
+    const row = result.rows[0] as { case_count: number; avg_cost: string | null } | undefined;
+    return {
+      caseCount: row?.case_count ?? 0,
+      avgCaseCostDollars: row?.avg_cost != null ? parseFloat(row.avg_cost) : null,
+    };
   }
 }
 
