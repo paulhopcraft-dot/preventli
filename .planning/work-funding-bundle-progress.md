@@ -16,3 +16,5 @@ Format: `[<ISO-8601>] step <N>/18: <status> — <files-touched-if-any>`
 [2026-05-18T20:00:00Z] step 1.1/18: done — shared/schema.ts, server/index.ts, server/storage.ts
 [2026-05-18T20:15:00Z] step 1.2/18: done — server/routes/contact-suppressions.ts, server/routes.ts
 [2026-05-18T20:40:00Z] step 1.3/18: done — server/lib/contactGuard.ts, server/services/notificationScheduler.ts, server/services/rtwAutoDrafter.ts
+
+[2026-05-18T12:56:29Z] step 1.4/18: done — server/services/distressDetector.ts, server/services/distressDetector.test.ts, server/routes/inbound-email.ts

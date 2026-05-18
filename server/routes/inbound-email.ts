@@ -3,6 +3,9 @@ import crypto from "crypto";
 import rateLimit from "express-rate-limit";
 import { z } from "zod";
 import { processInboundEmail } from "../services/inboundEmailService";
+import { detectDistress } from "../services/distressDetector";
+import { storage } from "../storage";
+import { auditLog } from "../lib/auditLog";
 import { createLogger } from "../lib/logger";
 
 const log = createLogger("InboundEmailRoute");
@@ -96,6 +99,55 @@ router.post("/", inboundEmailRateLimiter, async (req: Request, res: Response) =>
       status: result.processingStatus,
       isNewCase: result.isNewCase,
     });
+
+    // Distress signal detection (funding-bundle 1.4 — mental-injury defensibility)
+    // Non-blocking: errors here must not affect the inbound-email response.
+    try {
+      if (result.caseId) {
+        const workerCase = await storage.getGPNet2CaseByIdAdmin(result.caseId);
+        if (workerCase?.workerId) {
+          const detection = await detectDistress({
+            subject: parseResult.data.subject,
+            bodyText: parseResult.data.bodyText ?? "",
+            workerId: workerCase.workerId,
+          });
+          if (detection && detection.isDistress && detection.confidence >= 0.7) {
+            const suppression = await storage.createContactSuppression({
+              workerId: workerCase.workerId,
+              reason: `Alex detected distress signal: ${detection.rationale}`,
+              source: "alex",
+              llmModel: detection.llm.model,
+              llmPrompt: detection.llm.prompt,
+              llmResponse: detection.llm.response,
+            } as any);
+            await auditLog({
+              workerId: workerCase.workerId,
+              caseId: result.caseId,
+              eventType: "contact.suppressed",
+              actor: "alex",
+              payload: {
+                suppressionId: suppression.id,
+                confidence: detection.confidence,
+                preFilterMatches: detection.preFilterMatches,
+              },
+              llm: detection.llm,
+            });
+            log.info("Alex flagged distress signal", {
+              workerId: workerCase.workerId,
+              suppressionId: suppression.id,
+            });
+          } else if (detection) {
+            log.info("Distress detection below threshold — no suppression created", {
+              workerId: workerCase.workerId,
+              isDistress: detection.isDistress,
+              confidence: detection.confidence,
+            });
+          }
+        }
+      }
+    } catch (err) {
+      log.error("Distress detection failed (non-blocking)", {}, err);
+    }
 
     res.status(200).json({
       success: true,
