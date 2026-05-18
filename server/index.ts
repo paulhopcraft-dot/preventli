@@ -242,6 +242,24 @@ const startServer = async () => {
     }
   });
 
+  // Boot-time schema migrations — additive only, idempotent, safe to re-run.
+  // Runs raw SQL so it works even when drizzle-kit is not installed.
+  // Add new columns/tables here whenever a schema change ships.
+  try {
+    const { pool } = await import("./db");
+    await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS preferred_name text`);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS org_inbound_aliases (
+        email_alias varchar NOT NULL UNIQUE,
+        org_id varchar NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+        created_at timestamp DEFAULT now() NOT NULL
+      )
+    `);
+    logger.server.info("[migrations] Boot-time schema sync complete");
+  } catch (err) {
+    logger.server.error("[migrations] Boot-time schema sync failed", {}, err);
+  }
+
   // Boot-time storage check — warn loudly if file uploads will fail at request
   // time. Doesn't block startup (the server may be useful for read-only flows
   // even with broken storage), but the log line tells ops exactly what to fix
