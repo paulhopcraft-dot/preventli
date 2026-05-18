@@ -58,6 +58,7 @@ import supportRoutes from "./routes/support";
 import morningBriefingRoutes from "./routes/morning-briefing";
 import contactSuppressionRoutes from "./routes/contact-suppressions";
 import costEstimateRoutes from "./routes/cost-estimate";
+import portfolioCostRoutes from "./routes/portfolio-cost-summary";
 import type { RecoveryTimelineSummary } from "@shared/schema";
 import { evaluateClinicalEvidence } from "./services/clinicalEvidence";
 import { authorize, type AuthRequest } from "./middleware/auth";
@@ -247,6 +248,9 @@ export async function registerRoutes(app: Express): Promise<void> {
 
   // Claim Cost Estimate — GET /api/cases/:id/cost-estimate (funding-bundle Phase 2)
   app.use("/api", costEstimateRoutes);
+
+  // Portfolio Cost Summary — GET /api/cases/portfolio-cost-summary (funding-bundle Phase 2, slice 2.5)
+  app.use("/api", portfolioCostRoutes);
 
   // Telehealth Bookings (JWT-protected)
   app.use("/api/bookings", bookingRoutes);

@@ -755,6 +755,7 @@ export interface IStorage {
   upsertCaseCostEstimate(estimate: InsertCaseCostEstimate): Promise<CaseCostEstimateDB>;
   getCaseCostEstimate(caseId: string): Promise<CaseCostEstimateDB | null>;
   getOrgCaseCostStats(organizationId: string): Promise<{ caseCount: number; avgCaseCostDollars: number | null }>;
+  getOrgTotalEstimatedCost(organizationId: string): Promise<number>;
 }
 
 class DbStorage implements IStorage {
@@ -4620,6 +4621,17 @@ class DbStorage implements IStorage {
       caseCount: row?.case_count ?? 0,
       avgCaseCostDollars: row?.avg_cost != null ? parseFloat(row.avg_cost) : null,
     };
+  }
+
+  async getOrgTotalEstimatedCost(organizationId: string): Promise<number> {
+    const result = await db.execute(
+      sql`SELECT SUM(cce.estimated_cost_dollars)::float AS total_cost
+          FROM case_cost_estimates cce
+          JOIN worker_cases wc ON wc.id = cce.case_id
+          WHERE wc.organization_id = ${organizationId}`
+    );
+    const row = result.rows[0] as { total_cost: string | null } | undefined;
+    return row?.total_cost != null ? parseFloat(row.total_cost) : 0;
   }
 }
 

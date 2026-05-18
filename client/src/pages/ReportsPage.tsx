@@ -21,6 +21,7 @@ import {
   Legend,
 } from "recharts";
 import { Link } from "react-router-dom";
+import PortfolioCostCard from "@/components/PortfolioCostCard";
 
 const COLORS = {
   compliance: {
@@ -222,6 +223,9 @@ export default function ReportsPage() {
       </header>
 
       <main className="container mx-auto px-4 py-6">
+        {/* Portfolio cost estimate — org-wide aggregate (funding-bundle 2.5) */}
+        <PortfolioCostCard className="mb-6" />
+
         {/* Summary Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mb-6">
           <Card>
