@@ -47,7 +47,7 @@ const partnerSelfFields = {
   addressLine1: optionalEmpty(z.string().max(200)),
   addressLine2: optionalEmpty(z.string().max(200)),
   suburb: optionalEmpty(z.string().max(100)),
-  state: z.enum(auStateCodes).optional(),
+  state: z.preprocess((v) => (v === "" ? undefined : v), z.enum(auStateCodes).optional()),
   postcode: optionalEmpty(postcodeSchema),
   contactName: optionalEmpty(z.string().max(200)),
   contactEmail: optionalEmpty(z.string().email()),
