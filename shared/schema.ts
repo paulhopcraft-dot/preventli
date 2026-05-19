@@ -2707,7 +2707,8 @@ export type InsertCaseLifecycleLog = typeof caseLifecycleLogs.$inferInsert;
 export type OutreachTrigger =
   | "cert_expiring_7d"   // cert expires in ≤7 days → email worker
   | "cert_expired"       // cert expired, no renewal → email worker
-  | "manager_no_response"; // worker didn't respond in 3 days → alert HR
+  | "manager_no_response" // worker didn't respond in 3 days → alert HR
+  | "cert_downgraded";   // new cert has lower capacity than previous → send Prevention Check
 
 export type OutreachStatus = "sent" | "responded" | "failed";
 

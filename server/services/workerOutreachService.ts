@@ -16,6 +16,7 @@
 import { db } from "../db";
 import { workerOutreachLog, outreachTemplates, type OutreachTrigger } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
+import crypto from "crypto";
 import { storage } from "../storage";
 import { getCaseCompliance } from "./certificateCompliance";
 import { sendEmail } from "./emailService";
@@ -453,4 +454,156 @@ export async function getCaseOutreachLog(
     .from(workerOutreachLog)
     .where(eq(workerOutreachLog.caseId, caseId))
     .orderBy(workerOutreachLog.sentAt);
+}
+
+// ─── Certificate downgrade detection ─────────────────────────────────────────
+
+// Capacity rank: higher = better. A drop in rank is a downgrade.
+const CAPACITY_RANK: Record<string, number> = {
+  fit: 3,
+  partial: 2,
+  unfit: 1,
+  unknown: 0,
+};
+
+function capacityRank(capacity: string): number {
+  return CAPACITY_RANK[capacity?.toLowerCase()] ?? 0;
+}
+
+/**
+ * Called immediately after a new certificate is saved for a case.
+ *
+ * Compares the new cert's capacity against the previous cert. If lower
+ * (i.e. worker has gone backwards), automatically sends a Prevention Check
+ * invite so the case manager can understand where the worker is at and
+ * update the RTW plan accordingly.
+ *
+ * @param caseId         The case the new cert belongs to
+ * @param newCapacity    Capacity value on the newly saved cert ("fit"|"partial"|"unfit")
+ * @param organizationId Organisation the case belongs to
+ */
+export async function checkAndTriggerDowngradeOutreach(
+  caseId: string,
+  newCapacity: string,
+  organizationId: string
+): Promise<void> {
+  try {
+    // Get the two most recent certs — [0] = newest (just saved), [1] = previous
+    const certs = await storage.getCertificatesByCase(caseId, organizationId);
+    if (certs.length < 2) return; // No previous cert to compare against
+
+    // Sort by startDate descending — most recent first
+    const sorted = [...certs].sort(
+      (a, b) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime()
+    );
+
+    const prevCapacity = sorted[1]?.capacity ?? "unknown";
+    const newRank = capacityRank(newCapacity);
+    const prevRank = capacityRank(prevCapacity);
+
+    if (newRank >= prevRank) return; // No downgrade — nothing to do
+
+    logger.info("Capacity downgrade detected — triggering Prevention Check", {
+      caseId,
+      prevCapacity,
+      newCapacity,
+    });
+
+    // Dedup: only send one downgrade check per cert cycle
+    const dedupeKey = `outreach:${caseId}:cert_downgraded:${prevCapacity}→${newCapacity}:${sorted[0]?.id}`;
+    const existing = await getOutreachByDedupeKey(dedupeKey);
+    if (existing) return;
+
+    // Get worker email
+    let workerEmail: string | null = null;
+    let workerName = "Worker";
+    try {
+      const workerCase = await storage.getGPNet2CaseByIdAdmin?.(caseId);
+      workerName = (workerCase as { workerName?: string } | null)?.workerName ?? "Worker";
+      const contacts = await storage.getCaseContactsByRole(caseId, organizationId, "worker");
+      const primary = contacts.find((c) => c.isPrimary) ?? contacts[0];
+      const email = primary?.email?.trim();
+      if (email && email.includes("@")) workerEmail = email;
+    } catch {
+      // non-fatal
+    }
+
+    if (!workerEmail) {
+      logger.warn("Downgrade detected but no worker email — skipping Prevention Check", { caseId });
+      return;
+    }
+
+    // Create a Prevention Check assessment
+    const accessToken = crypto.randomBytes(32).toString("hex");
+    const checkLink = `${APP_URL}/check/${accessToken}`;
+
+    let assessmentId: string | null = null;
+    try {
+      const assessment = await storage.createPreEmploymentAssessment({
+        organizationId,
+        candidateName: workerName,
+        candidateEmail: workerEmail,
+        positionTitle: "Return to Work — Capacity Review",
+        assessmentType: "prevention",
+        checkCategory: "prevention",
+        accessToken,
+        status: "pending",
+        caseId,
+      } as Parameters<typeof storage.createPreEmploymentAssessment>[0]);
+      assessmentId = assessment.id;
+    } catch (err) {
+      logger.error("Failed to create Prevention Check assessment", { caseId, error: err });
+      // Still send the email even if DB record fails
+    }
+
+    // Send Prevention Check invite to worker
+    const subject = `Your recovery update — please complete a short check`;
+    const body = `Hi ${workerName},
+
+We've noticed a change in your work capacity based on your latest medical certificate. To make sure your Return to Work plan reflects where you're at now, we'd like you to complete a short Prevention Check.
+
+This will only take a few minutes and helps your case manager understand how you're going and update your plan accordingly.
+
+Complete your check here:
+${checkLink}
+
+This link is personal to you. Please don't share it.
+
+If you have any questions, please reply to this email.
+
+Warm regards,
+The Preventli Team`;
+
+    const result = await sendEmail({ to: workerEmail, subject, body });
+
+    if (result.success) {
+      await createOutreachRecord({
+        organizationId,
+        caseId,
+        trigger: "cert_downgraded",
+        channel: "email",
+        recipientEmail: workerEmail,
+        recipientType: "worker",
+        subject,
+        bodyPreview: body.slice(0, 500),
+        status: "sent",
+        dedupeKey,
+        metadata: {
+          prevCapacity,
+          newCapacity,
+          assessmentId,
+          checkLink,
+          workerName,
+        },
+      });
+      logger.info("Prevention Check invite sent after capacity downgrade", {
+        caseId,
+        workerEmail,
+        prevCapacity,
+        newCapacity,
+      });
+    }
+  } catch (err) {
+    logger.error("Downgrade outreach check failed", { caseId, error: err });
+  }
 }

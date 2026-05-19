@@ -19,6 +19,7 @@ const VALID_TRIGGERS: OutreachTrigger[] = [
   "cert_expiring_7d",
   "cert_expired",
   "manager_no_response",
+  "cert_downgraded",
 ];
 
 /**

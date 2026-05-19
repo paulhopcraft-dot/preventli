@@ -6,7 +6,7 @@ import {
 } from "./emailMatcher";
 import { llmMatchEmailToCase } from "./llmEmailMatcher";
 import { createLogger } from "../lib/logger";
-import { markOutreachResponded } from "./workerOutreachService";
+import { markOutreachResponded, checkAndTriggerDowngradeOutreach } from "./workerOutreachService";
 import type { InsertCaseEmail, InsertEmailAttachment, CaseEmailDB } from "@shared/schema";
 
 const log = createLogger("InboundEmail");
@@ -511,4 +511,16 @@ async function createCertificateFromEmail(
   } as any);
 
   log.info("Certificate created from email", { caseId, capacity, startDate: startDate.toISOString(), endDate: endDate.toISOString() });
+
+  // Check for capacity downgrade — if so, send Prevention Check invite to worker
+  // Lookup org from case (non-fatal if it fails)
+  try {
+    const workerCase = await (storage as any).getGPNet2CaseByIdAdmin?.(caseId);
+    const orgId = workerCase?.organizationId;
+    if (orgId) {
+      checkAndTriggerDowngradeOutreach(caseId, capacity, orgId).catch(() => {});
+    }
+  } catch {
+    // non-fatal
+  }
 }
