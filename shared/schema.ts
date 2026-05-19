@@ -2344,6 +2344,9 @@ export const preEmploymentAssessments = pgTable("pre_employment_assessments", {
   reportJson: jsonb("report_json").$type<Record<string, unknown> | null>(), // AI-generated report
   alertSent: boolean("alert_sent").default(false),       // flagged to jacinta@preventli.ai
 
+  // RTW linkage — set when assessment is triggered by a worker case (e.g. cert downgrade)
+  caseId: varchar("case_id").references(() => workerCases.id, { onDelete: "set null" }),
+
   // Tracking
   createdBy: varchar("created_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),

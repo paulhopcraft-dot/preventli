@@ -14,13 +14,14 @@
  */
 
 import { db } from "../db";
-import { workerOutreachLog, outreachTemplates, type OutreachTrigger } from "@shared/schema";
+import { workerOutreachLog, outreachTemplates, agentJobs, type OutreachTrigger } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
 import crypto from "crypto";
 import { storage } from "../storage";
 import { getCaseCompliance } from "./certificateCompliance";
 import { sendEmail } from "./emailService";
 import { createLogger } from "../lib/logger";
+import { runSpecialistAgent } from "../agents/agent-runner";
 
 const logger = createLogger("WorkerOutreach");
 
@@ -79,6 +80,25 @@ Recommended next steps:
 View this case: {{caseUrl}}
 
 Preventli Automated Alerts`,
+  },
+
+  cert_downgraded: {
+    subject: "Your recovery update — please complete a short check",
+    body: `Hi {{workerName}},
+
+We've noticed a change in your work capacity based on your latest medical certificate. To make sure your Return to Work plan reflects where you're at now, we'd like you to complete a short Prevention Check.
+
+This will only take a few minutes and helps your case manager understand how you're going and update your plan accordingly.
+
+Complete your check here:
+{{checkLink}}
+
+This link is personal to you. Please don't share it.
+
+If you have any questions, please reply to this email.
+
+Warm regards,
+The Preventli Team`,
   },
 };
 
@@ -454,6 +474,56 @@ export async function getCaseOutreachLog(
     .from(workerOutreachLog)
     .where(eq(workerOutreachLog.caseId, caseId))
     .orderBy(workerOutreachLog.sentAt);
+}
+
+// ─── RTW review trigger ───────────────────────────────────────────────────────
+
+/**
+ * Queue an RTW agent job to review Prevention Check responses and suggest
+ * RTW plan updates. Called when a worker completes a check triggered by
+ * a cert capacity downgrade.
+ *
+ * Runs fire-and-forget — the agent job runs in background and surfaces
+ * its recommendation as a case notification for the case manager.
+ */
+export async function scheduleRTWReviewAfterPreventionCheck(
+  assessmentId: string,
+  caseId: string,
+  organizationId: string,
+  questionnaireResponses: Record<string, unknown>
+): Promise<void> {
+  try {
+    logger.info("Scheduling RTW plan review after Prevention Check", { assessmentId, caseId });
+
+    const [job] = await db
+      .insert(agentJobs)
+      .values({
+        organizationId,
+        caseId,
+        agentType: "rtw",
+        status: "queued",
+        triggeredBy: "prevention_check",
+        context: {
+          mode: "prevention_check_review",
+          assessmentId,
+          questionnaireResponses,
+          runDate: new Date().toISOString(),
+        },
+      } as any)
+      .returning();
+
+    // Fire in background — do not await (don't block the worker's submission response)
+    setImmediate(async () => {
+      await runSpecialistAgent(job.id).catch((err) => {
+        logger.error("RTW review agent failed after Prevention Check", { caseId, assessmentId }, err);
+      });
+    });
+
+    logger.info("RTW review job queued", { jobId: job.id, caseId });
+  } catch (err) {
+    logger.error("Failed to schedule RTW plan review", { assessmentId, caseId }, err);
+    // Non-fatal — outreach cadence continues even if agent scheduling fails
+  }
 }
 
 // ─── Certificate downgrade detection ─────────────────────────────────────────
