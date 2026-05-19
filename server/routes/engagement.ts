@@ -3,6 +3,7 @@ import { z } from "zod";
 import { storage } from "../storage";
 import { authorize, type AuthRequest } from "../middleware/auth";
 import { pushEscalation, ESCALATION_THRESHOLD } from "../services/insurerStub";
+import { auditLog } from "../lib/auditLog";
 import { createLogger } from "../lib/logger";
 import { db } from "../db";
 import { workerCases } from "@shared/schema";
@@ -103,6 +104,21 @@ router.post("/cases/:caseId/escalate-to-insurer", async (req: AuthRequest, res: 
       scoreAtTrigger: scoreAtTrigger.toString(),
       thresholdAtTrigger: ESCALATION_THRESHOLD.toString(),
       messageBody: parsed.data.messageBody,
+    });
+
+    // Audit-log the escalation at the route boundary too (belt-and-braces with
+    // the stub adapter's internal auditLog) — keeps the route file directly
+    // auditable per the funding-bundle invariant.
+    await auditLog({
+      caseId,
+      workerId,
+      eventType: "insurer.escalation-route",
+      actor: req.user!.id,
+      payload: {
+        escalationId: escalation.id,
+        scoreAtTrigger,
+        threshold: ESCALATION_THRESHOLD,
+      },
     });
 
     res.status(201).json({
