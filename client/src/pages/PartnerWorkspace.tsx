@@ -646,10 +646,10 @@ export default function PartnerWorkspace() {
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                openWorkerProfile(c);
+                                openCase(c);
                               }}
                               className="hover:underline focus:underline focus:outline-none text-left"
-                              disabled={openingWorkerId === c.workerId}
+                              disabled={openingCaseId === c.id}
                               data-testid={`worker-link-${c.id}`}
                             >
                               {c.workerName}
