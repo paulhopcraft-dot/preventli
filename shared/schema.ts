@@ -2701,3 +2701,56 @@ export const caseLifecycleLogs = pgTable("case_lifecycle_logs", {
 
 export type CaseLifecycleLogDB = typeof caseLifecycleLogs.$inferSelect;
 export type InsertCaseLifecycleLog = typeof caseLifecycleLogs.$inferInsert;
+
+// ─── Worker Outreach ──────────────────────────────────────────────────────────
+
+export type OutreachTrigger =
+  | "cert_expiring_7d"   // cert expires in ≤7 days → email worker
+  | "cert_expired"       // cert expired, no renewal → email worker
+  | "manager_no_response"; // worker didn't respond in 3 days → alert HR
+
+export type OutreachStatus = "sent" | "responded" | "failed";
+
+/**
+ * Log of every automated outreach sent to a worker or manager.
+ * Used for deduplication and response tracking.
+ */
+export const workerOutreachLog = pgTable("worker_outreach_log", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  organizationId: varchar("organization_id").notNull(),
+  caseId: varchar("case_id").notNull().references(() => workerCases.id, { onDelete: "cascade" }),
+  trigger: varchar("trigger").notNull().$type<OutreachTrigger>(),
+  channel: varchar("channel").notNull().default("email"),
+  recipientEmail: varchar("recipient_email"),
+  recipientType: varchar("recipient_type").notNull().default("worker"), // 'worker' | 'manager'
+  subject: text("subject"),
+  bodyPreview: text("body_preview"),       // first 500 chars of email body (for audit)
+  sentAt: timestamp("sent_at").defaultNow(),
+  respondedAt: timestamp("responded_at"),  // set when worker replies via inbound email
+  status: varchar("status").notNull().default("sent").$type<OutreachStatus>(),
+  dedupeKey: varchar("dedupe_key").unique(),
+  metadata: jsonb("metadata"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export type WorkerOutreachLogDB = typeof workerOutreachLog.$inferSelect;
+export type InsertWorkerOutreachLog = typeof workerOutreachLog.$inferInsert;
+
+/**
+ * Per-org editable email templates for each outreach trigger.
+ * Falls back to hardcoded defaults when no org template exists.
+ */
+export const outreachTemplates = pgTable("outreach_templates", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  organizationId: varchar("organization_id").notNull(),
+  trigger: varchar("trigger").notNull().$type<OutreachTrigger>(),
+  subject: text("subject").notNull(),
+  body: text("body").notNull(), // supports {{workerName}}, {{expiryDate}}, {{daysUntil}}, {{company}}, {{caseUrl}}
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export type OutreachTemplateDB = typeof outreachTemplates.$inferSelect;
+export type InsertOutreachTemplate = typeof outreachTemplates.$inferInsert;
+export const insertOutreachTemplateSchema = createInsertSchema(outreachTemplates);

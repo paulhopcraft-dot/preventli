@@ -55,6 +55,7 @@ import controlRoutes from "./routes/control";
 import lifecycleRoutes from "./routes/lifecycle";
 import hrDecisionsRoutes from "./routes/hr-decisions";
 import supportRoutes from "./routes/support";
+import outreachRoutes from "./routes/outreach";
 import morningBriefingRoutes from "./routes/morning-briefing";
 import type { RecoveryTimelineSummary } from "@shared/schema";
 import { evaluateClinicalEvidence } from "./services/clinicalEvidence";
@@ -270,6 +271,7 @@ export async function registerRoutes(app: Express): Promise<void> {
 
   // Support contact form
   app.use("/api/support", supportRoutes);
+  app.use("/api/outreach", outreachRoutes);
 
   // Inbound Email webhook registered in server/index.ts (before CSRF middleware)
 

@@ -6,6 +6,7 @@ import {
 } from "./emailMatcher";
 import { llmMatchEmailToCase } from "./llmEmailMatcher";
 import { createLogger } from "../lib/logger";
+import { markOutreachResponded } from "./workerOutreachService";
 import type { InsertCaseEmail, InsertEmailAttachment, CaseEmailDB } from "@shared/schema";
 
 const log = createLogger("InboundEmail");
@@ -235,6 +236,11 @@ export async function processInboundEmail(payload: InboundEmailPayload): Promise
   //    matches must additionally clear the confidence floor. Body-only
   //    keyword mentions never auto-write — they may be a phantom cert
   //    (forwards like "Dr Lee will send the cert tomorrow").
+  // Mark any open outreach cadence as responded — worker has been in touch
+  if (caseId) {
+    markOutreachResponded(caseId).catch(() => {}); // fire-and-forget, non-fatal
+  }
+
   if (certificateDetected && caseId) {
     if (shouldAutoCreateCertificate(match.method, match.confidence ?? null, hasCertAttachment)) {
       try {
