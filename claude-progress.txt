@@ -1,3 +1,38 @@
+## Session 148 (19 May 2026) — Production recovery + Postmark activation prep
+
+### Completed
+- Fixed production login outage (all users 500): boot-time migrations in `server/index.ts`
+  - Root cause: `preferred_name` column + `org_inbound_aliases` table missing from prod DB
+  - Fix: idempotent `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` + `CREATE TABLE IF NOT EXISTS` on every boot
+  - Commit: `241de5c` — login restored at 13:57 AWST
+- Partner self-edit E2E verified on prod: PATCH /api/partner/me → all 3 fields persist (HTTP 200)
+- render.yaml: declared Postmark env vars + PREVENTLI_DEFAULT_INBOUND_ORG_ID (`38745dd`)
+
+### Postmark activation (PAUL must complete)
+Credentials generated — DO NOT lose:
+- `POSTMARK_WEBHOOK_USER` = `c32998032d670961ad8dcc9a`
+- `POSTMARK_WEBHOOK_PASSWORD` = `50ac9058602026844388f113cde403085a679e2cbecff16c`
+- Webhook URL: `https://c32998032d670961ad8dcc9a:50ac9058602026844388f113cde403085a679e2cbecff16c@app.preventli.ai/api/webhooks/postmark/inbound`
+
+Steps for Paul:
+1. Render → Environment → add USER, PASSWORD, PREVENTLI_DEFAULT_INBOUND_ORG_ID=org-wallara → redeploy
+2. DNS: MX record `support.preventli.ai → inbound.postmarkapp.com` (priority 10)
+3. Postmark: create server → inbound domain `support.preventli.ai` → webhook URL above
+4. Tell Claude → verify with test email
+
+### Next Steps
+1. Postmark E2E verification (after Paul completes 4 steps above)
+2. Failed-match triage UI — `case_emails` with `case_id IS NULL` need an admin screen
+
+### Notes
+- Render is now on paid plan (no cold starts, ~3-5 min deploys)
+- boot-time migrations pattern: add future schema changes to the block in server/index.ts
+- Schema changes that hit prod before db:push: preferred_name, org_inbound_aliases
+- Production: https://app.preventli.ai | admin@gpnet.local / ChangeMe123!
+- WorkBetter partner: workbetter@workbetter.net.au / workbetter123
+
+---
+
 ## Session 129 (15 May 2026) — Wallara demo, multi-bundle shipping
 
 ### Completed (14+ commits to main, all pushed)
