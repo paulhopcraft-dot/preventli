@@ -171,7 +171,15 @@ export function PartnerSelfSetupForm({ open, onOpenChange }: Props) {
       }
       return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (data: { partnerOrg?: PartnerOrgRow }) => {
+      // Immediately patch the cached query so header + sidebar reflect the
+      // new name without waiting for a background refetch to complete.
+      if (data?.partnerOrg) {
+        queryClient.setQueryData<{ partnerOrg: PartnerOrgRow | null; activeOrg: unknown }>(
+          ["partner", "me"],
+          (old) => (old ? { ...old, partnerOrg: data.partnerOrg ?? null } : old)
+        );
+      }
       queryClient.invalidateQueries({ queryKey: ["partner", "me"] });
       toast({
         title: "Organisation updated",
