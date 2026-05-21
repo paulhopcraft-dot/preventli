@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { getCsrfToken } from "@/lib/queryClient";
 import { PageLayout } from "@/components/PageLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -56,6 +57,7 @@ const CHECK_META: Record<CheckCategory, { label: string; description: string; re
 
 export default function NewAssessmentPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
   const rawType = searchParams.get("type") ?? "pre_employment";
   const checkCategory: CheckCategory = (rawType in CHECK_META ? rawType : "pre_employment") as CheckCategory;
@@ -124,6 +126,9 @@ export default function NewAssessmentPage() {
         throw new Error(body.error ?? `Request failed (${res.status})`);
       }
       const data = await res.json();
+      // Bust every per-category assessments cache so the new check appears
+      // on /checks (queryClient defaults to staleTime: Infinity).
+      queryClient.invalidateQueries({ queryKey: ["assessments"] });
       setAssessment(data.assessment);
       setStep("created");
     } catch (err: unknown) {
@@ -148,6 +153,8 @@ export default function NewAssessmentPage() {
         const body = await res.json().catch(() => ({}));
         throw new Error(body.error ?? `Request failed (${res.status})`);
       }
+      // Status changed to "sent" server-side — refresh the checks lists.
+      queryClient.invalidateQueries({ queryKey: ["assessments"] });
       setStep("sent");
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Something went wrong");
