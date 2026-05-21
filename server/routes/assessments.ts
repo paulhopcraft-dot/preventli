@@ -8,21 +8,15 @@ import { sendEmail } from "../services/emailService";
 import { jdUpload, saveJdFile } from "../services/fileUpload";
 import { checkStorageHealth } from "../services/storageService";
 import { createLogger } from "../lib/logger";
+import {
+  CHECK_CATEGORIES,
+  CHECK_LABELS,
+  assessmentTypesForCategory,
+  type CheckCategory,
+} from "@shared/check-categories";
 
 const logger = createLogger("AssessmentsRoutes");
 const router: Router = express.Router();
-
-const CHECK_CATEGORIES = ["pre_employment", "exit", "wellness", "mental_health", "prevention", "injury"] as const;
-type CheckCategory = typeof CHECK_CATEGORIES[number];
-
-const CHECK_LABELS: Record<CheckCategory, string> = {
-  pre_employment: "Pre-Employment Health Check",
-  exit: "Exit Health Check",
-  wellness: "General Wellness Assessment",
-  mental_health: "Mental Health Assessment",
-  prevention: "Prevention & Safety Check",
-  injury: "Injury Assessment",
-};
 
 const createAssessmentSchema = z.object({
   candidateName: z.string().min(1),
