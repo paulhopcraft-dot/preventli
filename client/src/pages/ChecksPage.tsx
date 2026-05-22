@@ -61,11 +61,11 @@ interface WorkerSummary {
   recheckUrgency: "overdue" | "due_soon" | "upcoming" | "pending" | "not_applicable" | null;
 }
 
-/** A status the stat cards count, with its display label. */
+/** A stat card: a labelled count derived from a predicate over the list. */
 interface StatCardDef {
   label: string;
   description: string;
-  status: string;
+  match: (a: Assessment) => boolean;
   icon: LucideIcon;
   color: string;
 }
@@ -79,7 +79,24 @@ interface CategoryConfig {
   newAssessmentHref: string;
   newAssessmentLabel: string;
   showAttentionPanel: boolean;
+  statCards: StatCardDef[];
 }
+
+/** Default stat cards — used by every non-pre-employment tab. */
+const DEFAULT_STAT_CARDS: StatCardDef[] = [
+  { label: "Total", description: "All time", match: () => true, icon: Users, color: "blue" },
+  { label: "Sent", description: "Awaiting completion", match: a => a.status === "sent", icon: Send, color: "yellow" },
+  { label: "Completed", description: "Questionnaire submitted", match: a => a.status === "completed", icon: CheckCircle, color: "green" },
+  { label: "In Progress", description: "Questionnaire received", match: a => a.status === "in_progress", icon: Clock, color: "orange" },
+];
+
+/** Pre-Employment stat cards — oriented around the clearance workflow. */
+const PRE_EMPLOYMENT_STAT_CARDS: StatCardDef[] = [
+  { label: "Total Assessments", description: "All time", match: () => true, icon: Users, color: "blue" },
+  { label: "Awaiting Action", description: "Pending or awaiting approval", match: a => ["created", "sent", "pending", "in_progress"].includes(a.status), icon: Clock, color: "yellow" },
+  { label: "Completed", description: "Questionnaire submitted", match: a => a.status === "completed", icon: CheckCircle, color: "green" },
+  { label: "Cleared for Work", description: "Ready to start", match: a => (a.clearanceLevel ?? "").toUpperCase().replace(/-/g, "_").startsWith("CLEARED"), icon: Shield, color: "green" },
+];
 
 const CATEGORY_CONFIG: Record<CheckCategory, CategoryConfig> = {
   pre_employment: {
@@ -90,6 +107,7 @@ const CATEGORY_CONFIG: Record<CheckCategory, CategoryConfig> = {
     newAssessmentHref: "/assessments/new?type=pre_employment",
     newAssessmentLabel: "New Assessment",
     showAttentionPanel: true,
+    statCards: PRE_EMPLOYMENT_STAT_CARDS,
   },
   prevention: {
     icon: Shield,
@@ -99,6 +117,7 @@ const CATEGORY_CONFIG: Record<CheckCategory, CategoryConfig> = {
     newAssessmentHref: "/assessments/new?type=prevention",
     newAssessmentLabel: "New Assessment",
     showAttentionPanel: false,
+    statCards: DEFAULT_STAT_CARDS,
   },
   injury: {
     icon: Activity,
@@ -108,6 +127,7 @@ const CATEGORY_CONFIG: Record<CheckCategory, CategoryConfig> = {
     newAssessmentHref: "/assessments/new?type=injury",
     newAssessmentLabel: "New Injury Assessment",
     showAttentionPanel: false,
+    statCards: DEFAULT_STAT_CARDS,
   },
   wellness: {
     icon: Heart,
@@ -117,6 +137,7 @@ const CATEGORY_CONFIG: Record<CheckCategory, CategoryConfig> = {
     newAssessmentHref: "/assessments/new?type=wellness",
     newAssessmentLabel: "New Wellness Assessment",
     showAttentionPanel: false,
+    statCards: DEFAULT_STAT_CARDS,
   },
   mental_health: {
     icon: Brain,
@@ -126,6 +147,7 @@ const CATEGORY_CONFIG: Record<CheckCategory, CategoryConfig> = {
     newAssessmentHref: "/assessments/new?type=mental_health",
     newAssessmentLabel: "New MH Assessment",
     showAttentionPanel: false,
+    statCards: DEFAULT_STAT_CARDS,
   },
   exit: {
     icon: LogOut,
@@ -135,16 +157,9 @@ const CATEGORY_CONFIG: Record<CheckCategory, CategoryConfig> = {
     newAssessmentHref: "/assessments/new?type=exit",
     newAssessmentLabel: "New Exit Health Check",
     showAttentionPanel: false,
+    statCards: DEFAULT_STAT_CARDS,
   },
 };
-
-/** Uniform stat cards for every tab — counts derived from the fetched list. */
-const STAT_CARD_DEFS: StatCardDef[] = [
-  { label: "Total", description: "All time", status: "__all__", icon: Users, color: "blue" },
-  { label: "Sent", description: "Awaiting completion", status: "sent", icon: Send, color: "yellow" },
-  { label: "Completed", description: "Questionnaire submitted", status: "completed", icon: CheckCircle, color: "green" },
-  { label: "In Progress", description: "Questionnaire received", status: "in_progress", icon: Clock, color: "orange" },
-];
 
 const TAB_ORDER: CheckCategory[] = [
   "pre_employment",
@@ -248,14 +263,13 @@ function AssessmentList({ category, onViewReport }: AssessmentListProps): React.
     : assessments;
 
   function statValue(def: StatCardDef): number {
-    if (def.status === "__all__") return assessments.length;
-    return assessments.filter(a => a.status === def.status).length;
+    return assessments.filter(def.match).length;
   }
 
   return (
     <>
       <div className="grid gap-4 md:grid-cols-4">
-        {STAT_CARD_DEFS.map(def => (
+        {config.statCards.map(def => (
           <StatCard
             key={def.label}
             title={def.label}
