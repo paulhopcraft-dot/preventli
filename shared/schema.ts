@@ -2280,13 +2280,24 @@ export type PreEmploymentAssessmentStatus =
   | "failed"
   | "cancelled";
 
-export type PreEmploymentAssessmentType =
+// Assessment-type values stored in preEmploymentAssessments.assessmentType.
+// The first six are the legacy clinical types used by pre-employment checks;
+// the last five are the non-pre-employment check categories, stored verbatim.
+export type AssessmentType =
   | "baseline_health"
   | "functional_capacity"
   | "medical_screening"
   | "fitness_for_duty"
   | "psychological_assessment"
-  | "substance_screening";
+  | "substance_screening"
+  | "prevention"
+  | "injury"
+  | "wellness"
+  | "mental_health"
+  | "exit";
+
+/** @deprecated Use {@link AssessmentType}. Kept for back-compat. */
+export type PreEmploymentAssessmentType = AssessmentType;
 
 export type PreEmploymentClearanceLevel =
   | "cleared_unconditional"
@@ -2314,7 +2325,7 @@ export const preEmploymentAssessments = pgTable("pre_employment_assessments", {
   roleId: varchar("role_id").references(() => rtwRoles.id), // Links to existing RTW roles
 
   // Assessment Details
-  assessmentType: text("assessment_type").notNull().$type<PreEmploymentAssessmentType>(),
+  assessmentType: text("assessment_type").notNull().$type<AssessmentType>(),
   status: text("status").notNull().default("pending").$type<PreEmploymentAssessmentStatus>(),
   scheduledDate: timestamp("scheduled_date"),
   completedDate: timestamp("completed_date"),

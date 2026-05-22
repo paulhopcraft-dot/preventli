@@ -8,21 +8,15 @@ import { sendEmail } from "../services/emailService";
 import { jdUpload, saveJdFile } from "../services/fileUpload";
 import { checkStorageHealth } from "../services/storageService";
 import { createLogger } from "../lib/logger";
+import {
+  CHECK_CATEGORIES,
+  CHECK_LABELS,
+  assessmentTypesForCategory,
+  type CheckCategory,
+} from "@shared/check-categories";
 
 const logger = createLogger("AssessmentsRoutes");
 const router: Router = express.Router();
-
-const CHECK_CATEGORIES = ["pre_employment", "exit", "wellness", "mental_health", "prevention", "injury"] as const;
-type CheckCategory = typeof CHECK_CATEGORIES[number];
-
-const CHECK_LABELS: Record<CheckCategory, string> = {
-  pre_employment: "Pre-Employment Health Check",
-  exit: "Exit Health Check",
-  wellness: "General Wellness Assessment",
-  mental_health: "Mental Health Assessment",
-  prevention: "Prevention & Safety Check",
-  injury: "Injury Assessment",
-};
 
 const createAssessmentSchema = z.object({
   candidateName: z.string().min(1),
@@ -210,15 +204,36 @@ If you have any questions, please contact us.
 
 /**
  * @route GET /api/assessments
- * @desc List assessments for the organization
+ * @desc List assessments for the organization, optionally filtered by check
+ *       category via `?category=`. Absent category → all assessments
+ *       (backward compatible); invalid category → 400.
  * @access Private
  */
 router.get("/", authorize(), async (req: AuthRequest, res: Response) => {
   try {
     const organizationId = req.user!.organizationId;
+
+    // Optional ?category= filter. Validate against the known categories so a
+    // bad value is a clear 400, not a silent unfiltered fallback.
+    let category: CheckCategory | undefined;
+    if (req.query.category !== undefined) {
+      const parsed = z.enum(CHECK_CATEGORIES).safeParse(req.query.category);
+      if (!parsed.success) {
+        return res.status(400).json({
+          error: `Invalid category. Must be one of: ${CHECK_CATEGORIES.join(", ")}`,
+        });
+      }
+      category = parsed.data;
+    }
+
     const all = await storage.getPreEmploymentAssessments(organizationId);
+    // When a category is requested, keep only assessments whose stored
+    // assessmentType belongs to that category.
+    const filtered = category
+      ? all.filter(a => assessmentTypesForCategory(category!).includes(a.assessmentType))
+      : all;
     // Return only the fields the UI needs (exclude sensitive internals like accessToken)
-    const assessments = all.map(a => ({
+    const assessments = filtered.map(a => ({
       id: a.id,
       workerId: a.workerId,
       candidateName: a.candidateName,
