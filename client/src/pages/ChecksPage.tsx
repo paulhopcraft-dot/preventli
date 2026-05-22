@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { CHECK_LABELS, type CheckCategory } from "@shared/check-categories";
 import {
   UserPlus,
   Shield,
@@ -20,11 +21,11 @@ import {
   Clock,
   AlertTriangle,
   Users,
-  Calendar,
   FileText,
-  TrendingUp,
+  Send,
   Search,
-  XCircle
+  XCircle,
+  type LucideIcon,
 } from "lucide-react";
 
 interface ReportJson {
@@ -61,6 +62,124 @@ interface WorkerSummary {
   recheckUrgency: "overdue" | "due_soon" | "upcoming" | "pending" | "not_applicable" | null;
 }
 
+/** A stat card: a labelled count derived from a predicate over the list. */
+interface StatCardDef {
+  label: string;
+  description: string;
+  match: (a: Assessment) => boolean;
+  icon: LucideIcon;
+  color: string;
+}
+
+/** Per-tab UI configuration — copy, links, and which extras to show. */
+interface CategoryConfig {
+  icon: LucideIcon;
+  cardTitle: string;
+  cardDescription: string;
+  emptyState: string;
+  newAssessmentHref: string;
+  newAssessmentLabel: string;
+  showAttentionPanel: boolean;
+  statCards: StatCardDef[];
+}
+
+/** Default stat cards — used by every non-pre-employment tab. */
+const DEFAULT_STAT_CARDS: StatCardDef[] = [
+  { label: "Total", description: "All time", match: () => true, icon: Users, color: "blue" },
+  { label: "Sent", description: "Awaiting completion", match: a => a.status === "sent", icon: Send, color: "yellow" },
+  { label: "Completed", description: "Questionnaire submitted", match: a => a.status === "completed", icon: CheckCircle, color: "green" },
+  { label: "In Progress", description: "Questionnaire received", match: a => a.status === "in_progress", icon: Clock, color: "orange" },
+];
+
+/** Pre-Employment stat cards — oriented around the clearance workflow. */
+const PRE_EMPLOYMENT_STAT_CARDS: StatCardDef[] = [
+  { label: "Total Assessments", description: "All time", match: () => true, icon: Users, color: "blue" },
+  { label: "Awaiting Action", description: "Pending or awaiting approval", match: a => ["created", "sent", "pending", "in_progress"].includes(a.status), icon: Clock, color: "yellow" },
+  { label: "Completed", description: "Questionnaire submitted", match: a => a.status === "completed", icon: CheckCircle, color: "green" },
+  { label: "Cleared for Work", description: "Ready to start", match: a => (a.clearanceLevel ?? "").toUpperCase().replace(/-/g, "_").startsWith("CLEARED"), icon: Shield, color: "green" },
+];
+
+const CATEGORY_CONFIG: Record<CheckCategory, CategoryConfig> = {
+  pre_employment: {
+    icon: UserPlus,
+    cardTitle: "Pre-Employment Health Assessments",
+    cardDescription: "Candidate health screening and clearance management",
+    emptyState: "No assessments yet. Create one to get started.",
+    newAssessmentHref: "/assessments/new?type=pre_employment",
+    newAssessmentLabel: "New Assessment",
+    showAttentionPanel: true,
+    statCards: PRE_EMPLOYMENT_STAT_CARDS,
+  },
+  prevention: {
+    icon: Shield,
+    cardTitle: "Prevention & Safety Checks",
+    cardDescription: "Proactive health monitoring and injury prevention",
+    emptyState: "No prevention checks yet. Create one to get started.",
+    newAssessmentHref: "/assessments/new?type=prevention",
+    newAssessmentLabel: "New Assessment",
+    showAttentionPanel: false,
+    statCards: DEFAULT_STAT_CARDS,
+  },
+  injury: {
+    icon: Activity,
+    cardTitle: "Injury Assessments",
+    cardDescription: "Workplace injury tracking and return-to-work coordination",
+    emptyState: "No injury assessments yet. Create one to get started.",
+    newAssessmentHref: "/assessments/new?type=injury",
+    newAssessmentLabel: "New Injury Assessment",
+    showAttentionPanel: false,
+    statCards: DEFAULT_STAT_CARDS,
+  },
+  wellness: {
+    icon: Heart,
+    cardTitle: "General Wellness Assessments",
+    cardDescription: "Comprehensive employee wellness monitoring",
+    emptyState: "No wellness assessments yet. Create one to get started.",
+    newAssessmentHref: "/assessments/new?type=wellness",
+    newAssessmentLabel: "New Wellness Assessment",
+    showAttentionPanel: false,
+    statCards: DEFAULT_STAT_CARDS,
+  },
+  mental_health: {
+    icon: Brain,
+    cardTitle: "Mental Health Assessments",
+    cardDescription: "Employee mental health and wellbeing services",
+    emptyState: "No mental health assessments yet. Create one to get started.",
+    newAssessmentHref: "/assessments/new?type=mental_health",
+    newAssessmentLabel: "New MH Assessment",
+    showAttentionPanel: false,
+    statCards: DEFAULT_STAT_CARDS,
+  },
+  exit: {
+    icon: LogOut,
+    cardTitle: "Exit Health Checks",
+    cardDescription: "Final health assessments and liability closure",
+    emptyState: "No exit checks yet. Create one to get started.",
+    newAssessmentHref: "/assessments/new?type=exit",
+    newAssessmentLabel: "New Exit Health Check",
+    showAttentionPanel: false,
+    statCards: DEFAULT_STAT_CARDS,
+  },
+};
+
+const TAB_ORDER: CheckCategory[] = [
+  "pre_employment",
+  "prevention",
+  "injury",
+  "wellness",
+  "mental_health",
+  "exit",
+];
+
+const TAB_LABELS: Record<CheckCategory, string> = {
+  pre_employment: "Pre-Employment",
+  prevention: "Prevention",
+  injury: "Injury",
+  wellness: "Wellness",
+  mental_health: "Mental Health",
+  exit: "Exit",
+};
+
 function clearanceBadgeClass(level?: string | null): string {
   if (!level) return "bg-gray-100 text-gray-700 border-gray-200";
   const l = level.toUpperCase().replace(/-/g, "_");
@@ -81,15 +200,243 @@ function statusBadgeClass(status: string): string {
   }
 }
 
+function statusLabel(status: string): string {
+  return status === "in_progress" ? "Questionnaire Received" : status;
+}
+
 function formatDate(s?: string | null): string {
   if (!s) return "—";
   return new Date(s).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" });
 }
 
-export default function ChecksPage() {
-  const [activeTab, setActiveTab] = useState("pre-employment");
+interface StatCardProps {
+  title: string;
+  value: string | number;
+  description: string;
+  icon: LucideIcon;
+  color: string;
+}
+
+function StatCard({ title, value, description, icon: Icon, color }: StatCardProps): React.ReactElement {
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <CardTitle className="text-sm font-medium">{title}</CardTitle>
+        <Icon className={`h-4 w-4 text-${color}-600`} />
+      </CardHeader>
+      <CardContent>
+        <div className="text-2xl font-bold">{value}</div>
+        <p className="text-xs text-slate-600">{description}</p>
+      </CardContent>
+    </Card>
+  );
+}
+
+interface AssessmentListProps {
+  category: CheckCategory;
+  onViewReport: (assessment: Assessment) => void;
+}
+
+/**
+ * DB-backed assessment list for a single check category. Fetches only that
+ * category's assessments, renders real stat cards, a search box, and the
+ * full list (newest first).
+ */
+function AssessmentList({ category, onViewReport }: AssessmentListProps): React.ReactElement {
+  const config = CATEGORY_CONFIG[category];
+  const [search, setSearch] = useState("");
+
+  const { data, isLoading } = useQuery<{ assessments: Assessment[] }>({
+    queryKey: ["assessments", category],
+    queryFn: () =>
+      fetch(`/api/assessments?category=${category}`, { credentials: "include" }).then(r => r.json()),
+  });
+
+  const assessments = (data?.assessments ?? [])
+    .slice()
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+  const filtered = search
+    ? assessments.filter(a =>
+        a.candidateName.toLowerCase().includes(search.toLowerCase()) ||
+        a.positionTitle.toLowerCase().includes(search.toLowerCase())
+      )
+    : assessments;
+
+  function statValue(def: StatCardDef): number {
+    return assessments.filter(def.match).length;
+  }
+
+  return (
+    <>
+      <div className="grid gap-4 md:grid-cols-4">
+        {config.statCards.map(def => (
+          <StatCard
+            key={def.label}
+            title={def.label}
+            value={isLoading ? "…" : statValue(def)}
+            description={def.description}
+            icon={def.icon}
+            color={def.color}
+          />
+        ))}
+      </div>
+
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>{config.cardTitle}</CardTitle>
+              <CardDescription>{config.cardDescription}</CardDescription>
+            </div>
+            <Button asChild>
+              <Link to={config.newAssessmentHref}>{config.newAssessmentLabel}</Link>
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <p className="text-sm text-slate-600 py-4">Loading assessments…</p>
+          ) : assessments.length === 0 ? (
+            <div className="text-center py-8 text-slate-600">
+              <config.icon className="w-10 h-10 mx-auto mb-3 text-gray-300" />
+              <p className="text-sm">{config.emptyState}</p>
+            </div>
+          ) : (
+            <div className="divide-y">
+              <div className="relative mb-3">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search by name or position..."
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              {filtered.map(a => (
+                <div key={a.id} className="py-3 flex items-start justify-between gap-4 border-b last:border-0">
+                  <Link
+                    to={a.workerId ? `/workers/${a.workerId}` : `/assessments/${a.id}`}
+                    className="min-w-0 flex-1 hover:opacity-75 transition-opacity"
+                  >
+                    <p className="font-medium text-sm truncate">{a.candidateName}</p>
+                    <p className="text-xs text-slate-600 truncate">{a.positionTitle}</p>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      {a.sentAt ? `Sent ${formatDate(a.sentAt)}` : `Created ${formatDate(a.createdAt)}`}
+                    </p>
+                  </Link>
+                  <div className="flex flex-col items-end gap-1.5 shrink-0">
+                    <Badge className={`text-xs border ${statusBadgeClass(a.status)}`}>
+                      {statusLabel(a.status)}
+                    </Badge>
+                    {a.clearanceLevel && (
+                      <Badge className={`text-xs border ${clearanceBadgeClass(a.clearanceLevel)}`}>
+                        {a.clearanceLevel === "cleared_conditional" ? "⏳ Awaiting Approval"
+                          : a.clearanceLevel === "cleared_unconditional" ? "✓ Approved"
+                          : a.clearanceLevel === "not_cleared" ? "✗ Not Cleared"
+                          : a.clearanceLevel.replace(/_/g, " ")}
+                      </Badge>
+                    )}
+                    {a.reportJson && a.status !== "completed" && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs text-blue-700 border-blue-300 hover:bg-blue-50 mt-0.5"
+                        onClick={() => onViewReport(a)}
+                      >
+                        <FileText className="w-3 h-3 mr-1" />
+                        View Report
+                      </Button>
+                    )}
+                    {a.status === "completed" && a.reportJson && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 text-xs text-slate-500"
+                        onClick={() => onViewReport(a)}
+                      >
+                        <FileText className="w-3 h-3 mr-1" />
+                        View Report
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              ))}
+              {filtered.length === 0 && search && (
+                <p className="text-xs text-slate-600 pt-3 text-center">No results for "{search}"</p>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </>
+  );
+}
+
+/**
+ * Amber panel listing workers whose recheck is overdue or due soon.
+ * Pre-employment only — driven by /api/workers, not the assessments list.
+ */
+function AttentionPanel(): React.ReactElement | null {
+  const { data } = useQuery<{ workers: WorkerSummary[] }>({
+    queryKey: ["workers-summary"],
+    queryFn: () => fetch("/api/workers", { credentials: "include" }).then(r => r.json()),
+  });
+
+  const workers = data?.workers ?? [];
+  const overdueWorkers = workers.filter(w => w.recheckUrgency === "overdue");
+  const dueSoonWorkers = workers.filter(w => w.recheckUrgency === "due_soon");
+  const attentionCount = overdueWorkers.length + dueSoonWorkers.length;
+
+  if (attentionCount === 0) return null;
+
+  const rows = [
+    ...overdueWorkers.map(w => ({ ...w, urgencyLabel: "OVERDUE", urgencyClass: "bg-red-100 text-red-800 border-red-200" })),
+    ...dueSoonWorkers.map(w => ({ ...w, urgencyLabel: "Due soon", urgencyClass: "bg-amber-100 text-amber-800 border-amber-200" })),
+  ];
+
+  return (
+    <Card className="border-amber-300 bg-amber-50">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm flex items-center gap-2 text-amber-900">
+          <AlertTriangle className="h-4 w-4 text-amber-600" />
+          Attention Required ({attentionCount})
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="divide-y divide-amber-200">
+          {rows.map(w => (
+            <div key={w.id} className="py-2.5 flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <Link to={`/workers/${w.id}`} className="font-medium text-sm text-amber-900 hover:underline">
+                  {w.name}
+                </Link>
+                <p className="text-xs text-amber-700">{w.latestPositionTitle ?? "—"}</p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <Badge className={`text-xs border ${w.urgencyClass}`}>{w.urgencyLabel}</Badge>
+                <Button size="sm" variant="outline" className="h-7 text-xs" asChild>
+                  <Link to="/assessments/new">Schedule</Link>
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+export default function ChecksPage(): React.ReactElement {
+  const [activeTab, setActiveTab] = useState<CheckCategory>("pre_employment");
   const [reportModal, setReportModal] = useState<Assessment | null>(null);
+  const [selectedExit, setSelectedExit] = useState<TelehealthBookingDB | null>(null);
   const queryClient = useQueryClient();
+
+  function invalidateAssessments(): void {
+    queryClient.invalidateQueries({ queryKey: ["assessments"] });
+  }
 
   const approveMutation = useMutation({
     mutationFn: async (id: string) => {
@@ -101,7 +448,7 @@ export default function ChecksPage() {
       if (!r.ok) throw new Error("Failed to approve");
       return r.json();
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["assessments"] }); setReportModal(null); },
+    onSuccess: () => { invalidateAssessments(); setReportModal(null); },
   });
 
   const rejectMutation = useMutation({
@@ -114,603 +461,120 @@ export default function ChecksPage() {
       if (!r.ok) throw new Error("Failed to reject");
       return r.json();
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["assessments"] }); setReportModal(null); },
+    onSuccess: () => { invalidateAssessments(); setReportModal(null); },
   });
 
-  const { data: assessmentsData, isLoading: assessmentsLoading } = useQuery<{ assessments: Assessment[] }>({
-    queryKey: ["assessments"],
-    queryFn: () => fetch("/api/assessments", { credentials: "include" }).then(r => r.json()),
-  });
-
-  const { data: workersData } = useQuery<{ workers: WorkerSummary[] }>({
-    queryKey: ["workers-summary"],
-    queryFn: () => fetch("/api/workers", { credentials: "include" }).then(r => r.json()),
-  });
-
+  // Exit tab is driven by real telehealth bookings filtered by serviceType="exit",
+  // not by the DB-backed AssessmentList used by the other five tabs.
   const { data: bookingsData } = useQuery<{ bookings: TelehealthBookingDB[] }>({
     queryKey: ["/api/bookings"],
     queryFn: () => fetch("/api/bookings", { credentials: "include" }).then(r => r.json()),
   });
 
   const exitBookings = (bookingsData?.bookings ?? []).filter(b => b.serviceType === "exit");
-  const [selectedExit, setSelectedExit] = useState<TelehealthBookingDB | null>(null);
 
-  const [assessmentSearch, setAssessmentSearch] = useState("");
-  const assessments = assessmentsData?.assessments ?? [];
-  const workers = workersData?.workers ?? [];
-
-  // Only show assessments that still need action (exclude fully cleared/completed ones)
-  const activeAssessments = assessments
-    .filter(a => !(a.status === "completed" && a.clearanceLevel === "cleared_unconditional"))
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-    .slice(0, 5);
-
-  const filteredAssessments = assessmentSearch
-    ? activeAssessments.filter(a =>
-        a.candidateName.toLowerCase().includes(assessmentSearch.toLowerCase()) ||
-        a.positionTitle.toLowerCase().includes(assessmentSearch.toLowerCase())
-      )
-    : activeAssessments;
-
-  const overdueWorkers = workers.filter(w => w.recheckUrgency === "overdue");
-  const dueSoonWorkers = workers.filter(w => w.recheckUrgency === "due_soon");
-  const attentionCount = overdueWorkers.length + dueSoonWorkers.length;
-
-  const peStats = {
-    total: assessments.length,
-    pending: assessments.filter(a => a.status === "created" || a.status === "sent" || a.status === "pending" || a.status === "in_progress").length,
-    completed: assessments.filter(a => a.status === "completed").length,
-    cleared: assessments.filter(a => {
-      const l = (a.clearanceLevel ?? "").toUpperCase().replace(/-/g, "_");
-      return l.startsWith("CLEARED"); // includes conditional + with_restrictions
-    }).length,
-  };
-
-  // Exit stats are derived from real telehealth bookings filtered by serviceType="exit".
-  // Pre-employment and other categories remain mocked until their APIs are wired.
   const exitStats = {
     total: exitBookings.length,
     pending: exitBookings.filter(b => b.status === "pending").length,
     completed: exitBookings.filter(b => b.status === "completed").length,
     clearanceReady: exitBookings.filter(b => b.status === "confirmed").length,
   };
-  const checkStats = {
-    prevention: { total: 45, due: 7, completed: 38, overdue: 2 },
-    injury: { total: 8, active: 3, resolved: 5, critical: 1 },
-    wellness: { total: 67, scheduled: 12, completed: 55, flagged: 3 },
-    mentalHealth: { total: 23, active: 5, scheduled: 8, completed: 18 },
-    exit: exitStats,
-  };
-
-  const StatCard = ({ title, value, description, icon: Icon, color = "blue" }: any) => (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium">{title}</CardTitle>
-        <Icon className={`h-4 w-4 text-${color}-600`} />
-      </CardHeader>
-      <CardContent>
-        <div className="text-2xl font-bold">{value}</div>
-        <p className="text-xs text-slate-600">{description}</p>
-      </CardContent>
-    </Card>
-  );
 
   return (
     <PageLayout title="Health Checks" subtitle="Comprehensive employee health monitoring across all lifecycle stages">
       <div className="space-y-6">
-
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as CheckCategory)} className="w-full">
           <TabsList className="grid w-full grid-cols-6">
-            <TabsTrigger value="pre-employment" className="flex items-center gap-2">
-              <UserPlus className="h-4 w-4" />
-              Pre-Employment
-            </TabsTrigger>
-            <TabsTrigger value="prevention" className="flex items-center gap-2">
-              <Shield className="h-4 w-4" />
-              Prevention
-            </TabsTrigger>
-            <TabsTrigger value="injury" className="flex items-center gap-2">
-              <Activity className="h-4 w-4" />
-              Injury
-            </TabsTrigger>
-            <TabsTrigger value="wellness" className="flex items-center gap-2">
-              <Heart className="h-4 w-4" />
-              Wellness
-            </TabsTrigger>
-            <TabsTrigger value="mental-health" className="flex items-center gap-2">
-              <Brain className="h-4 w-4" />
-              Mental Health
-            </TabsTrigger>
-            <TabsTrigger value="exit" className="flex items-center gap-2">
-              <LogOut className="h-4 w-4" />
-              Exit
-            </TabsTrigger>
+            {TAB_ORDER.map(category => {
+              const Icon = CATEGORY_CONFIG[category].icon;
+              return (
+                <TabsTrigger key={category} value={category} className="flex items-center gap-2">
+                  <Icon className="h-4 w-4" />
+                  {TAB_LABELS[category]}
+                </TabsTrigger>
+              );
+            })}
           </TabsList>
 
-          {/* PRE-EMPLOYMENT CHECKS */}
-          <TabsContent value="pre-employment" className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-4">
-              <StatCard
-                title="Total Assessments"
-                value={assessmentsLoading ? "…" : peStats.total}
-                description="All time"
-                icon={Users}
-                color="blue"
-              />
-              <StatCard
-                title="Awaiting Action"
-                value={assessmentsLoading ? "…" : peStats.pending}
-                description="Pending or awaiting approval"
-                icon={Clock}
-                color="yellow"
-              />
-              <StatCard
-                title="Completed"
-                value={assessmentsLoading ? "…" : peStats.completed}
-                description="Questionnaire submitted"
-                icon={CheckCircle}
-                color="green"
-              />
-              <StatCard
-                title="Cleared for Work"
-                value={assessmentsLoading ? "…" : peStats.cleared}
-                description="Ready to start"
-                icon={Shield}
-                color="green"
-              />
-            </div>
+          {TAB_ORDER.map(category => (
+            <TabsContent key={category} value={category} className="space-y-4">
+              {category === "exit" ? (
+                <>
+                  {/* EXIT CHECKS — driven by telehealth bookings, not AssessmentList */}
+                  <div className="grid gap-4 md:grid-cols-4">
+                    <StatCard
+                      title="Active Exits"
+                      value={exitStats.total}
+                      description="In progress"
+                      icon={LogOut}
+                      color="gray"
+                    />
+                    <StatCard
+                      title="Pending Checks"
+                      value={exitStats.pending}
+                      description="Health assessments"
+                      icon={Clock}
+                      color="orange"
+                    />
+                    <StatCard
+                      title="Completed"
+                      value={exitStats.completed}
+                      description="Fully processed"
+                      icon={CheckCircle}
+                      color="green"
+                    />
+                    <StatCard
+                      title="Ready for Clearance"
+                      value={exitStats.clearanceReady}
+                      description="Final approval"
+                      icon={Shield}
+                      color="blue"
+                    />
+                  </div>
 
-            {/* Attention Required — overdue / due soon */}
-            {attentionCount > 0 && (
-              <Card className="border-amber-300 bg-amber-50">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm flex items-center gap-2 text-amber-900">
-                    <AlertTriangle className="h-4 w-4 text-amber-600" />
-                    Attention Required ({attentionCount})
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="divide-y divide-amber-200">
-                    {[...overdueWorkers.map(w => ({ ...w, urgencyLabel: "OVERDUE", urgencyClass: "bg-red-100 text-red-800 border-red-200" })),
-                      ...dueSoonWorkers.map(w => ({ ...w, urgencyLabel: "Due soon", urgencyClass: "bg-amber-100 text-amber-800 border-amber-200" }))
-                    ].map((w) => (
-                      <div key={w.id} className="py-2.5 flex items-center justify-between gap-3">
-                        <div className="min-w-0">
-                          <Link to={`/workers/${w.id}`} className="font-medium text-sm text-amber-900 hover:underline">
-                            {w.name}
-                          </Link>
-                          <p className="text-xs text-amber-700">{w.latestPositionTitle ?? "—"}</p>
-                        </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <Badge className={`text-xs border ${w.urgencyClass}`}>{w.urgencyLabel}</Badge>
-                          <Button size="sm" variant="outline" className="h-7 text-xs" asChild>
-                            <Link to="/assessments/new">Schedule</Link>
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle>Pre-Employment Health Assessments</CardTitle>
-                    <CardDescription>Candidate health screening and clearance management</CardDescription>
-                  </div>
-                  <Button asChild>
-                    <Link to="/assessments/new">New Assessment</Link>
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent>
-                {assessmentsLoading ? (
-                  <p className="text-sm text-slate-600 py-4">Loading assessments…</p>
-                ) : assessments.length === 0 ? (
-                  <div className="text-center py-8 text-slate-600">
-                    <UserPlus className="w-10 h-10 mx-auto mb-3 text-gray-300" />
-                    <p className="text-sm">No assessments yet. Create one to get started.</p>
-                  </div>
-                ) : (
-                  <div className="divide-y">
-                    <div className="relative mb-3">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                      <input
-                        type="text"
-                        placeholder="Search by name or position..."
-                        value={assessmentSearch}
-                        onChange={e => setAssessmentSearch(e.target.value)}
-                        className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                    </div>
-                    {filteredAssessments.map((a) => (
-                      <div key={a.id} className="py-3 flex items-start justify-between gap-4 border-b last:border-0">
-                        <Link
-                          to={a.workerId ? `/workers/${a.workerId}` : `/assessments/${a.id}`}
-                          className="min-w-0 flex-1 hover:opacity-75 transition-opacity"
-                        >
-                          <p className="font-medium text-sm truncate">{a.candidateName}</p>
-                          <p className="text-xs text-slate-600 truncate">{a.positionTitle}</p>
-                          <p className="text-xs text-slate-500 mt-0.5">
-                            {a.sentAt ? `Sent ${formatDate(a.sentAt)}` : `Created ${formatDate(a.createdAt)}`}
-                          </p>
-                        </Link>
-                        <div className="flex flex-col items-end gap-1.5 shrink-0">
-                          <Badge className={`text-xs border ${statusBadgeClass(a.status)}`}>
-                            {a.status === "in_progress" ? "Questionnaire Received" : a.status}
-                          </Badge>
-                          {a.clearanceLevel && (
-                            <Badge className={`text-xs border ${clearanceBadgeClass(a.clearanceLevel)}`}>
-                              {a.clearanceLevel === "cleared_conditional" ? "⏳ Awaiting Approval"
-                                : a.clearanceLevel === "cleared_unconditional" ? "✓ Approved"
-                                : a.clearanceLevel === "not_cleared" ? "✗ Not Cleared"
-                                : a.clearanceLevel.replace(/_/g, " ")}
-                            </Badge>
-                          )}
-                          {a.reportJson && a.status !== "completed" && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-7 text-xs text-blue-700 border-blue-300 hover:bg-blue-50 mt-0.5"
-                              onClick={() => setReportModal(a)}
+                  {/* Active exit interviews — clickable list, each row opens responses */}
+                  {exitBookings.length > 0 && (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-base">Exit Interviews</CardTitle>
+                        <CardDescription>Click a row to view the worker's exit-interview responses</CardDescription>
+                      </CardHeader>
+                      <CardContent className="p-0">
+                        <div className="divide-y divide-border">
+                          {exitBookings.map(b => (
+                            <button
+                              key={b.id}
+                              type="button"
+                              onClick={() => setSelectedExit(b)}
+                              className="w-full flex items-center gap-4 px-4 py-3 hover:bg-muted/50 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                             >
-                              <FileText className="w-3 h-3 mr-1" />
-                              View Report
-                            </Button>
-                          )}
-                          {a.status === "completed" && a.reportJson && (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-7 text-xs text-slate-500"
-                              onClick={() => setReportModal(a)}
-                            >
-                              <FileText className="w-3 h-3 mr-1" />
-                              View Report
-                            </Button>
-                          )}
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium text-foreground truncate">{b.workerName}</p>
+                                <p className="text-xs text-muted-foreground truncate">
+                                  {b.employerName ?? "—"}
+                                  {b.appointmentType ? ` · ${b.appointmentType.replace(/_/g, " ")}` : ""}
+                                </p>
+                              </div>
+                              <Badge className="text-xs shrink-0 capitalize">{b.status}</Badge>
+                              <div className="hidden sm:block w-20 text-xs text-muted-foreground text-right shrink-0">
+                                {b.createdAt ? new Date(b.createdAt).toLocaleDateString("en-AU", { day: "numeric", month: "short" }) : "—"}
+                              </div>
+                            </button>
+                          ))}
                         </div>
-                      </div>
-                    ))}
-                    {filteredAssessments.length === 0 && assessmentSearch && (
-                      <p className="text-xs text-slate-600 pt-3 text-center">No results for "{assessmentSearch}"</p>
-                    )}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* PREVENTION CHECKS */}
-          <TabsContent value="prevention" className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-4">
-              <StatCard
-                title="Active Programs"
-                value={checkStats.prevention.total}
-                description="Prevention initiatives"
-                icon={Shield}
-                color="blue"
-              />
-              <StatCard
-                title="Due This Week"
-                value={checkStats.prevention.due}
-                description="Scheduled checks"
-                icon={Calendar}
-                color="orange"
-              />
-              <StatCard
-                title="Completed"
-                value={checkStats.prevention.completed}
-                description="This quarter"
-                icon={CheckCircle}
-                color="green"
-              />
-              <StatCard
-                title="Overdue"
-                value={checkStats.prevention.overdue}
-                description="Requires attention"
-                icon={AlertTriangle}
-                color="red"
-              />
-            </div>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Prevention & Wellness Programs</CardTitle>
-                <CardDescription>Proactive health monitoring and injury prevention</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="text-sm text-slate-600">
-                  • Regular health screenings<br/>
-                  • Workplace safety assessments<br/>
-                  • Ergonomic evaluations<br/>
-                  • Health and safety training compliance
-                </div>
-                <div className="mt-4 flex gap-2">
-                  <Button variant="outline">Manage Programs</Button>
-                  <Button asChild>
-                    <Link to="/assessments/new?type=prevention">New Assessment</Link>
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* INJURY CHECKS */}
-          <TabsContent value="injury" className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-4">
-              <StatCard
-                title="Active Cases"
-                value={checkStats.injury.active}
-                description="Currently managing"
-                icon={Activity}
-                color="red"
-              />
-              <StatCard
-                title="Total Cases"
-                value={checkStats.injury.total}
-                description="This year"
-                icon={FileText}
-                color="blue"
-              />
-              <StatCard
-                title="Resolved"
-                value={checkStats.injury.resolved}
-                description="Successfully closed"
-                icon={CheckCircle}
-                color="green"
-              />
-              <StatCard
-                title="Critical"
-                value={checkStats.injury.critical}
-                description="Requiring urgent attention"
-                icon={AlertTriangle}
-                color="red"
-              />
-            </div>
-
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle>Injury Management</CardTitle>
-                    <CardDescription>Workplace injury tracking and return-to-work coordination</CardDescription>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button variant="outline" asChild>
-                      <Link to="/cases">View All Cases</Link>
-                    </Button>
-                    <Button asChild>
-                      <Link to="/assessments/new?type=injury">New Injury Assessment</Link>
-                    </Button>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="text-sm text-slate-600">
-                  • Incident reporting and documentation<br/>
-                  • Medical certificate management<br/>
-                  • Return-to-work planning<br/>
-                  • Recovery timeline tracking
-                </div>
-                <div className="mt-4">
-                  <Button variant="outline" asChild>
-                    <Link to="/comprehensive-rtw-form">New RTW Assessment</Link>
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* WELLNESS CHECKS */}
-          <TabsContent value="wellness" className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-4">
-              <StatCard
-                title="Enrolled"
-                value={checkStats.wellness.total}
-                description="In wellness programs"
-                icon={Heart}
-                color="pink"
-              />
-              <StatCard
-                title="Scheduled"
-                value={checkStats.wellness.scheduled}
-                description="Upcoming checks"
-                icon={Calendar}
-                color="blue"
-              />
-              <StatCard
-                title="Completed"
-                value={checkStats.wellness.completed}
-                description="This year"
-                icon={CheckCircle}
-                color="green"
-              />
-              <StatCard
-                title="Health Flags"
-                value={checkStats.wellness.flagged}
-                description="Require follow-up"
-                icon={AlertTriangle}
-                color="orange"
-              />
-            </div>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>General Health & Wellbeing</CardTitle>
-                <CardDescription>Comprehensive employee wellness monitoring</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="text-sm text-slate-600">
-                  • Annual health screenings<br/>
-                  • Biometric monitoring<br/>
-                  • Fitness assessments<br/>
-                  • Health education programs
-                </div>
-                <div className="mt-4 flex gap-2">
-                  <Button variant="outline">Wellness Dashboard</Button>
-                  <Button asChild>
-                    <Link to="/assessments/new?type=wellness">New Wellness Assessment</Link>
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* MENTAL HEALTH CHECKS */}
-          <TabsContent value="mental-health" className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-4">
-              <StatCard
-                title="Active Support"
-                value={checkStats.mentalHealth.active}
-                description="Currently supported"
-                icon={Brain}
-                color="purple"
-              />
-              <StatCard
-                title="Total Enrolled"
-                value={checkStats.mentalHealth.total}
-                description="In MH programs"
-                icon={Users}
-                color="blue"
-              />
-              <StatCard
-                title="Scheduled"
-                value={checkStats.mentalHealth.scheduled}
-                description="Upcoming sessions"
-                icon={Calendar}
-                color="orange"
-              />
-              <StatCard
-                title="Completed"
-                value={checkStats.mentalHealth.completed}
-                description="Sessions this quarter"
-                icon={CheckCircle}
-                color="green"
-              />
-            </div>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Mental Health Support</CardTitle>
-                <CardDescription>Employee mental health and wellbeing services</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="text-sm text-slate-600">
-                  • Psychological assessments<br/>
-                  • Counseling and therapy coordination<br/>
-                  • Stress and anxiety management<br/>
-                  • Mental health first aid training
-                </div>
-                <div className="mt-4 flex gap-2">
-                  <Button variant="outline">Mental Health Dashboard</Button>
-                  <Button asChild>
-                    <Link to="/assessments/new?type=mental_health">New MH Assessment</Link>
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* EXIT CHECKS */}
-          <TabsContent value="exit" className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-4">
-              <StatCard
-                title="Active Exits"
-                value={checkStats.exit.total}
-                description="In progress"
-                icon={LogOut}
-                color="gray"
-              />
-              <StatCard
-                title="Pending Checks"
-                value={checkStats.exit.pending}
-                description="Health assessments"
-                icon={Clock}
-                color="orange"
-              />
-              <StatCard
-                title="Completed"
-                value={checkStats.exit.completed}
-                description="Fully processed"
-                icon={CheckCircle}
-                color="green"
-              />
-              <StatCard
-                title="Ready for Clearance"
-                value={checkStats.exit.clearanceReady}
-                description="Final approval"
-                icon={Shield}
-                color="blue"
-              />
-            </div>
-
-            {/* Active exit interviews — clickable list, each row opens responses */}
-            {exitBookings.length > 0 && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">Exit Interviews</CardTitle>
-                  <CardDescription>Click a row to view the worker's exit-interview responses</CardDescription>
-                </CardHeader>
-                <CardContent className="p-0">
-                  <div className="divide-y divide-border">
-                    {exitBookings.map(b => (
-                      <button
-                        key={b.id}
-                        type="button"
-                        onClick={() => setSelectedExit(b)}
-                        className="w-full flex items-center gap-4 px-4 py-3 hover:bg-muted/50 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                      >
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-foreground truncate">{b.workerName}</p>
-                          <p className="text-xs text-muted-foreground truncate">
-                            {b.employerName ?? "—"}
-                            {b.appointmentType ? ` · ${b.appointmentType.replace(/_/g, " ")}` : ""}
-                          </p>
-                        </div>
-                        <Badge className="text-xs shrink-0 capitalize">{b.status}</Badge>
-                        <div className="hidden sm:block w-20 text-xs text-muted-foreground text-right shrink-0">
-                          {b.createdAt ? new Date(b.createdAt).toLocaleDateString("en-AU", { day: "numeric", month: "short" }) : "—"}
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle>Exit Processing</CardTitle>
-                    <CardDescription>Final health assessments and liability closure</CardDescription>
-                  </div>
-                  <Button variant="outline" asChild>
-                    <Link to="/exit-processing">View Exit Cases</Link>
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="text-sm text-slate-600">
-                  • Final health assessments<br/>
-                  • Exit documentation completion<br/>
-                  • Liability and insurance closure<br/>
-                  • Health record archival
-                </div>
-                <div className="mt-4">
-                  <Button asChild>
-                    <Link to="/assessments/new?type=exit">New Exit Health Check</Link>
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
+                      </CardContent>
+                    </Card>
+                  )}
+                </>
+              ) : (
+                <>
+                  {CATEGORY_CONFIG[category].showAttentionPanel && <AttentionPanel />}
+                  <AssessmentList category={category} onViewReport={setReportModal} />
+                </>
+              )}
+            </TabsContent>
+          ))}
         </Tabs>
-
       </div>
 
       {/* Report Modal */}
@@ -718,7 +582,7 @@ export default function ChecksPage() {
         <Dialog open={!!reportModal} onOpenChange={(open) => !open && setReportModal(null)}>
           <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle className="text-xl">Pre-Employment Health Report</DialogTitle>
+              <DialogTitle className="text-xl">{CHECK_LABELS[activeTab]} Report</DialogTitle>
               <DialogDescription>{reportModal.candidateName} — {reportModal.positionTitle}</DialogDescription>
             </DialogHeader>
             {reportModal.reportJson ? (
