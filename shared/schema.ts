@@ -898,6 +898,17 @@ export const workerCases = pgTable("worker_cases", {
   terminationProcessId: varchar("termination_process_id"),
   terminationReason: text("termination_reason"),
   terminationAuditFlag: text("termination_audit_flag"),
+
+  // Worker contact email captured at employer case creation (used to send the
+  // injury-check email without re-asking). Nullable for back-compat with cases
+  // created before this column existed.
+  workerEmail: text("worker_email"),
+
+  // Set when the employer's injury-check email has actually been sent (via
+  // /api/employer/cases/:id/injury-check/send). Used by the success page to
+  // render a persistent "sent" confirmation that survives reloads.
+  injuryCheckSentAt: timestamp("injury_check_sent_at"),
+
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
