@@ -7,8 +7,9 @@ import { Router, Request, Response } from 'express';
 import { authorize } from '../middleware/auth';
 import { storage } from '../storage';
 import { db } from '../db';
-import { organizations } from '../../shared/schema';
-import { eq, sql } from 'drizzle-orm';
+import { organizations, workerCases } from '../../shared/schema';
+import { eq, sql, and } from 'drizzle-orm';
+import { sendEmail } from '../services/emailService';
 import { createLogger } from '../lib/logger';
 import { z } from 'zod';
 import multer from 'multer';
@@ -569,25 +570,73 @@ router.post('/cases', authorize(), upload.any(), async (req: Request, res: Respo
 });
 
 /**
- * POST /api/employer/cases/:id/injury-check
- * Generates and sends an AI-powered injury check email to the worker
+ * Helper: load the injury-check-relevant fields for a case scoped to the org.
+ * Returns null when the case doesn't exist or belongs to a different tenant.
  */
-router.post('/cases/:id/injury-check', authorize(), async (req: Request, res: Response) => {
+async function loadInjuryCheckCase(caseId: string, organizationId: string) {
+  const [row] = await db
+    .select({
+      id: workerCases.id,
+      workerName: workerCases.workerName,
+      company: workerCases.company,
+      summary: workerCases.summary,
+      workStatus: workerCases.workStatus,
+      workerEmail: workerCases.workerEmail,
+      injuryCheckSentAt: workerCases.injuryCheckSentAt,
+    })
+    .from(workerCases)
+    .where(and(eq(workerCases.id, caseId), eq(workerCases.organizationId, organizationId)))
+    .limit(1);
+  return row ?? null;
+}
+
+/**
+ * GET /api/employer/cases/:id/injury-check-state
+ * Returns the injury-check display state for the success page:
+ *   { workerEmail, injuryCheckSentAt, workerName }
+ * Used by the success page to render a persistent "sent" confirmation that
+ * survives reloads (instead of relying on local component state).
+ */
+router.get('/cases/:id/injury-check-state', authorize(), async (req: Request, res: Response) => {
   try {
     const organizationId = req.user?.organizationId;
     const caseId = req.params.id;
+    if (!organizationId) return res.status(400).json({ error: 'Organization ID required' });
 
-    if (!organizationId) {
-      return res.status(400).json({ error: 'Organization ID required' });
-    }
+    const workerCase = await loadInjuryCheckCase(caseId, organizationId);
+    if (!workerCase) return res.status(404).json({ error: 'Case not found' });
 
-    // Get case details
-    const workerCase = await storage.getGPNet2CaseById(caseId, organizationId);
-    if (!workerCase) {
-      return res.status(404).json({ error: 'Case not found' });
-    }
+    res.json({
+      workerName: workerCase.workerName,
+      workerEmail: workerCase.workerEmail ?? '',
+      injuryCheckSentAt: workerCase.injuryCheckSentAt
+        ? workerCase.injuryCheckSentAt.toISOString()
+        : null,
+    });
+  } catch (error) {
+    logger.error('Error fetching injury-check state', { caseId: req.params.id }, error);
+    res.status(500).json({ error: 'Failed to fetch injury-check state' });
+  }
+});
 
-    // Determine the tone based on injury severity (from summary/description)
+/**
+ * POST /api/employer/cases/:id/injury-check/draft
+ * Generates an AI-drafted injury check email and returns it as
+ *   { to, subject, body }
+ * for the employer to review/edit in the modal before sending. Does NOT send.
+ *
+ * Subject is generated server-side from a template (NOT the LLM) to keep it
+ * deterministic and free of LLM drift / prompt-injection artefacts.
+ */
+router.post('/cases/:id/injury-check/draft', authorize(), async (req: Request, res: Response) => {
+  try {
+    const organizationId = req.user?.organizationId;
+    const caseId = req.params.id;
+    if (!organizationId) return res.status(400).json({ error: 'Organization ID required' });
+
+    const workerCase = await loadInjuryCheckCase(caseId, organizationId);
+    if (!workerCase) return res.status(404).json({ error: 'Case not found' });
+
     const summary = workerCase.summary || '';
     const isSerious = summary.toLowerCase().includes('serious') ||
                       summary.toLowerCase().includes('severe') ||
@@ -595,7 +644,6 @@ router.post('/cases/:id/injury-check', authorize(), async (req: Request, res: Re
                       summary.toLowerCase().includes('hospital') ||
                       workerCase.workStatus === 'Off work';
 
-    // Generate AI email based on context
     const emailPrompt = isSerious
       ? `Generate a compassionate, supportive injury check email for a worker who has experienced a serious workplace injury.
          Worker name: ${workerCase.workerName}
@@ -624,29 +672,89 @@ router.post('/cases/:id/injury-check', authorize(), async (req: Request, res: Re
 
          Keep it under 150 words. Start with "Hi ${workerCase.workerName}," and end with appropriate regards.`;
 
-    const emailContent = await callClaude(emailPrompt, 30_000);
+    const body = await callClaude(emailPrompt, 30_000);
 
-    // In production, this would send the email via SMTP/SendGrid/etc.
-    // For now, we'll store it as a draft and log it
-    logger.info('Injury check email generated', {
+    res.json({
+      to: workerCase.workerEmail ?? '',
+      subject: `Injury check-in — ${workerCase.workerName}`,
+      body,
+      tone: isSerious ? 'compassionate' : 'friendly',
+    });
+  } catch (error) {
+    logger.error('Error generating injury-check draft', { caseId: req.params.id }, error);
+    res.status(500).json({
+      error: 'Failed to generate injury-check draft',
+      details: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
+
+/**
+ * Zod schema for the injury-check send payload. Enforced before any email
+ * provider call so a malformed body can never reach Resend / SMTP.
+ */
+const injuryCheckSendSchema = z.object({
+  to: z.string().email(),
+  subject: z.string().min(1).max(200),
+  body: z.string().min(1).max(5000),
+});
+
+/**
+ * POST /api/employer/cases/:id/injury-check/send
+ * Sends the (possibly edited) injury-check email via the shared emailService.
+ * Records injuryCheckSentAt on the case so the success page can render a
+ * persistent "sent" confirmation that survives reloads.
+ */
+router.post('/cases/:id/injury-check/send', authorize(), async (req: Request, res: Response) => {
+  try {
+    const organizationId = req.user?.organizationId;
+    const caseId = req.params.id;
+    if (!organizationId) return res.status(400).json({ error: 'Organization ID required' });
+
+    const parsed = injuryCheckSendSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({
+        error: 'Validation failed',
+        details: parsed.error.errors,
+      });
+    }
+
+    const workerCase = await loadInjuryCheckCase(caseId, organizationId);
+    if (!workerCase) return res.status(404).json({ error: 'Case not found' });
+
+    const result = await sendEmail({
+      to: parsed.data.to,
+      subject: parsed.data.subject,
+      body: parsed.data.body,
+    });
+
+    if (!result.success) {
+      logger.error('Injury-check send failed', { caseId, error: result.error });
+      return res.status(502).json({ error: 'Failed to send email', details: result.error });
+    }
+
+    const sentAt = new Date();
+    await db.update(workerCases)
+      .set({ injuryCheckSentAt: sentAt })
+      .where(eq(workerCases.id, caseId));
+
+    logger.info('Injury-check email sent', {
       caseId,
       workerName: workerCase.workerName,
-      emailLength: emailContent.length,
-      tone: isSerious ? 'compassionate' : 'friendly',
+      to: parsed.data.to,
+      messageId: result.messageId,
     });
 
-    // Return the email content (frontend can display or send)
     res.json({
       success: true,
-      emailContent,
-      tone: isSerious ? 'compassionate' : 'friendly',
-      message: 'Injury check email generated successfully',
+      sentTo: parsed.data.to,
+      sentAt: sentAt.toISOString(),
+      messageId: result.messageId,
     });
-
   } catch (error) {
-    logger.error('Error generating injury check email', { caseId: req.params.id }, error);
+    logger.error('Error sending injury-check', { caseId: req.params.id }, error);
     res.status(500).json({
-      error: 'Failed to generate injury check email',
+      error: 'Failed to send injury-check email',
       details: error instanceof Error ? error.message : 'Unknown error',
     });
   }
