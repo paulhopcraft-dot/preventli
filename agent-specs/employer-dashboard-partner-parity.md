@@ -1,6 +1,21 @@
 # employer-dashboard-partner-parity
 
-## Purpose
+## Status: SUPERSEDED (2026-05-25)
+
+**Shipped on main by [PR #93](https://github.com/paulhopcraft-dot/preventli/pull/93) — `refactor(employer-dashboard): mirror partner workspace cases view`** while this spec was sitting on the deferral pile.
+
+PR #93's net diff vs main: −738 / +230. Replaced the 4 stats cards + Priority Actions + All Workers Roster + All Cases card-list with a single sticky-header partner-style table. Preserved `AlexMorningBriefing` and the RTW approval banner.
+
+Specifics deliberately NOT addressed by #93 (potential follow-up tickets if Paul wants them back):
+- Cert-expiry / overdue-review alerts no longer surface on the employer landing page (still in case detail)
+- "RTW plan active" green badge for `in_progress` / `working_well` is gone from landing
+- `ContextualHelpSystem.tsx:283-303` stale text references "Active cases / Pending decisions" — cosmetic
+
+If any of the above turn out to be load-bearing for the demo or for Jane's day-to-day workflow, open a fresh spec rather than reviving this one.
+
+---
+
+## Original (pre-PR #93) purpose
 
 Bring the employer-role dashboard at `/` (currently `EmployerDashboardPage.tsx`) to **structural and visual parity** with the partner-role workspace at `/partner/clients` (currently `PartnerWorkspace.tsx`). Today they are different products with different layouts, data shapes, and feature surface area. Make the employer dashboard feel like a first-class peer of the partner workspace so single-tenant customers (e.g. Arc Electrical) get the same depth of capability the multi-tenant partner UI delivers.
 
