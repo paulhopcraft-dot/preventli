@@ -8,6 +8,43 @@ import { callClaude, callClaudeMultiTurn, callClaudeWithTools, getLLMStreamConfi
 import { ALEX_TOOLS, executeAlexTool } from "../tools/alex-tools";
 import { getCaseCompliance } from "../services/certificateCompliance";
 import { getCaseRTWCompliance } from "../services/rtwCompliance";
+import { getLatestComplianceReport } from "../services/complianceEngine";
+
+// ── Alex intelligence helpers (Demo 1 + Demo 4 of agent-specs/alex-case-intelligence.md) ──
+
+// Persona register prompt — same Alex, register shifts by question type.
+// Lightweight in-prompt classifier — no extra model call, no extra latency.
+const PERSONA_INSTRUCTION = `\n\n---\n## Persona register (always prefix your reply)\nClassify the user's question and START your reply with exactly ONE of these tags on its own line:\n- \`[Case Manager]\` — operational questions (status, what to do next, action triage, plan execution)\n- \`[Clinical]\` — anything about certificates, capacity, modified duties, recovery, the worker's medical picture\n- \`[Legal]\` — anything about compliance, WorkSafe, deadlines, employer obligations, breach, liability, termination risk\nPick ONE, the closest fit. Do NOT explain the choice. The tag is the first line of your reply, then your answer follows.`;
+
+// Loads deterministic rules-engine output for a case and formats it as a citation-required
+// system-prompt block. Returns empty string if no checks cached. Falls back silently on error.
+async function buildComplianceEvidenceBlock(caseId: string): Promise<string> {
+  try {
+    const ruleChecks = await getLatestComplianceReport(caseId);
+    if (ruleChecks.length === 0) return "";
+    const evidenceLines = ruleChecks.map((c, i) => {
+      const refs = (c.documentReferences ?? []).map(r => `${r.source} ${r.section}`).join("; ");
+      const citation = refs || c.ruleCode;
+      const status = c.status === "non_compliant" ? "NON-COMPLIANT" : c.status === "warning" ? "WARNING" : "compliant";
+      return `${i + 1}. [${status}] **${citation}** — ${c.ruleName}\n   Finding: ${c.finding || "—"}\n   Remedy: ${c.recommendation || "—"}`;
+    }).join("\n");
+    return `\n\n---\n## Compliance evidence (rules engine output — DO NOT reason compliance from training)\n\n${evidenceLines}\n\nRULES FOR ANSWERING COMPLIANCE QUESTIONS:\n- If the user asks about compliance, obligations, deadlines, WorkSafe, regulations, breach, or liability, you MUST cite at least one of the rules above inline using the **bold reference** format shown (e.g., **WIRC Act 2013 s38**).\n- If none of the rules above are relevant to what the user asked, say: "The rules engine doesn't have a check for that — I can't make a compliance claim without one. Routing this to a human."\n- NEVER invent a regulation, act, or section number. The only valid citations are those listed above.`;
+  } catch {
+    return "";
+  }
+}
+
+// Anti-bluff guard: appends a visible warning if Alex made a compliance-flavoured claim
+// without citing a regulation. Returns the (possibly annotated) reply.
+const COMPLIANCE_KEYWORDS = /\b(complian[ct]|obligat|deadline|worksafe|regulation|breach|liabilit|must (?:provide|submit|report|notify)|required by|wirc|s\d+|section \d)/i;
+const CITATION_PATTERN = /\*\*[^*]{2,80}\*\*/;
+function lintComplianceCitation(reply: string, caseId: string | undefined, sessionId: string, log: typeof logger): { reply: string; flagged: boolean } {
+  if (!caseId) return { reply, flagged: false };
+  if (!COMPLIANCE_KEYWORDS.test(reply)) return { reply, flagged: false };
+  if (CITATION_PATTERN.test(reply)) return { reply, flagged: false };
+  log.warn("Alex made a compliance claim without citing a regulation", { caseId, sessionId });
+  return { reply: `${reply}\n\n_⚠ Compliance claim without a rules-engine citation — verify before acting._`, flagged: true };
+}
 
 const logger = createLogger("ChatRoutes");
 const router: Router = express.Router();
@@ -209,8 +246,12 @@ router.post("/message", authorize(), async (req: AuthRequest, res: Response) => 
       }
     }
 
+    // Augment system prompt with deterministic compliance evidence + persona register.
+    // Demo 1 + Demo 4 from agent-specs/alex-case-intelligence.md.
+    const complianceBlock = context?.caseId ? await buildComplianceEvidenceBlock(context.caseId) : "";
+
     // Use tool-use loop when Anthropic provider is configured, otherwise plain prompt
-    const systemPrompt = `${SOUL}${orgCasesBlock}${memoryBlock}${contextBlock}\n\n---\nRespond as Alex. Keep it concise (2-4 sentences). If you want to suggest a booking, end your response with [SUGGEST_BOOKING].`;
+    const systemPrompt = `${SOUL}${orgCasesBlock}${memoryBlock}${contextBlock}${complianceBlock}${PERSONA_INSTRUCTION}\n\n---\nRespond as Alex. Keep it concise (2-4 sentences after the persona tag). If you want to suggest a booking, end your response with [SUGGEST_BOOKING].`;
     const provider = (process.env.LLM_PROVIDER ?? "claude-cli").toLowerCase();
     const useTools = (provider === "anthropic" || provider === "openrouter" || provider === "groq") &&
       !!(provider === "groq" ? process.env.GROQ_API_KEY : process.env.OPENROUTER_API_KEY);
@@ -240,6 +281,9 @@ router.post("/message", authorize(), async (req: AuthRequest, res: Response) => 
     // Detect booking suggestion signal from soul
     const suggestBooking = reply.includes("[SUGGEST_BOOKING]");
     reply = reply.replace("[SUGGEST_BOOKING]", "").trim();
+
+    // Citation linter — anti-bluff guard for compliance claims.
+    reply = lintComplianceCitation(reply, context?.caseId, sessionId, logger).reply;
 
     // Persist conversation to memory (fire-and-forget — non-blocking)
     if (memoryKey) {
@@ -472,8 +516,11 @@ router.post("/stream", authorize(), async (req: AuthRequest, res: Response) => {
       }
     }
 
+    // ── Augment with compliance evidence + persona register (Demo 1 + Demo 4) ──
+    const complianceBlock = context?.caseId ? await buildComplianceEvidenceBlock(context.caseId) : "";
+
     // ── Build system prompt ───────────────────────────────────────────────
-    const systemPrompt = `${SOUL}${orgCasesBlock}${memoryBlock}${contextBlock}\n\n---\nRespond as Alex. Keep it concise (2-4 sentences). If you want to suggest a booking, end your response with [SUGGEST_BOOKING].`;
+    const systemPrompt = `${SOUL}${orgCasesBlock}${memoryBlock}${contextBlock}${complianceBlock}${PERSONA_INSTRUCTION}\n\n---\nRespond as Alex. Keep it concise (2-4 sentences after the persona tag). If you want to suggest a booking, end your response with [SUGGEST_BOOKING].`;
 
     // ── Sanitise history ──────────────────────────────────────────────────
     const sessionHistory: ChatMessage[] = (history ?? [])
@@ -573,7 +620,15 @@ router.post("/stream", authorize(), async (req: AuthRequest, res: Response) => {
     }
 
     // Strip booking signal from persisted memory copy
-    const cleanReply = fullReply.replace("[SUGGEST_BOOKING]", "").trim();
+    let cleanReply = fullReply.replace("[SUGGEST_BOOKING]", "").trim();
+
+    // Citation linter — anti-bluff guard. If Alex made a compliance claim without citing,
+    // stream the warning as a final delta so the safety story shows in the UI.
+    const lintResult = lintComplianceCitation(cleanReply, context?.caseId, sessionId, logger);
+    if (lintResult.flagged) {
+      sendDelta("\n\n_⚠ Compliance claim without a rules-engine citation — verify before acting._");
+      cleanReply = lintResult.reply;
+    }
 
     sendDone();
 
