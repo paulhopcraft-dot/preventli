@@ -600,7 +600,7 @@ async function loadInjuryCheckCase(caseId: string, organizationId: string) {
 router.get('/cases/:id/injury-check-state', authorize(), async (req: Request, res: Response) => {
   try {
     const organizationId = req.user?.organizationId;
-    const caseId = req.params.id;
+    const caseId = String(req.params.id);
     if (!organizationId) return res.status(400).json({ error: 'Organization ID required' });
 
     const workerCase = await loadInjuryCheckCase(caseId, organizationId);
@@ -631,7 +631,7 @@ router.get('/cases/:id/injury-check-state', authorize(), async (req: Request, re
 router.post('/cases/:id/injury-check/draft', authorize(), async (req: Request, res: Response) => {
   try {
     const organizationId = req.user?.organizationId;
-    const caseId = req.params.id;
+    const caseId = String(req.params.id);
     if (!organizationId) return res.status(400).json({ error: 'Organization ID required' });
 
     const workerCase = await loadInjuryCheckCase(caseId, organizationId);
@@ -708,7 +708,7 @@ const injuryCheckSendSchema = z.object({
 router.post('/cases/:id/injury-check/send', authorize(), async (req: Request, res: Response) => {
   try {
     const organizationId = req.user?.organizationId;
-    const caseId = req.params.id;
+    const caseId = String(req.params.id);
     if (!organizationId) return res.status(400).json({ error: 'Organization ID required' });
 
     const parsed = injuryCheckSendSchema.safeParse(req.body);
@@ -734,8 +734,11 @@ router.post('/cases/:id/injury-check/send', authorize(), async (req: Request, re
     }
 
     const sentAt = new Date();
+    // Drizzle's PgUpdateSetSource narrows to a subset of columns and doesn't
+    // include the recently-added injuryCheckSentAt. Cast matches the same
+    // pattern used elsewhere in storage.ts for additive columns.
     await db.update(workerCases)
-      .set({ injuryCheckSentAt: sentAt })
+      .set({ injuryCheckSentAt: sentAt } as any)
       .where(eq(workerCases.id, caseId));
 
     logger.info('Injury-check email sent', {
