@@ -469,16 +469,11 @@ router.post('/cases', authorize(), upload.any(), async (req: Request, res: Respo
       workerName = formData.workerName || 'Unknown Worker';
     }
 
-    // Get company name from user context or first existing case
-    let companyName = 'Unknown Company';
-    try {
-      const existingCases = await storage.getCases(organizationId);
-      if (existingCases.length > 0) {
-        companyName = existingCases[0].company;
-      }
-    } catch {
-      // Use default if lookup fails
-    }
+    // Get company name from the organization record (was previously inferred
+    // from the first existing case, which fell back to "Unknown Company" for
+    // any tenant with zero prior cases — e.g. Jane / Arc Electrical).
+    const org = await storage.getOrganization(organizationId);
+    const companyName = org?.name ?? 'Unknown Company';
 
     // Build summary from incident details
     const summary = `${formData.injuryType}: ${formData.incidentDescription.substring(0, 200)}${formData.incidentDescription.length > 200 ? '...' : ''}`;
@@ -498,6 +493,7 @@ router.post('/cases', authorize(), upload.any(), async (req: Request, res: Respo
       workStatus,
       riskLevel: 'Medium', // Default, can be updated after review
       summary,
+      workerEmail: formData.workerEmail ?? null,
     });
 
     // Handle file uploads - store file references in caseAttachments table directly

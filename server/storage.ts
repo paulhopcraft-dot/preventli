@@ -63,6 +63,7 @@
   CaseLifecycleLogDB,
   InsertCaseLifecycleLog,
   WorkerCaseType,
+  Organization,
 } from "@shared/schema";
 import { LIFECYCLE_TRANSITIONS } from "@shared/schema";
 import { db } from "./db";
@@ -100,6 +101,7 @@ import {
   caseDocuments,
   chatMemory,
   caseLifecycleLogs,
+  organizations,
   type RTWPlanDB,
   type RTWPlanVersionDB,
   type RTWPlanDutyDB,
@@ -505,7 +507,9 @@ export interface IStorage {
     summary?: string;
     type?: WorkerCaseType;        // defaults to "injury"
     assessmentId?: string | null; // set for health-check originated cases
+    workerEmail?: string | null;  // worker contact captured at employer case creation
   }): Promise<WorkerCase>;
+  getOrganization(id: string): Promise<Organization | null>;
   createCaseFromAssessment(assessment: PreEmploymentAssessmentDB): Promise<WorkerCase>;
   updateWorkerCaseType(caseId: string, organizationId: string, newType: WorkerCaseType): Promise<WorkerCase | null>;
   clearAllWorkerCases(): Promise<void>;
@@ -715,6 +719,15 @@ export interface IStorage {
 }
 
 class DbStorage implements IStorage {
+  async getOrganization(id: string) {
+    const [row] = await db
+      .select()
+      .from(organizations)
+      .where(eq(organizations.id, id))
+      .limit(1);
+    return row ?? null;
+  }
+
   async getCases(organizationId: string, isAdmin?: boolean): Promise<WorkerCase[]> {
     const dbCases = await db
       .select()
@@ -1235,6 +1248,7 @@ class DbStorage implements IStorage {
     summary?: string;
     type?: WorkerCaseType;        // defaults to "injury"
     assessmentId?: string | null; // set for health-check originated cases
+    workerEmail?: string | null;  // worker contact captured at employer case creation
   }): Promise<WorkerCase> {
     const now = new Date();
     const dueDate = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000); // 7 days from now
@@ -1265,6 +1279,7 @@ class DbStorage implements IStorage {
         ticketCount: "1",
         type: caseData.type ?? "injury",
         assessmentId: caseData.assessmentId ?? null,
+        workerEmail: caseData.workerEmail ?? null,
       })
       .returning();
 
