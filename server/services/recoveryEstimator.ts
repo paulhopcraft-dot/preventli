@@ -1166,6 +1166,7 @@ export interface ChartDataPoint {
 
 export interface CertificateMarker {
   date: string;
+  endDate: string;
   week: number;
   capacity: number;
   certificateNumber: number;
@@ -1173,6 +1174,7 @@ export interface CertificateMarker {
   color: string;
   certificateId: string;
   documentUrl?: string | null;
+  functionalRestrictions?: import("../../shared/schema").FunctionalRestrictionsExtracted | null;
 }
 
 export interface RecoveryPhaseDisplay {
@@ -1390,10 +1392,10 @@ function generateActualCurve(
     const capacity = getCertificateCapacity(cert);
 
     const docUrl = (cert as any).fileUrl || cert.documentUrl || null;
-    console.log(`[Recovery] Creating marker for cert ${cert.id}: hasDocUrl=${!!docUrl}, docUrlLen=${docUrl?.length}`);
 
     markers.push({
       date: cert.startDate,
+      endDate: cert.endDate,
       week: weeksSinceInjury,
       capacity,
       certificateNumber: index + 1,
@@ -1401,6 +1403,7 @@ function generateActualCurve(
       color: getCapacityColor(capacity),
       certificateId: cert.id,
       documentUrl: docUrl,
+      functionalRestrictions: cert.functionalRestrictionsJson ?? null,
     });
   });
 

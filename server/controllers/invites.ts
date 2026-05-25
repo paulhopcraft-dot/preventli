@@ -206,7 +206,7 @@ export async function cancelUserInvite(req: AuthRequest, res: Response) {
       });
     }
 
-    const { inviteId } = req.params;
+    const inviteId = req.params.inviteId as string;
 
     if (!inviteId) {
       return res.status(400).json({
@@ -258,7 +258,7 @@ export async function resendUserInvite(req: AuthRequest, res: Response) {
       });
     }
 
-    const { inviteId } = req.params;
+    const inviteId = req.params.inviteId as string;
 
     if (!inviteId) {
       return res.status(400).json({

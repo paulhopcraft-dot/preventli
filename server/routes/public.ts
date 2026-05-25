@@ -6,6 +6,7 @@ import express, { type Request, type Response, type Router } from "express";
 import { storage } from "../storage";
 import { createLogger } from "../lib/logger";
 import { generateReport } from "../services/reportGenerator";
+import { scheduleRTWReviewAfterPreventionCheck } from "../services/workerOutreachService";
 
 const logger = createLogger("PublicRoutes");
 const router: Router = express.Router();
@@ -21,7 +22,7 @@ function isAssessmentSubmitted(assessment: Awaited<ReturnType<typeof storage.get
  */
 router.get("/check/:token", async (req: Request, res: Response) => {
   try {
-    const { token } = req.params;
+    const token = req.params.token as string;
     const assessment = await storage.getAssessmentByToken(token);
 
     if (!assessment) {
@@ -37,8 +38,6 @@ router.get("/check/:token", async (req: Request, res: Response) => {
       candidateName: assessment.candidateName,
       positionTitle: assessment.positionTitle,
       assessmentId: assessment.id,
-      assessmentType: assessment.assessmentType ?? "baseline_health",
-      organizationName: null, // populated below if we expose it
     });
   } catch (error) {
     logger.error("Error loading public check:", undefined, error);
@@ -53,7 +52,7 @@ router.get("/check/:token", async (req: Request, res: Response) => {
  */
 router.post("/check/:token", async (req: Request, res: Response) => {
   try {
-    const { token } = req.params;
+    const token = req.params.token as string;
     const { responses } = req.body as { responses: Record<string, unknown> };
 
     if (!responses || typeof responses !== "object") {
@@ -86,6 +85,19 @@ router.post("/check/:token", async (req: Request, res: Response) => {
     generateReport(assessmentWithResponses).catch((err) => {
       logger.error("Report generation failed:", undefined, err);
     });
+
+    // If this is a downgrade-triggered Prevention Check linked to a case, queue
+    // an RTW plan review so Alex can analyse the responses and notify the case manager.
+    if (assessment.caseId && assessment.assessmentType === "prevention") {
+      scheduleRTWReviewAfterPreventionCheck(
+        assessment.id,
+        assessment.caseId,
+        assessment.organizationId,
+        responses
+      ).catch((err) => {
+        logger.error("RTW review scheduling failed:", undefined, err);
+      });
+    }
 
     res.json({ success: true, message: "Thank you — your responses have been submitted." });
   } catch (error) {

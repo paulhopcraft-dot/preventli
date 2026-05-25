@@ -12,7 +12,7 @@ import type { InsertComplianceRule } from '@shared/schema';
 
 type RuleSeed = Omit<InsertComplianceRule, 'id' | 'createdAt' | 'updatedAt'>;
 
-const RULES: RuleSeed[] = [
+const RULES: any[] = [
   // ── Existing rules ───────────────────────────────────────────────────────
   {
     ruleCode: 'CERT_CURRENT',
@@ -184,11 +184,11 @@ async function seedComplianceRules(): Promise<void> {
           documentReferences: rule.documentReferences,
           evaluationLogic: rule.evaluationLogic,
           isActive: rule.isActive,
-        })
+        } as any)
         .where(eq(complianceRules.ruleCode, rule.ruleCode));
       console.log(`  updated: ${rule.ruleCode}`);
     } else {
-      await db.insert(complianceRules).values(rule);
+      await db.insert(complianceRules).values(rule as any);
       console.log(`  inserted: ${rule.ruleCode}`);
     }
   }

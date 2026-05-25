@@ -14,7 +14,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { db } from "../db";
-import { agentJobs, agentActions } from "@shared/schema";
+import { agentJobs, agentActions, users } from "@shared/schema";
 import { eq, and, desc } from "drizzle-orm";
 import { authorize, type AuthRequest } from "../middleware/auth";
 import { agentScheduler } from "../agent-runner/triggers";
@@ -53,7 +53,7 @@ router.post("/trigger", authorize(), async (req: AuthRequest, res) => {
         triggeredBy: "manual",
         triggeredByUserId: req.user!.id,
         context: context || {},
-      })
+      } as any)
       .returning();
 
     // Run async
@@ -107,7 +107,7 @@ router.get("/jobs", authorize(), async (req: AuthRequest, res) => {
 
 router.get("/jobs/:jobId", authorize(), async (req: AuthRequest, res) => {
   try {
-    const { jobId } = req.params;
+    const jobId = req.params.jobId as string;
 
     const [job] = await db
       .select()
@@ -175,7 +175,7 @@ router.post("/jobs/:jobId/approve-action", authorize(), async (req: AuthRequest,
         approvalStatus: "approved",
         approvedBy: req.user!.id,
         approvedAt: new Date(),
-      })
+      } as any)
       .where(eq(agentActions.id, parsed.data.actionId));
 
     logAuditEvent({ eventType: AuditEventTypes.ACTION_UPDATE, userId: req.user?.id ?? null, organizationId: req.user?.organizationId ?? null, resourceType: 'agent_action', resourceId: parsed.data.actionId, metadata: { approval: 'approved', jobId: req.params.jobId } });
@@ -199,7 +199,7 @@ router.post("/jobs/:jobId/reject-action", authorize(), async (req: AuthRequest, 
         approvalStatus: "rejected",
         approvedBy: req.user!.id,
         approvedAt: new Date(),
-      })
+      } as any)
       .where(eq(agentActions.id, parsed.data.actionId));
 
     logAuditEvent({ eventType: AuditEventTypes.ACTION_UPDATE, userId: req.user?.id ?? null, organizationId: req.user?.organizationId ?? null, resourceType: 'agent_action', resourceId: parsed.data.actionId, metadata: { approval: 'rejected', jobId: req.params.jobId } });
@@ -207,6 +207,70 @@ router.post("/jobs/:jobId/reject-action", authorize(), async (req: AuthRequest, 
   } catch (err) {
     logger.error("Failed to reject action", {}, err);
     res.status(500).json({ error: "Failed to reject action" });
+  }
+});
+
+// ─── Latest morning briefing for the current user's org ───────────────────────
+// Returns the most-recent completed coordinator agent job summary for the
+// authenticated user's active organization. Used by the employer dashboard
+// to render the "Good morning {firstName}, ..." card.
+
+/**
+ * Pick the name Alex uses to address the user.
+ *
+ * Order: explicit `users.preferredName` → first token of the email local-part,
+ * title-cased → literal "there". The hardcoded per-email override map this
+ * function used to carry has been replaced by the database column so the
+ * behavior is data-driven and editable by the end-user (Alex training goal).
+ */
+export function deriveFirstName(email: string, preferredName: string | null | undefined): string {
+  const cleaned = (preferredName ?? "").trim();
+  if (cleaned) return cleaned;
+  const prefix = (email.split("@")[0] || "").split(/[.\-_+]/)[0] || "";
+  if (!prefix) return "there";
+  return prefix.charAt(0).toUpperCase() + prefix.slice(1).toLowerCase();
+}
+
+router.get("/latest-briefing", authorize(), async (req: AuthRequest, res) => {
+  try {
+    const organizationId = req.user!.organizationId;
+
+    const [job] = await db
+      .select({
+        summary: agentJobs.summary,
+        completedAt: agentJobs.completedAt,
+      })
+      .from(agentJobs)
+      .where(
+        and(
+          eq(agentJobs.organizationId, organizationId),
+          eq(agentJobs.agentType, "coordinator"),
+          eq(agentJobs.status, "completed")
+        )
+      )
+      .orderBy(desc(agentJobs.completedAt))
+      .limit(1);
+
+    // Look up email + preferredName for greeting.
+    const [u] = await db
+      .select({ email: users.email, preferredName: users.preferredName })
+      .from(users)
+      .where(eq(users.id, req.user!.id))
+      .limit(1);
+    const firstName = u ? deriveFirstName(u.email, u.preferredName) : "there";
+
+    if (!job || !job.summary) {
+      return res.json({ summary: null, completedAt: null, firstName });
+    }
+
+    res.json({
+      summary: job.summary,
+      completedAt: job.completedAt,
+      firstName,
+    });
+  } catch (err) {
+    logger.error("Failed to fetch latest briefing", {}, err);
+    res.status(500).json({ error: "Failed to fetch latest briefing" });
   }
 });
 

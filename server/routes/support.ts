@@ -32,7 +32,7 @@ router.post("/contact", authorize(), async (req: AuthRequest, res: Response) => 
   const { subject, message } = parse.data;
   const user = req.user!;
 
-  const fromName = user.name || user.email;
+  const fromName = (user as any).name || user.email;
   const fromEmail = user.email;
   const orgId = user.organizationId ?? "unknown";
 

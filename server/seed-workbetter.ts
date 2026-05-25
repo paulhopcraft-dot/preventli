@@ -7,6 +7,17 @@ import {
   users,
   partnerUserOrganizations,
   workerCases,
+  medicalCertificates,
+  caseAttachments,
+  caseDiscussionNotes,
+  caseDiscussionInsights,
+  preEmploymentAssessments,
+  preEmploymentHealthRequirements,
+  emailTemplates,
+  rtwRoles,
+  workers,
+  userInvites,
+  telehealthBookings,
 } from "@shared/schema";
 
 /**
@@ -91,6 +102,7 @@ const ALPINE_TEST_EMPTY_ID = "org-alpine-test-empty";
 
 const PRIMARY_PARTNER_USER_ID = "user-workbetter-primary";
 const SCOPED_PARTNER_USER_ID = "user-workbetter-scoped";
+const WORKBETTER_REAL_USER_ID = "user-workbetter-real";
 
 const ALPINE_COMPANIES = [
   { id: ALPINE_HEALTH_ID, name: "Alpine Health" },
@@ -422,14 +434,92 @@ async function seed(): Promise<void> {
     ALPINE_TEST_EMPTY_ID,
     ...WORKBETTER_CLIENT_IDS,
   ];
+  // All orgs being deleted: partner org + all client orgs.
+  // Child-table cleanup must cover ALL of these, not just client orgs.
+  const allOrgIds = [PARTNER_ORG_ID, ...allClientOrgIds];
+
+  // ── Comprehensive cleanup ──────────────────────────────────────────────────
+  // Handles all FK constraints that lack ON DELETE CASCADE.
+  // Order: deepest dependents first, then parents.
+
+  // 1. Pre-employment assessments (references org + worker + created_by user)
+  await db.delete(preEmploymentAssessments).where(
+    inArray(preEmploymentAssessments.organizationId, allOrgIds)
+  );
+  // 2. Pre-employment health requirements (references org)
+  await db.delete(preEmploymentHealthRequirements).where(
+    inArray(preEmploymentHealthRequirements.organizationId, allOrgIds)
+  );
+  // 3. Telehealth bookings (references org + worker)
+  await db.delete(telehealthBookings).where(
+    inArray(telehealthBookings.organizationId as any, allOrgIds)
+  );
+  // 4. Email templates (references org + created_by user)
+  await db.delete(emailTemplates).where(
+    inArray(emailTemplates.organizationId, allOrgIds)
+  );
+  // 5. RTW roles (references org; rtwDuties cascade from rtwRoles)
+  await db.delete(rtwRoles).where(
+    inArray(rtwRoles.organizationId, allOrgIds)
+  );
+  // 5b. Null out worker_id in assessments pointing to workers we're about to delete
+  //     (handles assessments for non-seeded orgs like Ikon Engineering)
+  const workerIdsBeingDeleted = await db
+    .select({ id: workers.id })
+    .from(workers)
+    .where(inArray(workers.organizationId as any, allOrgIds));
+  if (workerIdsBeingDeleted.length > 0) {
+    const wIds = workerIdsBeingDeleted.map((w) => w.id);
+    await db.update(preEmploymentAssessments)
+      .set({ workerId: null } as any)
+      .where(inArray(preEmploymentAssessments.workerId as any, wIds));
+  }
+  // 6. Workers (references org; worker_id FK nulled above for external assessments)
+  await db.delete(workers).where(
+    inArray(workers.organizationId as any, allOrgIds)
+  );
+  // 7. Worker-case dependents that lack cascade (caseDiscussionInsights → Notes chain)
+  const casesToDelete = await db
+    .select({ id: workerCases.id })
+    .from(workerCases)
+    .where(inArray(workerCases.organizationId, allClientOrgIds));
+  const deleteCaseIds = casesToDelete.map((c) => c.id);
+  if (deleteCaseIds.length > 0) {
+    await db.delete(caseDiscussionInsights).where(inArray(caseDiscussionInsights.caseId, deleteCaseIds));
+    await db.delete(caseDiscussionNotes).where(inArray(caseDiscussionNotes.caseId, deleteCaseIds));
+    await db.delete(medicalCertificates).where(inArray(medicalCertificates.caseId, deleteCaseIds));
+    await db.delete(caseAttachments).where(inArray(caseAttachments.caseId, deleteCaseIds));
+  }
+  // 8. Worker cases (cascades: rtwPlans → versions/consent, caseActions, emailDrafts, etc.)
   await db.delete(workerCases).where(
     inArray(workerCases.organizationId, allClientOrgIds)
   );
+  // 9. Null out created_by on records for OTHER orgs still referencing our partner users
+  //    (e.g. pre-employment assessments sent to non-seeded client orgs like Ikon Engineering)
+  await db.execute(sql`
+    UPDATE pre_employment_assessments
+    SET created_by = NULL
+    WHERE created_by = ${PRIMARY_PARTNER_USER_ID}
+       OR created_by = ${SCOPED_PARTNER_USER_ID}
+       OR created_by = ${WORKBETTER_REAL_USER_ID}
+  `);
+  await db.execute(sql`
+    UPDATE email_templates
+    SET created_by = NULL
+    WHERE created_by = ${PRIMARY_PARTNER_USER_ID}
+       OR created_by = ${SCOPED_PARTNER_USER_ID}
+       OR created_by = ${WORKBETTER_REAL_USER_ID}
+  `);
+  // 10. User invites created by our partner users
+  await db.delete(userInvites).where(
+    inArray(userInvites.invitedByUserId, [PRIMARY_PARTNER_USER_ID, SCOPED_PARTNER_USER_ID, WORKBETTER_REAL_USER_ID])
+  );
+  // 11. Partner access grants, then users, then orgs
   await db.delete(partnerUserOrganizations).where(
-    inArray(partnerUserOrganizations.userId, [PRIMARY_PARTNER_USER_ID, SCOPED_PARTNER_USER_ID])
+    inArray(partnerUserOrganizations.userId, [PRIMARY_PARTNER_USER_ID, SCOPED_PARTNER_USER_ID, WORKBETTER_REAL_USER_ID])
   );
   await db.delete(users).where(
-    inArray(users.id, [PRIMARY_PARTNER_USER_ID, SCOPED_PARTNER_USER_ID])
+    inArray(users.id, [PRIMARY_PARTNER_USER_ID, SCOPED_PARTNER_USER_ID, WORKBETTER_REAL_USER_ID])
   );
   await db.delete(organizations).where(
     inArray(organizations.id, [PARTNER_ORG_ID, ...allClientOrgIds])
@@ -439,12 +529,12 @@ async function seed(): Promise<void> {
   await db.insert(organizations).values([
     {
       id: PARTNER_ORG_ID,
-      name: "WorkBetter",
-      slug: "workbetter",
+      name: "Test Partner",
+      slug: "test-partner",
       kind: "partner",
       logoUrl: "/assets/workbetter-logo.jpg",
-      contactName: "WorkBetter Admin",
-      contactEmail: "admin@workbetter.net.au",
+      contactName: "Test Partner Admin",
+      contactEmail: "admin@testpartner.com.au",
       contactPhone: "03 9000 0001",
     },
     {
@@ -512,7 +602,7 @@ async function seed(): Promise<void> {
       contactName: "Test Contact",
       notificationEmails: "alert1@example.com, alert2@example.com, alert3@example.com",
     },
-  ]);
+  ] as any);
 
   // WorkBetter's real client roster — empty employer orgs so the sidebar looks
   // alive. Inserted in batches to keep query parameter counts under driver limits.
@@ -525,7 +615,7 @@ async function seed(): Promise<void> {
       slug: c.slug,
       kind: "employer" as const,
     }));
-    await db.insert(organizations).values(batch);
+    await db.insert(organizations).values(batch as any);
   }
 
   const passwordHash = await bcrypt.hash("workbetter123", 10);
@@ -535,7 +625,7 @@ async function seed(): Promise<void> {
     {
       id: PRIMARY_PARTNER_USER_ID,
       organizationId: PARTNER_ORG_ID,
-      email: "workbetter@workbetter.net.au",
+      email: "testpartner@testpartner.com.au",
       password: passwordHash,
       role: "partner",
       subrole: null,
@@ -545,31 +635,28 @@ async function seed(): Promise<void> {
     {
       id: SCOPED_PARTNER_USER_ID,
       organizationId: PARTNER_ORG_ID,
-      email: "workbetter-scoped@workbetter.net.au",
+      email: "testpartner-scoped@testpartner.com.au",
       password: passwordHash,
       role: "partner",
       subrole: null,
       companyId: null,
       insurerId: null,
     },
-  ]);
+    {
+      id: WORKBETTER_REAL_USER_ID,
+      organizationId: PARTNER_ORG_ID,
+      email: "workbetter@workbetter.net.au",
+      password: passwordHash,
+      role: "partner",
+      subrole: null,
+      companyId: null,
+      insurerId: null,
+    },
+  ] as any);
 
-  console.log("[seed-workbetter] Granting partner user access to client orgs...");
-  // Primary user gets the Alpine fixtures plus every WorkBetter client.
-  // Scoped user stays limited to Alpine Health to keep proving access enforcement.
-  const primaryGrants = [
-    ALPINE_HEALTH_ID,
-    ALPINE_MDF_ID,
-    ALPINE_TEST_EMPTY_ID,
-    ...WORKBETTER_CLIENT_IDS,
-  ].map((organizationId) => ({ userId: PRIMARY_PARTNER_USER_ID, organizationId }));
-  const grantBatchSize = 100;
-  for (let i = 0; i < primaryGrants.length; i += grantBatchSize) {
-    await db.insert(partnerUserOrganizations).values(primaryGrants.slice(i, i + grantBatchSize));
-  }
-  await db.insert(partnerUserOrganizations).values([
-    { userId: SCOPED_PARTNER_USER_ID, organizationId: ALPINE_HEALTH_ID },
-  ]);
+  // WorkBetter starts with zero pre-linked clients — partners add their own
+  // clients through the UI. No partner_user_organizations rows are seeded here.
+  console.log("[seed-workbetter] WorkBetter starts with no pre-linked clients (partners add their own).");
 
   // Task F: minimal smoke case per company (one trivial open case).
   console.log("[seed-workbetter] Inserting smoke cases (Task F)...");
@@ -607,7 +694,7 @@ async function seed(): Promise<void> {
       dueDate: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
       summary: "Preventative ergonomic assessment — back-saver review",
     },
-  ]);
+  ] as any);
 
   // Task G: demo cases — 5 per company across 3 tracks.
   if (!minimalOnly) {
@@ -629,7 +716,7 @@ async function seed(): Promise<void> {
         owner: "WorkBetter",
         dueDate: new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
         summary: c.injuryDescription,
-      }))
+      })) as any
     );
   }
 
@@ -657,21 +744,33 @@ async function seed(): Promise<void> {
   console.log(`  client cases (Alpine Health/MDF): ${caseRows.length}`);
 
   console.log("\n[seed-workbetter] Login credentials:");
-  console.log("  workbetter@workbetter.net.au         / workbetter123  (full access)");
-  console.log("  workbetter-scoped@workbetter.net.au  / workbetter123  (Alpine Health only)");
+  console.log("  testpartner@testpartner.com.au         / workbetter123  (Test Partner — full access)");
+  console.log("  testpartner-scoped@testpartner.com.au  / workbetter123  (Test Partner — scoped)");
+  console.log("  workbetter@workbetter.net.au           — WorkBetter partner, starts with 0 clients");
 }
 
-seed()
-  .then(async () => {
-    await pool.end();
-    process.exit(0);
-  })
-  .catch(async (err) => {
-    console.error("[seed-workbetter] Failed:", err);
-    try {
+export { seed as seedWorkBetter };
+
+// Only auto-run when executed directly as a script (not when imported as a module).
+// This prevents pool.end() / process.exit() from firing when the admin endpoint
+// dynamically imports this file.
+const isDirectRun =
+  process.argv[1]?.endsWith("seed-workbetter.ts") ||
+  process.argv[1]?.endsWith("seed-workbetter.js");
+
+if (isDirectRun) {
+  seed()
+    .then(async () => {
       await pool.end();
-    } catch {
-      // ignore
-    }
-    process.exit(1);
-  });
+      process.exit(0);
+    })
+    .catch(async (err) => {
+      console.error("[seed-workbetter] Failed:", err);
+      try {
+        await pool.end();
+      } catch {
+        // ignore
+      }
+      process.exit(1);
+    });
+}

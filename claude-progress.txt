@@ -1,3 +1,234 @@
+## Session 148 (19 May 2026) — Production recovery + Postmark activation prep
+
+### Completed
+- Fixed production login outage (all users 500): boot-time migrations in `server/index.ts`
+  - Root cause: `preferred_name` column + `org_inbound_aliases` table missing from prod DB
+  - Fix: idempotent `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` + `CREATE TABLE IF NOT EXISTS` on every boot
+  - Commit: `241de5c` — login restored at 13:57 AWST
+- Partner self-edit E2E verified on prod: PATCH /api/partner/me → all 3 fields persist (HTTP 200)
+- render.yaml: declared Postmark env vars + PREVENTLI_DEFAULT_INBOUND_ORG_ID (`38745dd`)
+
+### Postmark activation (PAUL must complete)
+Credentials generated — DO NOT lose:
+- `POSTMARK_WEBHOOK_USER` = `c32998032d670961ad8dcc9a`
+- `POSTMARK_WEBHOOK_PASSWORD` = `50ac9058602026844388f113cde403085a679e2cbecff16c`
+- Webhook URL: `https://c32998032d670961ad8dcc9a:50ac9058602026844388f113cde403085a679e2cbecff16c@app.preventli.ai/api/webhooks/postmark/inbound`
+
+Steps for Paul:
+1. Render → Environment → add USER, PASSWORD, PREVENTLI_DEFAULT_INBOUND_ORG_ID=org-wallara → redeploy
+2. DNS: MX record `support.preventli.ai → inbound.postmarkapp.com` (priority 10)
+3. Postmark: create server → inbound domain `support.preventli.ai` → webhook URL above
+4. Tell Claude → verify with test email
+
+### Next Steps
+1. Postmark E2E verification (after Paul completes 4 steps above)
+2. Failed-match triage UI — `case_emails` with `case_id IS NULL` need an admin screen
+
+### Notes
+- Render is now on paid plan (no cold starts, ~3-5 min deploys)
+- boot-time migrations pattern: add future schema changes to the block in server/index.ts
+- Schema changes that hit prod before db:push: preferred_name, org_inbound_aliases
+- Production: https://app.preventli.ai | admin@gpnet.local / ChangeMe123!
+- WorkBetter partner: workbetter@workbetter.net.au / workbetter123
+
+---
+
+## Session 129 (15 May 2026) — Wallara demo, multi-bundle shipping
+
+### Completed (14+ commits to main, all pushed)
+
+**Demo-day fixes (pre-meeting):**
+- `5984932` fix(rtw): transform restrictions object → Constraint[] in /details
+- `ee00d6f` fix(rtw): CurrentRTWPlanCard renders for approved plans (added "approved" to ACTIVE_STATUSES)
+- `cffd9ee` fix(rtw): AutoDraftRTWPlanBanner reads `data.data.plan.*` not `data.data.*` (shape mismatch fix)
+- `3e7a932` fix(reports): force light-mode rendering in IME + Prevention Check modals (strip `dark:text-*` variants)
+- `62c5ac4` + `68fbdb3` fix(compliance): preventative cases (claimNumber null/empty) short-circuit to Compliant — fixes Naomi falsely flagged "Non-Compliant"
+
+**Seed + access:**
+- `e790652` + `91f5b2d` temp boot-seed hook then reverted (used to materialise David Nguyen + Naomi Wright on prod via deploy-revert dance, since prod URL not in repo)
+- `2326c2e` seed: workbetter@workbetter.net.au / workbetter123 partner user added to seed-workbetter.ts. Admin endpoint `POST /api/admin/seed/workbetter` re-run via subagent; login verified live.
+
+**Update-plan flow (Ellen's #1 ask):**
+- `804219e` server: auto-draft eligibility now allows when latest plan status is `approved` or `completed`; returns `existing_plan_can_supersede`; rtwAutoDrafter computes `nextVersion = latestPlan.version + 1`
+- `67402ec` client: AutoDraftButton text becomes "Draft updated plan" when supersedable; CurrentRTWPlanCard adds inline "Draft new version" button
+
+**Recovery timeline polish:**
+- `efd4055` 16px cert markers (amber expired / blue current) + clipboard icon, hover tooltip with capacity %, click modal with cert image + Fitness Status badge + full functional restrictions matrix. Wired `functionalRestrictionsJson` through schema → timeline route → component.
+
+**Email ingestion foundation:**
+- `92fd0c9` LLM fuzzy-match fallback (`server/services/llmEmailMatcher.ts` + integration in `inboundEmailService.ts`). Tenant-safe: requires `PREVENTLI_DEFAULT_INBOUND_ORG_ID` env var on Render (set to `org-wallara`). Hallucination guard validates LLM caseId against candidate list. 8/8 tests pass.
+
+**Audits + skills:**
+- `3b212ce` doc: all 6 check types audit (pre-employment / prevention / injury / wellness / mental health / **exit health**). All present, no code gaps. Doc at `.planning/check-types-audit.md`.
+- Partner workspace bonus commits from subagent spillover: `85e8852`, `b8966ab`, `0185b3c`, `41a50a8` (Settings button, self-edit dialog, PATCH /api/partner/me, ABN dropped from add-client). These came from Subagent A bleeding into partner files — work appears correct, but Paul should review.
+- New Claude skill: `~/.claude/skills/preventli-case-history/SKILL.md` — auto-loads for future case interpretation, forces worker-history reasoning. Based on `case-history-context-BRIEF.md`.
+
+### Demo outcome (10:30 AM Wallara meeting w/ Ellen Burns)
+- Demo ran (some yellow during; modals needed light-mode toggle). Ellen positive. She'll loop in Michelle + Nicole + new OHS officer for onboarding.
+- Post-meeting transcript captured via Zoom Docs (Paul pasted full content). Action list extracted; this session's work is the first wave of that backlog.
+
+### In Progress
+- **Render deploy backlog:** 14 commits queued on free-tier Singapore. Estimate 20–40 min for full drain. Recent commits `804219e`, `67402ec`, `efd4055`, `92fd0c9` not yet verified live on prod as of session end.
+- **LLM email matcher env var:** Set `PREVENTLI_DEFAULT_INBOUND_ORG_ID=org-wallara` on Render dashboard. Without this, matcher is dormant.
+
+### Next Steps (priority order)
+1. **Verify the latest deploys on prod**: open `https://app.preventli.ai/employer/case/case-wallara-marcus` as wallara@wallara.com.au / wallara01. Confirm: (a) "Current RTW Plan" card visible, (b) "Draft updated plan" button enabled with new tooltip, (c) Treatment & Recovery tab has 16px cert markers with click-to-modal.
+2. **Set Render env var** `PREVENTLI_DEFAULT_INBOUND_ORG_ID=org-wallara` to activate LLM email matcher.
+3. **Talk-with-Alex bundle (W11–W13)**: chat UI panel + tool-use loop + session memory. Big — ~3–5 days. Probably needs work-large-orchestrator with PRD.
+4. **GP escalation bundle (W14–W16)**: doctor-non-response detection → IME suggested banner; worker engagement scoring → insurer escalation; contact cadence guardrails.
+5. **Visual polish + premium calculator**: per-case premium impact on Financial tab (Paul has the formula, ask him).
+6. **Trust threshold + persistent task loop (W23–W24)**: per-user confidence setting; Alex-suggested actions persist with reminders until completed.
+7. **Pre-existing TS errors to clean up**: `server/routes/rtw.test.ts` (missing `pending_employer_review` in RTWPlanStatus map) + 6 in `client/src/components/DynamicRecoveryTimeline.tsx` (unused imports + null checks). Flagged by today's subagents.
+
+### Blockers / Yellow
+- LLM email matcher untested in prod (deploy pending + env var not set).
+- Update-plan v2 supersede flow shipped but old approved plan isn't auto-marked superseded when v2 lands — that's deliberate (user approves v2 first), but UX should explain it.
+- Compliance engine still applies WIRC Act rules to ALL injury cases; no test for "claimNumber populated but case is preventative for some other reason" edge case.
+- Partner workspace 4 commits from Subagent A spillover — review needed before claiming full done.
+
+### Notes
+- **Workflow that worked**: dispatch executor subagents in parallel on independent bundles with explicit acceptance criteria + commit message style. 3 parallel agents shipped 3 bundles in ~25 min wallclock.
+- **Refspec push**: `git push origin demo/wallara-seed:main` is the right pattern; main branch is checked out in a worktree at `.claude/worktrees/romantic-lichterman-94a65a` so direct checkout fails.
+- **Prod seed pattern when DATABASE_URL unavailable**: admin endpoint `POST /api/admin/seed/<tenant>` triggers the seed inside the running container. Use admin@gpnet.local / ChangeMe123!. CSRF token required.
+- **Karpathy loop angle**: scoring per-session should track (commits shipped) × (deploy verifications). Today: 14 commits, only ~6 fully verified live. The gap is the discipline drop.
+
+---
+
+## Session 128 (May 10, 2026) — Partial TS fix for feat/timeline-graph (2/14 errors fixed)
+
+### Completed
+- Fixed `server/services/auditLogger.ts`: Added USER_PASSWORD_CHANGE_FAILED and USER_PASSWORD_CHANGE entries to AuditEventTypes const
+- Fixed `server/agent-runner/triggers.ts`: Added `type InsertAgentJob` import; cast both `.values({...})` calls as `InsertAgentJob` to satisfy drizzle 0.38.3 excess property check
+- Committed as `22002bf` on feat/timeline-graph
+
+### In Progress
+- 12 TypeScript errors remain in feat/timeline-graph CI (PR #49)
+
+### Next Steps — EXACT fixes needed (in order)
+
+**auth.ts (5 errors):**
+1. Line ~181: `.values({...})` — cast as `typeof users.$inferInsert` (subrole excluded from strict type)
+2. Line ~747: `revokeSession(req.user.id, sessionId)` → `revokeSession(req.user.id, sessionId as string)`
+3. Line ~762: `resourceId: sessionId,` → `resourceId: sessionId as string,`
+4. Line ~842: `eventType: "user.password_change_failed"` → `eventType: AuditEventTypes.USER_PASSWORD_CHANGE_FAILED`
+5. Line ~864: `eventType: "user.password_change"` → `eventType: AuditEventTypes.USER_PASSWORD_CHANGE`
+
+**invites.ts (2 errors):**
+6. Line ~218: `cancelInvite(inviteId)` → `cancelInvite(inviteId as string)`
+7. Line ~270: `resendInvite(inviteId)` → `resendInvite(inviteId as string)`
+
+**webhooks.ts (5 errors):**
+8. Line 5 (import): Add `type InsertMedicalCertificate` to import from `@shared/schema`
+9. Line ~110: `.values({...workerCase fields...})` — cast as `typeof workerCases.$inferInsert` (id excluded, has default)
+10. Line ~234: `storage.createCertificate({...})` argument — cast as `InsertMedicalCertificate` (notes + other optional fields excluded)
+11. Line ~433: `.values({ formId, organizationId, formType, webhookPassword, isActive: true })` — cast as `typeof webhookFormMappings.$inferInsert`
+12. Line ~535: `.set({ isActive: false, updatedAt: new Date() })` — cast as `Partial<typeof webhookFormMappings.$inferInsert>`
+13. Line ~536: `eq(webhookFormMappings.id, id)` → `eq(webhookFormMappings.id, id as string)`
+
+Then: `npx tsc --noEmit -p tsconfig.server.json` via PowerShell → verify 0 errors → commit → push → check CI.
+
+### Blockers
+- Context kept getting compacted mid-session, breaking momentum. Use `/gsd:fast` directly next session.
+- PowerShell MUST be used (not Bash) — node not recognized in Bash tool on this machine.
+
+### Notes
+- drizzle-orm 0.38.3 `$inferInsert` excludes columns with `.default()` and nullable columns → excess property check fails on object literals. Fix = cast as the insert type.
+- `string | string[]` from Express params → add `as string` after truthiness guard already in place.
+- AuditEventTypes entries must go in `server/services/auditLogger.ts`, NOT `shared/schema.ts`.
+- Worktree: `D:\dev\preventli\.claude\worktrees\dreamy-banach-306719`
+
+---
+
+## Session 124 (May 9, 2026) — E2E smoke suite green against production
+
+### Completed
+- **17/17 smoke tests passing** against https://gpnet3.onrender.com
+  - Root cause of prior failure: PowerShell `$env:` syntax used inside bash tool —
+    env var never set, Playwright tried to spin up local dev server, timed out.
+  - Fix: `PLAYWRIGHT_BASE_URL=https://gpnet3.onrender.com npx playwright test ...`
+  - PROD-1 through PROD-5 + INFRA all green. Runtime ~2.3 minutes.
+  - PROD-3 case-detail navigation gracefully `[SKIP]`s when admin has no cases —
+    expected, not a failure.
+- **Pre-deploy gate command** (save this):
+  ```bash
+  PLAYWRIGHT_BASE_URL=https://gpnet3.onrender.com npx playwright test tests/e2e/smoke/production-readiness.spec.ts --reporter=list
+  ```
+
+### Pending
+- **Cowork UI verification** (manual): login workbetter@workbetter.net.au / workbetter123,
+  create assessment, Send to Worker, confirm email from checks@preventli.ai arrives.
+  Required to tick PR #49 test-plan checkbox.
+- **Merge PR #49** — awaiting CI green + cowork verification checkbox.
+- **Optional DB cleanup**: test assessment id `19a2a3bd-320b-484b-bac4-b5172cf72d47`
+  (candidateName "Paul Test") — needs Render psql, no DELETE endpoint exists.
+
+### Blockers
+- None. System working end-to-end.
+
+---
+
+## Session 123 (May 8–9, 2026) — preventli.ai email send live + dead-code cleanup
+
+### Completed
+- **preventli.ai verified in Resend** (Tokyo / ap-northeast-1)
+  - Root cause of "Records point to multiple regions" failure: stale us-east-1
+    MX + old DKIM TXT from prior April attempt still in Vercel DNS
+  - Fix: deleted both old records via Vercel UI; Resend re-checked, flipped
+    Failed → Pending → Verified within ~2 minutes
+- **Render `EMAIL_FROM` updated** on `preventli` service (srv-d6oe74paae7s73a77kpg,
+  gpnet3.onrender.com): `Preventli <onboarding@resend.dev>` → `Preventli <checks@preventli.ai>`
+  Redeployed Live ~21:08 May 8.
+- **End-to-end send test PASSED**:
+  POST /api/auth/login → POST /api/assessments → POST /api/assessments/:id/send
+  → 200 OK, sentTo paul.hopcraft@gmail.com (an arbitrary new recipient, not
+  Paul's resend-verified email — proves sandbox restriction lifted).
+- **Cleanup commit `b8c45dd`** on feat/timeline-graph: 7 files, 619 deletions
+  - Deleted `server/auto-seed-partner.ts` + boot call (demo gate, canary org now in DB)
+  - Deleted `client/src/pages/PartnerCaseDetailPage.tsx` + lazy import + `/partner/cases/:id` route
+  - Deleted matching `GET /api/partner/cases/:id` endpoint in routes/partner.ts (~174 lines)
+  - Removed misleading `organizationName: null` placeholder in routes/public.ts
+  - Deleted `.github/workflows/railway-deploy.yml` (Preventli is on Render)
+- **`npm run build` verified** — passes in 30.92s, no broken imports from cleanup
+- **Render housekeeping**: suspended unused `GPNET3-1` and `preventli-backend`
+  services via dashboard — now only `preventli` (prod) is Active. Future
+  env-var tasks can't accidentally land on the wrong service.
+- **Security cleanup**: deleted local JWT artifacts (login.json, login-fresh.json,
+  swap.json) and send-test.mjs (had hardcoded password)
+- **PR runbook**: `.planning/partner-tier/PR-CLEANUP-DESCRIPTION.md` has the
+  exact `git push` + `gh pr create` commands ready to copy-paste
+
+### In Progress
+- Cowork was sent a UI verification brief (login → create assessment → Send
+  to Worker → confirm Gmail arrival). Status unknown — may have been done.
+
+### Next Steps
+1. **Push `b8c45dd`** — branch is 1 commit ahead of origin/feat/timeline-graph,
+   0 behind. Use commands in `.planning/partner-tier/PR-CLEANUP-DESCRIPTION.md`.
+   The block-dangerous-git.sh hook prevents Claude from pushing autonomously.
+2. **Open PR** for the cleanup commit (description in same runbook)
+3. **Optional**: clean test assessment from prod DB
+   (id `19a2a3bd-320b-484b-bac4-b5172cf72d47`, candidateName "Paul Test").
+   No DELETE endpoint exists — needs SQL via Render psql.
+4. **Optional**: confirm cowork ran the UI verification
+
+### Blockers
+- None. Email pipeline is fully working end-to-end. Cleanup commit is local-only
+  but committed (durable on disk). Push is a one-step manual action.
+
+### Notes
+- **WorkBetter partner login** (prod): workbetter@workbetter.net.au / workbetter123
+- **Service IDs**: `preventli` = srv-d6oe74paae7s73a77kpg (URL gpnet3.onrender.com)
+- **Resend domain status**: preventli.ai Verified, region Tokyo ap-northeast-1
+- **EMAIL_FROM canonical value**: `Preventli <checks@preventli.ai>` (sandbox
+  fallback `Preventli <onboarding@resend.dev>` no longer needed but kept in
+  code as default if env var is unset)
+- **Worktree**: `D:\dev\preventli\.claude\worktrees\dreamy-banach-306719` on
+  `feat/timeline-graph` at `b8c45dd`. 14 worktrees total — see `git worktree list`.
+- **Pre-existing TS errors** in auth/controllers/agent-runner are NOT from this
+  session; they predate the cleanup and are unrelated to the deletion scope.
+
+---
+
 ## Session 113 (May 1, 2026) — GitHub repo rename + rebrand Tier 1/2
 
 ### Completed

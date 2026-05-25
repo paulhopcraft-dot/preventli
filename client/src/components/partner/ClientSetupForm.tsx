@@ -294,18 +294,6 @@ export function ClientSetupForm({ open, onOpenChange, clientId }: Props) {
                   )}
                 </div>
                 <div>
-                  <Label htmlFor="abn">ABN</Label>
-                  <Input
-                    id="abn"
-                    placeholder="11 digits"
-                    {...form.register("abn")}
-                    data-testid="field-abn"
-                  />
-                  {errors.abn && (
-                    <p className="mt-1 text-xs text-destructive">{errors.abn.message}</p>
-                  )}
-                </div>
-                <div>
                   <Label htmlFor="employeeCount">Employee count</Label>
                   <Select
                     value={form.watch("employeeCount")}
@@ -325,6 +313,10 @@ export function ClientSetupForm({ open, onOpenChange, clientId }: Props) {
                 </div>
               </div>
             </section>
+
+            <div className="rounded-md border border-dashed border-muted-foreground/30 bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+              Everything below is <span className="font-medium">optional</span> — fill in what you have, you can edit the rest later.
+            </div>
 
             {/* 2. Address */}
             <section className="space-y-4">
@@ -426,7 +418,7 @@ export function ClientSetupForm({ open, onOpenChange, clientId }: Props) {
                     data-testid="field-policy-number"
                   />
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Required for WorkSafe submission.
+                    Used later when lodging WorkSafe claims for this client.
                   </p>
                 </div>
                 <div>
@@ -555,7 +547,7 @@ export function ClientSetupForm({ open, onOpenChange, clientId }: Props) {
                   data-testid="field-notification-emails"
                 />
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Comma-separated, used for case alerts. Up to 10 addresses.
+                  Shared mailboxes at the client (e.g. safety@, hr@, whs@). Comma-separated, up to 10 addresses.
                 </p>
                 {errors.notificationEmails && (
                   <p className="mt-1 text-xs text-destructive">

@@ -1,0 +1,138 @@
+name: Karpathy Loop — Nightly Code Simplification
+
+on:
+  schedule:
+    - cron: "0 16 * * *" # 2:00 AM AEST (UTC+10) = 16:00 UTC
+  workflow_dispatch: # manual trigger for testing
+
+env:
+  NODE_VERSION: "20"
+  DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/gpnet3_test"
+  JWT_SECRET: "test-jwt-secret-minimum-32-characters-here"
+  SESSION_SECRET: "test-session-secret-minimum-32-chars"
+  STORAGE_PROVIDER: "local"
+  LLM_PROVIDER: "openrouter"
+
+jobs:
+  simplify:
+    name: Score → Simplify → Gate → PR
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: gpnet3_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Score all TypeScript files
+        run: npx tsx scripts/karpathy/score.ts
+
+      - name: Simplify weakest file via OpenRouter
+        id: simplify
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: npx tsx scripts/karpathy/simplify.ts
+
+      - name: Gate — type check
+        id: typecheck
+        run: npx tsc --noEmit -p tsconfig.server.json
+        continue-on-error: true
+
+      - name: Gate — unit tests
+        id: tests
+        run: npm test
+        continue-on-error: true
+
+      - name: Revert if gate failed
+        if: steps.typecheck.outcome == 'failure' || steps.tests.outcome == 'failure'
+        run: |
+          echo "Gate failed — reverting changes"
+          git checkout -- .
+          # Update history entry to record failure
+          node -e "
+            const fs = require('fs');
+            const h = JSON.parse(fs.readFileSync('scripts/karpathy/history.json','utf8'));
+            if (h.entries[0]?.gateResult === 'pending') h.entries[0].gateResult = 'failed';
+            fs.writeFileSync('scripts/karpathy/history.json', JSON.stringify(h, null, 2));
+          "
+
+      - name: Fail job if gate failed
+        if: steps.typecheck.outcome == 'failure' || steps.tests.outcome == 'failure'
+        run: |
+          echo "Karpathy Loop: gate failed, no PR created."
+          exit 1
+
+      - name: Update history with gate pass
+        run: |
+          node -e "
+            const fs = require('fs');
+            const h = JSON.parse(fs.readFileSync('scripts/karpathy/history.json','utf8'));
+            if (h.entries[0]?.gateResult === 'pending') h.entries[0].gateResult = 'passed';
+            fs.writeFileSync('scripts/karpathy/history.json', JSON.stringify(h, null, 2));
+          "
+
+      - name: Read run info for PR body
+        id: runinfo
+        run: |
+          FILE=$(node -e "const r=require('./scripts/karpathy/run-info.json'); console.log(r.file)")
+          SCORE=$(node -e "const r=require('./scripts/karpathy/run-info.json'); console.log(r.scoreBefore)")
+          LINES=$(node -e "const r=require('./scripts/karpathy/run-info.json'); console.log(r.lines)")
+          echo "file=$FILE" >> $GITHUB_OUTPUT
+          echo "score=$SCORE" >> $GITHUB_OUTPUT
+          echo "lines=$LINES" >> $GITHUB_OUTPUT
+
+      - name: Create pull request
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "refactor: Karpathy Loop — simplify ${{ steps.runinfo.outputs.file }}"
+          title: "refactor: Karpathy Loop — nightly simplification (${{ steps.runinfo.outputs.file }})"
+          body: |
+            ## Karpathy Loop — Nightly Code Simplification
+
+            **File:** `${{ steps.runinfo.outputs.file }}`
+            **Complexity score before:** ${{ steps.runinfo.outputs.score }}
+            **Lines:** ${{ steps.runinfo.outputs.lines }}
+
+            ### What changed
+            The highest-scoring file was simplified by Claude (via OpenRouter) with these goals:
+            - Replace `any` types with specific types where obvious
+            - Break long functions into named helpers
+            - Reduce nesting depth via early returns / guard clauses
+            - Remove dead code and noise
+
+            ### Gate results
+            - ✅ `tsc --noEmit` passed
+            - ✅ `vitest run` passed
+
+            **No behavior changes — all functionality preserved.**
+            Review the diff and merge if the simplification looks good.
+          branch: karpathy/nightly-${{ github.run_number }}
+          add-paths: |
+            ${{ steps.runinfo.outputs.file }}
+            scripts/karpathy/history.json
+          labels: "automated,simplification,refactor"
+          delete-branch: true

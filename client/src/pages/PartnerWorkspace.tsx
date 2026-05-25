@@ -7,9 +7,11 @@ import {
   LogOut,
   Plus,
   Pencil,
+  Trash2,
   Layers,
   ChevronRight,
   ChevronDown,
+  Settings,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -28,7 +30,18 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { ClientSetupForm } from "@/components/partner/ClientSetupForm";
+import { PartnerSelfSetupForm } from "@/components/partner/PartnerSelfSetupForm";
 import { apiRequest } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
 
@@ -172,11 +185,15 @@ export default function PartnerWorkspace() {
   const [activeTab, setActiveTab] = useState<ViewTab>("cases");
   const [formOpen, setFormOpen] = useState(false);
   const [editingClientId, setEditingClientId] = useState<string | undefined>(undefined);
+  const [partnerFormOpen, setPartnerFormOpen] = useState(false);
   const [openingCaseId, setOpeningCaseId] = useState<string | null>(null);
   const [openingWorkerId, setOpeningWorkerId] = useState<string | null>(null);
   /** When set, opens the client-picker dialog before navigating to `path`. */
   const [pendingNav, setPendingNav] = useState<{ path: string; label: string } | null>(null);
   const [navigatingToClient, setNavigatingToClient] = useState<string | null>(null);
+  /** Client pending deletion — triggers confirmation dialog. */
+  const [pendingDeleteClient, setPendingDeleteClient] = useState<{ id: string; name: string; openCaseCount: number } | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   /**
    * JWT-swap into the given client org and navigate to a path inside the
@@ -258,6 +275,24 @@ export default function PartnerWorkspace() {
       console.error("[partner] failed to open worker profile", err);
     } finally {
       setOpeningWorkerId(null);
+    }
+  }
+
+  async function confirmDeleteClient(): Promise<void> {
+    if (!pendingDeleteClient || isDeleting) return;
+    setIsDeleting(true);
+    try {
+      await apiRequest("DELETE", `/api/partner/clients/${pendingDeleteClient.id}`);
+      await queryClient.invalidateQueries({ queryKey: ["partner", "clients"] });
+      if (selectedOrgId === pendingDeleteClient.id) {
+        navigate("/partner");
+        setSelectedOrgId(ALL_CLIENTS);
+      }
+      setPendingDeleteClient(null);
+    } catch (err) {
+      console.error("[partner] failed to delete client", err);
+    } finally {
+      setIsDeleting(false);
     }
   }
 
@@ -367,6 +402,16 @@ export default function PartnerWorkspace() {
             <span className="hidden text-sm text-muted-foreground sm:inline">
               {user?.email}
             </span>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setPartnerFormOpen(true)}
+              data-testid="partner-settings"
+              title="Organisation details"
+            >
+              <Settings className="mr-2 h-4 w-4" />
+              Settings
+            </Button>
             <Button variant="ghost" size="sm" onClick={() => logout()} data-testid="sign-out">
               <LogOut className="mr-2 h-4 w-4" />
               Sign out
@@ -471,6 +516,19 @@ export default function PartnerWorkspace() {
                       aria-label={`Edit ${c.name}`}
                     >
                       <Pencil className="h-3 w-3" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 opacity-0 transition group-hover:opacity-100 hover:text-destructive"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setPendingDeleteClient({ id: c.id, name: c.name, openCaseCount: c.openCaseCount });
+                      }}
+                      data-testid={`delete-client-${c.id}`}
+                      aria-label={`Remove ${c.name}`}
+                    >
+                      <Trash2 className="h-3 w-3" />
                     </Button>
                   </div>
                 );
@@ -639,6 +697,53 @@ export default function PartnerWorkspace() {
         }}
         clientId={editingClientId}
       />
+
+      <PartnerSelfSetupForm
+        open={partnerFormOpen}
+        onOpenChange={setPartnerFormOpen}
+      />
+
+      <AlertDialog
+        open={pendingDeleteClient !== null}
+        onOpenChange={(o) => {
+          if (!o && !isDeleting) setPendingDeleteClient(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove client?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingDeleteClient && pendingDeleteClient.openCaseCount > 0 ? (
+                <>
+                  <strong>{pendingDeleteClient.name}</strong> has{" "}
+                  {pendingDeleteClient.openCaseCount} open case
+                  {pendingDeleteClient.openCaseCount !== 1 ? "s" : ""}. You will lose access
+                  to them if you remove this client. This cannot be undone.
+                </>
+              ) : (
+                <>
+                  Remove <strong>{pendingDeleteClient?.name}</strong> from your workspace? This
+                  cannot be undone.
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                void confirmDeleteClient();
+              }}
+              disabled={isDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              data-testid="confirm-delete-client"
+            >
+              {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Remove"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <Dialog
         open={pendingNav !== null}

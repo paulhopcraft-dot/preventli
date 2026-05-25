@@ -20,12 +20,13 @@ import actionRoutes from "./routes/actions";
 import smartSummaryRoutes from "./routes/smartSummary";
 import emailDraftRoutes from "./routes/emailDrafts";
 import discordRoutes from "./routes/discord";
-import discordAnalyticsRoutes from "./routes/discord-analytics";
 import notificationRoutes from "./routes/notifications";
 import adminOrganizationRoutes from "./routes/admin/organizations";
 import adminInsurerRoutes from "./routes/admin/insurers";
 import adminRolesRoutes from "./routes/admin/roles";
 import adminDutiesRoutes from "./routes/admin/duties";
+import adminSeedRoutes from "./routes/admin/seed";
+import adminInboundEmailRoutes from "./routes/admin/inbound-emails";
 import organizationRoutes from "./routes/organization";
 // caseChatRoutes removed — consolidated into unified chat at /api/chat/message
 import workerRoutes from "./routes/workers";
@@ -41,9 +42,12 @@ import contactRoutes from "./routes/contacts";
 import restrictionRoutes from "./routes/restrictions";
 import functionalAbilityRouter from "./routes/functionalAbility";
 import rtwPlansRouter from "./routes/rtwPlans";
+import rtwAutoDraftRouter from "./routes/rtwAutoDraft";
 import { employerDashboardRouter } from "./routes/employer-dashboard";
 import complianceDashboardRouter from "./routes/compliance-dashboard";
 import preEmploymentRoutes from "./routes/preEmployment";
+import exitProcessingRoutes from "./routes/exitProcessing";
+import auditEventsRouter from "./routes/audit-events";
 import memoryRoutes from "./routes/memory";
 import intelligenceRoutes from "./routes/intelligence";
 import agentRoutes from "./routes/agents";
@@ -51,6 +55,8 @@ import controlRoutes from "./routes/control";
 import lifecycleRoutes from "./routes/lifecycle";
 import hrDecisionsRoutes from "./routes/hr-decisions";
 import supportRoutes from "./routes/support";
+import outreachRoutes from "./routes/outreach";
+import morningBriefingRoutes from "./routes/morning-briefing";
 import type { RecoveryTimelineSummary } from "@shared/schema";
 import { evaluateClinicalEvidence } from "./services/clinicalEvidence";
 import { authorize, type AuthRequest } from "./middleware/auth";
@@ -87,6 +93,12 @@ export async function registerRoutes(app: Express): Promise<void> {
 
   // Admin RTW duties management routes (requires admin authentication)
   app.use("/api/admin/duties", adminDutiesRoutes);
+
+  // Admin seed trigger (admin only — one-shot idempotent re-seed)
+  app.use("/api/admin/seed", adminSeedRoutes);
+
+  // Admin inbound email triage (admin only — review and assign unmatched emails)
+  app.use("/api/admin/inbound-emails", adminInboundEmailRoutes);
 
   // Organization self-service routes (authenticated users)
   app.use("/api/organization", organizationRoutes);
@@ -140,7 +152,7 @@ export async function registerRoutes(app: Express): Promise<void> {
           .map(c => c.organizationId)
           .filter((id): id is string => !!id)
       );
-      for (const orgId of staleOrgs) {
+      for (const orgId of Array.from(staleOrgs)) {
         storage.autoAssignLifecycleStages(orgId).catch(() => {});
       }
 
@@ -202,6 +214,9 @@ export async function registerRoutes(app: Express): Promise<void> {
   // RTW Plan Generator routes (JWT-protected) - GEN-01 to GEN-10
   app.use("/api/rtw-plans", authorize(), rtwPlansRouter);
 
+  // RTW Auto-Draft routes (JWT-protected, case ownership applied per-route)
+  app.use("/api/cases", rtwAutoDraftRouter);
+
   // Employer Dashboard routes (JWT-protected)
   app.use("/api/employer", employerDashboardRouter);
 
@@ -213,6 +228,12 @@ export async function registerRoutes(app: Express): Promise<void> {
 
   // Pre-Employment Health Checks routes (JWT-protected)
   app.use("/api/pre-employment", preEmploymentRoutes);
+
+  // Exit Processing routes (JWT-protected)
+  app.use("/api/exit-processing", exitProcessingRoutes);
+
+  // Audit Events routes (JWT-protected)
+  app.use("/api/audit-events", auditEventsRouter);
 
   // Assessments CRUD + send-to-worker (JWT-protected)
   app.use("/api/assessments", assessmentRoutes);
@@ -226,14 +247,15 @@ export async function registerRoutes(app: Express): Promise<void> {
   // Unified Health Assistant Chat (JWT-protected)
   app.use("/api/chat", chatRoutes);
 
+  // Alex Morning Briefing (JWT-protected)
+  app.use("/api/morning-briefing", morningBriefingRoutes);
+
   // Public questionnaire routes (no auth — worker magic link)
   app.use("/api/public", publicRoutes);
 
   // Discord Integration routes (JWT-protected)
   app.use("/api/discord", discordRoutes);
 
-  // Discord Analytics routes (JWT-protected) - Real business data
-  app.use("/api/discord-analytics", discordAnalyticsRoutes);
 
   // Memory API routes (JWT-protected) - Infinite context system
   app.use("/api/v1/memory", memoryRoutes);
@@ -249,6 +271,7 @@ export async function registerRoutes(app: Express): Promise<void> {
 
   // Support contact form
   app.use("/api/support", supportRoutes);
+  app.use("/api/outreach", outreachRoutes);
 
   // Inbound Email webhook registered in server/index.ts (before CSRF middleware)
 
@@ -951,7 +974,7 @@ Keep responses concise but comprehensive (2-3 paragraphs max). If suggesting act
       const lowRiskCases = cases.filter(c => c.complianceIndicator === 'Low').length;
 
       // Get unique companies
-      const companies = [...new Set(cases.map(c => c.company))].sort();
+      const companies = Array.from(new Set(cases.map(c => c.company))).sort();
 
       // Check if user is asking about a specific case
       const caseMentioned = cases.find(c =>
@@ -1371,7 +1394,7 @@ User question: ${message}`;
     }
 
     try {
-      const workerName = req.params.workerName.toLowerCase();
+      const workerName = (req.params.workerName as string).toLowerCase();
       const freshdesk = new FreshdeskService();
       const tickets = await freshdesk.fetchTickets();
 
@@ -1617,7 +1640,7 @@ User question: ${message}`;
   // Evaluate a single case against compliance rules
   app.get("/api/cases/:id/compliance/evaluate", authorize(), requireCaseOwnership(), async (req: AuthRequest, res) => {
     try {
-      const caseId = req.params.id;
+      const caseId = req.params.id as string;
       const { evaluateCase } = await import("./services/complianceEngine");
 
       logger.compliance.info("Evaluating case compliance", {
@@ -2112,7 +2135,7 @@ User question: ${message}`;
   // Accept AI suggestion for injury date (admin only)
   app.post("/api/injury-dates/:caseId/accept", authorize(["admin"]), async (req: AuthRequest, res) => {
     try {
-      const { caseId } = req.params;
+      const caseId = req.params.caseId as string;
       const userId = req.user!.id;
       const organizationId = req.user!.organizationId;
 
@@ -2185,7 +2208,7 @@ User question: ${message}`;
   // Correct injury date with manual input (admin only)
   app.post("/api/injury-dates/:caseId/correct", authorize(["admin"]), async (req: AuthRequest, res) => {
     try {
-      const { caseId } = req.params;
+      const caseId = req.params.caseId as string;
       const { newDate, reason } = req.body;
       const userId = req.user!.id;
       const organizationId = req.user!.organizationId;

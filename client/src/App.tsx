@@ -36,6 +36,7 @@ const RoleForm = lazy(() => import("./pages/admin/roles/RoleForm"));
 const DutiesList = lazy(() => import("./pages/admin/duties/DutiesList"));
 const DutyForm = lazy(() => import("./pages/admin/duties/DutyForm"));
 
+const InboundEmailTriagePage = lazy(() => import("./pages/admin/InboundEmailTriagePage"));
 const CompanySettings = lazy(() => import("./pages/CompanySettings"));
 const CasesPage = lazy(() => import("./pages/CasesPage"));
 const CaseSummaryPage = lazy(() => import("./pages/CaseSummaryPage"));
@@ -71,14 +72,12 @@ const ExitProcessingPage = lazy(() => import("./pages/ExitProcessingPage"));
 const MarketingDocsPage = lazy(() => import("./pages/MarketingDocsPage"));
 const AgentJobsPage = lazy(() => import("./pages/AgentJobsPage"));
 const ControlTowerPage = lazy(() => import("./pages/ControlTowerPage"));
-const PublicQuestionnaire = lazy(() => import("./pages/PublicQuestionnaire"));
 const WorkerProfile = lazy(() => import("./pages/WorkerProfile"));
 const WorkersListPage = lazy(() => import("./pages/WorkersListPage"));
 const NewAssessmentPage = lazy(() => import("./pages/NewAssessmentPage"));
 const AssessmentDetailPage = lazy(() => import("./pages/AssessmentDetailPage"));
 const HelpCenterPage = lazy(() => import("./pages/HelpCenterPage"));
 const PartnerClientPicker = lazy(() => import("./pages/PartnerWorkspace"));
-const PartnerCaseDetailPage = lazy(() => import("./pages/PartnerCaseDetailPage"));
 const ChangePasswordPage = lazy(() => import("./pages/ChangePasswordPage"));
 
 // LogoutRedirect component - triggers logout and redirects to login
@@ -150,7 +149,7 @@ export default function App() {
                     path="/check/:token"
                     element={
                       <Suspense fallback={<PageLoader />}>
-                        <PublicQuestionnaire />
+                        <PreEmploymentForm />
                       </Suspense>
                     }
                   />
@@ -198,16 +197,6 @@ export default function App() {
                       <ProtectedRoute>
                         <Suspense fallback={<PageLoader />}>
                           <CasesPage />
-                        </Suspense>
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/partner/cases/:id"
-                    element={
-                      <ProtectedRoute>
-                        <Suspense fallback={<PageLoader />}>
-                          <PartnerCaseDetailPage />
                         </Suspense>
                       </ProtectedRoute>
                     }
@@ -640,6 +629,14 @@ export default function App() {
                       element={
                         <Suspense fallback={<PageLoader />}>
                           <ControlTowerPage />
+                        </Suspense>
+                      }
+                    />
+                    <Route
+                      path="inbound-emails"
+                      element={
+                        <Suspense fallback={<PageLoader />}>
+                          <InboundEmailTriagePage />
                         </Suspense>
                       }
                     />

@@ -1,6 +1,12 @@
 import { storage } from "../storage";
-import { matchEmailToCase, detectsCertificateContent } from "./emailMatcher";
+import {
+  matchEmailToCase,
+  detectsCertificateContent,
+  parseBracketedWorkerName,
+} from "./emailMatcher";
+import { llmMatchEmailToCase } from "./llmEmailMatcher";
 import { createLogger } from "../lib/logger";
+import { markOutreachResponded, checkAndTriggerDowngradeOutreach } from "./workerOutreachService";
 import type { InsertCaseEmail, InsertEmailAttachment, CaseEmailDB } from "@shared/schema";
 
 const log = createLogger("InboundEmail");
@@ -20,7 +26,7 @@ export interface InboundEmailPayload {
     sizeBytes: number;
     base64Data?: string;
   }>;
-  source?: "sendgrid" | "demo" | "freshdesk" | "manual";
+  source?: "sendgrid" | "postmark" | "demo" | "freshdesk" | "manual";
   /** Optional simulated date for demo/test scenarios (ISO string or Date) */
   receivedAt?: string | Date;
 }
@@ -92,7 +98,7 @@ export async function processInboundEmail(payload: InboundEmailPayload): Promise
     processingStatus: "received",
     source,
     receivedAt: effectiveDate,
-  };
+  } as any;
 
   const savedEmail = await storage.createCaseEmail(emailData);
   log.info("Email stored", { emailId: savedEmail.id, subject });
@@ -106,12 +112,12 @@ export async function processInboundEmail(payload: InboundEmailPayload): Promise
       sizeBytes: att.sizeBytes,
       base64Data: att.base64Data || null,
       isCertificate: isCertificateAttachment(att.filename, att.contentType),
-    };
+    } as any;
     await storage.createEmailAttachment(attachmentData);
   }
 
-  // 3. Match email to case
-  const match = await matchEmailToCase({
+  // 3. Match email to case (heuristic: thread / claim / sender / worker name)
+  let match = await matchEmailToCase({
     messageId: savedEmail.messageId,
     inReplyTo: savedEmail.inReplyTo,
     fromEmail,
@@ -120,15 +126,33 @@ export async function processInboundEmail(payload: InboundEmailPayload): Promise
     bodyText,
   });
 
+  // 3a. LLM fuzzy-match fallback. Only runs when heuristics returned no match
+  // AND a single-tenant default org is configured via env var. Tenant-safe by
+  // design: searches one org only. Skipped when env var unset.
+  if (!match.caseId) {
+    const fallbackOrgId = process.env.PREVENTLI_DEFAULT_INBOUND_ORG_ID;
+    if (fallbackOrgId) {
+      const llmMatch = await llmMatchEmailToCase(
+        { fromEmail, fromName, subject, bodyText },
+        fallbackOrgId,
+      );
+      if (llmMatch) {
+        match = llmMatch;
+      }
+    }
+  }
+
   let caseId = match.caseId;
   let organizationId = match.organizationId;
   let isNewCase = false;
   let processingStatus = "matched";
 
-  // 4. If no match, create new case from email content
+  // 4. If no match, create new case from email content — only when we have
+  //    an explicit organizationId from the env-var fallback. Refuses to guess
+  //    tenant: a wrong-org case write is a clinical-data leak.
   if (!caseId) {
-    const newCaseInfo = extractCaseInfoFromEmail(subject, bodyText, fromEmail, fromName);
-    if (newCaseInfo.workerName) {
+    const newCaseInfo = extractCaseInfoFromEmail(subject, bodyText, fromEmail, fromName, process.env.PREVENTLI_DEFAULT_INBOUND_ORG_ID || null);
+    if (newCaseInfo.workerName && newCaseInfo.organizationId) {
       try {
         const newCase = await storage.createCase({
           organizationId: newCaseInfo.organizationId,
@@ -150,7 +174,11 @@ export async function processInboundEmail(payload: InboundEmailPayload): Promise
       }
     } else {
       processingStatus = "failed";
-      log.warn("Could not extract worker name from email", { subject });
+      if (!newCaseInfo.organizationId) {
+        log.warn("Refusing to auto-create case — no organizationId resolvable from inbound email", { subject, fromEmail });
+      } else {
+        log.warn("Could not extract worker name from email", { subject });
+      }
     }
   }
 
@@ -161,7 +189,7 @@ export async function processInboundEmail(payload: InboundEmailPayload): Promise
     processingStatus,
     matchMethod: match.method,
     matchConfidence: match.confidence ? String(match.confidence) : null,
-  });
+  } as any);
 
   // 6. Create discussion note from email body
   let discussionNoteCreated = false;
@@ -183,23 +211,51 @@ export async function processInboundEmail(payload: InboundEmailPayload): Promise
         riskFlags: null,
         updatesCompliance: false,
         updatesRecoveryTimeline: detectsCertificateContent(subject, bodyText),
-      }]);
+      } as any]);
       discussionNoteCreated = true;
     } catch (err) {
       log.error("Failed to create discussion note", {}, err);
     }
   }
 
-  // 7. Detect certificate content
-  const certificateDetected = detectsCertificateContent(subject, bodyText) ||
-    attachments.some(a => isCertificateAttachment(a.filename, a.contentType));
+  // 7. Detect certificate signals — separate the strong signal (an actual
+  //    PDF attachment that looks like a cert) from the weak signal (body
+  //    keywords). The strong signal is what authorises a clinical write;
+  //    the weak signal alone still surfaces the email via the discussion
+  //    note created in step 6.
+  const hasCertAttachment = attachments.some((a) =>
+    isCertificateAttachment(a.filename, a.contentType),
+  );
+  const certKeywordsInContent = detectsCertificateContent(subject, bodyText);
+  const certificateDetected = hasCertAttachment || certKeywordsInContent;
 
-  // 8. If certificate detected, add a medical certificate record
+  // 8. If a certificate is present, add a medical certificate record —
+  //    gated on BOTH match trust AND an actual PDF attachment. High-trust
+  //    methods (thread / sender_email / claim_number / subject_bracket)
+  //    write unconditionally when an attachment is present; LLM fuzzy
+  //    matches must additionally clear the confidence floor. Body-only
+  //    keyword mentions never auto-write — they may be a phantom cert
+  //    (forwards like "Dr Lee will send the cert tomorrow").
+  // Mark any open outreach cadence as responded — worker has been in touch
+  if (caseId) {
+    markOutreachResponded(caseId).catch(() => {}); // fire-and-forget, non-fatal
+  }
+
   if (certificateDetected && caseId) {
-    try {
-      await createCertificateFromEmail(caseId, subject, bodyText, fromName, effectiveDate);
-    } catch (err) {
-      log.error("Failed to create certificate from email", {}, err);
+    if (shouldAutoCreateCertificate(match.method, match.confidence ?? null, hasCertAttachment)) {
+      try {
+        await createCertificateFromEmail(caseId, subject, bodyText, fromName, effectiveDate);
+      } catch (err) {
+        log.error("Failed to create certificate from email", {}, err);
+      }
+    } else {
+      log.warn("Skipping cert auto-create — no attachment or insufficient trust", {
+        caseId,
+        matchMethod: match.method,
+        matchConfidence: match.confidence,
+        hasCertAttachment,
+        certKeywordsInContent,
+      });
     }
   }
 
@@ -215,17 +271,76 @@ export async function processInboundEmail(payload: InboundEmailPayload): Promise
 }
 
 /**
- * Extract case info from email content for new case creation.
+ * Methods we trust to write clinical data (medical certificates) without
+ * a confidence check. These are deterministic: a matching thread header,
+ * a known sender email registered as a case contact, or an extracted
+ * claim number that maps to exactly one case.
  */
-function extractCaseInfoFromEmail(
+const HIGH_TRUST_MATCH_METHODS = new Set([
+  "thread",
+  "sender_email",
+  "claim_number",
+  "subject_bracket",
+]);
+
+/**
+ * Minimum LLM match confidence required to auto-write a medical certificate.
+ * Below this we still attach the email as a discussion note, but defer the
+ * cert write to a human review path.
+ */
+export const LLM_CERT_CONFIDENCE_FLOOR = 0.9;
+
+/**
+ * Decide whether an inbound email's match is trustworthy enough to auto-create
+ * a medical certificate row. Pure function — easy to test, easy to audit.
+ *
+ * TWO conditions must hold:
+ *
+ *  1. **Trust** — the match method must be high-trust (thread / sender_email /
+ *     claim_number / subject_bracket) OR an LLM match clearing the confidence
+ *     floor. Without trust, even an attached PDF doesn't justify writing
+ *     clinical data because we may not know which worker it belongs to.
+ *
+ *  2. **Cert signal** — an actual PDF attachment that looks like a cert
+ *     (filename keywords + content type). Body keywords alone are not
+ *     enough — forwards like "Dr Lee will send the cert tomorrow" trigger
+ *     keyword detection but contain no cert, and we used to write a
+ *     phantom cert with capacity="unknown" and a default 2-week duration.
+ *
+ * Body-keyword-only emails still create a discussion-note via step 6 in
+ * processInboundEmail, so the email is visible for human review — it just
+ * doesn't write a clinical row automatically.
+ */
+export function shouldAutoCreateCertificate(
+  method: string,
+  confidence: number | null,
+  hasCertAttachment: boolean,
+): boolean {
+  if (!hasCertAttachment) return false;
+  if (HIGH_TRUST_MATCH_METHODS.has(method)) return true;
+  if (method === "llm") return (confidence ?? 0) >= LLM_CERT_CONFIDENCE_FLOOR;
+  return false;
+}
+
+/**
+ * Extract case info from email content for new case creation.
+ *
+ * The orgId parameter is REQUIRED for the case to actually be created —
+ * `null` indicates the caller has no resolvable tenant for this email and
+ * propagates through, telling processInboundEmail to fail the email rather
+ * than guess. Historically this returned a hardcoded `"org-alpha"`, which
+ * would leak cases cross-tenant the moment a second tenant was active.
+ */
+export function extractCaseInfoFromEmail(
   subject: string,
   bodyText: string | undefined,
   fromEmail: string,
   fromName: string | undefined,
+  orgId: string | null,
 ): {
   workerName: string | null;
   company: string;
-  organizationId: string;
+  organizationId: string | null;
   workStatus: string;
   riskLevel: string;
 } {
@@ -238,13 +353,20 @@ function extractCaseInfoFromEmail(
   ];
 
   let workerName: string | null = null;
-  const cleaned = subject.replace(/^(RE|FW|Fwd):\s*/gi, "").trim();
 
-  for (const pattern of namePatterns) {
-    const match = cleaned.match(pattern);
-    if (match) {
-      workerName = match[1].trim();
-      break;
+  // 1. Bracket convention wins — explicit sender intent
+  const bracketed = parseBracketedWorkerName(subject);
+  if (bracketed) {
+    workerName = bracketed;
+  } else {
+    // 2. Fall back to fuzzy regex patterns
+    const cleaned = subject.replace(/^(RE|FW|Fwd):\s*/gi, "").trim();
+    for (const pattern of namePatterns) {
+      const match = cleaned.match(pattern);
+      if (match) {
+        workerName = match[1].trim();
+        break;
+      }
     }
   }
 
@@ -258,14 +380,10 @@ function extractCaseInfoFromEmail(
   // Determine work status
   let workStatus = "Off work";
 
-  // Default organization: Symmetry HR (org ID from seed data)
-  // In production, this would be looked up from the sender's domain
-  const organizationId = "org-alpha";
-
   return {
     workerName,
     company: "Symmetry HR",
-    organizationId,
+    organizationId: orgId,
     workStatus,
     riskLevel,
   };
@@ -390,7 +508,19 @@ async function createCertificateFromEmail(
     sourceReference: `inbound-email`,
     certificateType: "medical_certificate",
     treatingPractitioner: fromName || null,
-  });
+  } as any);
 
   log.info("Certificate created from email", { caseId, capacity, startDate: startDate.toISOString(), endDate: endDate.toISOString() });
+
+  // Check for capacity downgrade — if so, send Prevention Check invite to worker
+  // Lookup org from case (non-fatal if it fails)
+  try {
+    const workerCase = await (storage as any).getGPNet2CaseByIdAdmin?.(caseId);
+    const orgId = workerCase?.organizationId;
+    if (orgId) {
+      checkAndTriggerDowngradeOutreach(caseId, capacity, orgId).catch(() => {});
+    }
+  } catch {
+    // non-fatal
+  }
 }

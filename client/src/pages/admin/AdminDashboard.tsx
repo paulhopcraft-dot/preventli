@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Building2, Shield, Users, FileText } from "lucide-react";
+import { Building2, Shield, Users, FileText, Mail } from "lucide-react";
 import { Link } from "react-router-dom";
 
 interface Organization {
@@ -62,6 +62,14 @@ export default function AdminDashboard() {
       href: "/",
       color: "text-orange-600",
       bgColor: "bg-orange-100",
+    },
+    {
+      title: "Email Triage",
+      value: "View",
+      icon: Mail,
+      href: "/admin/inbound-emails",
+      color: "text-amber-600",
+      bgColor: "bg-amber-100",
     },
   ];
 

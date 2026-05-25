@@ -11,12 +11,14 @@ import { eq } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
 import { runSpecialistAgent } from "../agents/agent-runner";
 import { storage } from "../storage";
+import { runWorkerOutreachCadence } from "../services/workerOutreachService";
 
 const logger = createLogger("AgentTriggers");
 
 export class AgentScheduler {
   private coordinatorTask: cron.ScheduledTask | null = null;
   private certExpiryTask: cron.ScheduledTask | null = null;
+  private outreachTask: cron.ScheduledTask | null = null;
   private running = false;
 
   start(
@@ -37,15 +39,25 @@ export class AgentScheduler {
       await this.runCertExpiryCheck();
     });
 
+    // Worker outreach cadence runs daily at 7:30 AM (before cert expiry check)
+    this.outreachTask = cron.schedule("30 7 * * *", async () => {
+      await this.runWorkerOutreach();
+    });
+
     this.running = true;
-    logger.info("Agent scheduler started", { coordinatorCron, certExpiryCron });
+    logger.info("Agent scheduler started", { coordinatorCron, certExpiryCron, outreachCron: "30 7 * * *" });
   }
 
   stop(): void {
     this.coordinatorTask?.stop();
     this.certExpiryTask?.stop();
+    this.outreachTask?.stop();
     this.running = false;
     logger.info("Agent scheduler stopped");
+  }
+
+  async triggerWorkerOutreach(): Promise<{ orgsProcessed: number; workerEmailsSent: number; managerAlertsSent: number }> {
+    return this.runWorkerOutreach();
   }
 
   getStatus(): Record<string, unknown> {
@@ -84,7 +96,7 @@ export class AgentScheduler {
               status: "queued",
               triggeredBy: "cron",
               context: { runDate: new Date().toISOString() },
-            })
+            } as any)
             .returning();
 
           jobQueue.push({ id: job.id, orgId: org.id });
@@ -157,7 +169,7 @@ export class AgentScheduler {
                   daysUntilExpiry,
                   runDate: new Date().toISOString(),
                 },
-              })
+              } as any)
               .returning();
 
             certJobs.push({ id: job.id, caseId: cert.caseId });
@@ -183,6 +195,41 @@ export class AgentScheduler {
     });
 
     return { jobsCreated };
+  }
+
+  private async runWorkerOutreach(): Promise<{
+    orgsProcessed: number;
+    workerEmailsSent: number;
+    managerAlertsSent: number;
+  }> {
+    logger.info("Running worker outreach cadence");
+    let orgsProcessed = 0;
+    let workerEmailsSent = 0;
+    let managerAlertsSent = 0;
+
+    try {
+      const allOrgs = await db
+        .select({ id: organizations.id })
+        .from(organizations)
+        .where(eq(organizations.isActive, true));
+
+      for (const org of allOrgs) {
+        try {
+          const result = await runWorkerOutreachCadence(org.id);
+          workerEmailsSent += result.workerEmailsSent;
+          managerAlertsSent += result.managerAlertsSent;
+          orgsProcessed++;
+        } catch (err) {
+          logger.error("Worker outreach failed for org", { orgId: org.id }, err);
+        }
+      }
+
+      logger.info("Worker outreach cadence complete", { orgsProcessed, workerEmailsSent, managerAlertsSent });
+    } catch (err) {
+      logger.error("Worker outreach trigger failed", {}, err);
+    }
+
+    return { orgsProcessed, workerEmailsSent, managerAlertsSent };
   }
 }
 

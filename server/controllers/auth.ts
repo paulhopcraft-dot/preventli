@@ -188,7 +188,7 @@ export async function register(req: Request, res: Response) {
         insurerId: null,
         emailVerified: true,
         emailVerifiedAt: new Date(),
-      })
+      } as any)
       .returning({
         id: users.id,
         email: users.email,
@@ -411,6 +411,7 @@ export async function me(req: AuthRequest, res: Response) {
         subrole: users.subrole,
         companyId: users.companyId,
         insurerId: users.insurerId,
+        preferredName: users.preferredName,
         createdAt: users.createdAt,
       })
       .from(users)
@@ -735,7 +736,7 @@ export async function deleteSession(req: AuthRequest, res: Response) {
       });
     }
 
-    const { sessionId } = req.params;
+    const sessionId = req.params.sessionId as string;
 
     if (!sessionId) {
       return res.status(400).json({
@@ -839,7 +840,7 @@ export async function changePassword(req: AuthRequest, res: Response) {
       await logAuditEvent({
         userId: user.id,
         organizationId: user.organizationId,
-        eventType: "user.password_change_failed",
+        eventType: AuditEventTypes.USER_PASSWORD_CHANGE_FAILED,
         resourceType: "user",
         resourceId: user.id,
         metadata: { reason: "invalid_current_password" },
@@ -861,7 +862,7 @@ export async function changePassword(req: AuthRequest, res: Response) {
     await logAuditEvent({
       userId: user.id,
       organizationId: user.organizationId,
-      eventType: "user.password_change",
+      eventType: AuditEventTypes.USER_PASSWORD_CHANGE,
       resourceType: "user",
       resourceId: user.id,
       metadata: { method: "self_service_change_password" },

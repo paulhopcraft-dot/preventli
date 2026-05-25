@@ -37,7 +37,7 @@ router.get(
   requireCaseOwnership(),
   async (req: AuthRequest, res: Response) => {
     try {
-      const caseId = req.params.id;
+      const caseId = req.params.id as string;
       const user = req.user!;
       const workerCase = (req as any).workerCase;
 
@@ -74,7 +74,7 @@ router.patch(
   requireCaseOwnership(),
   async (req: AuthRequest, res: Response) => {
     try {
-      const caseId = req.params.id;
+      const caseId = req.params.id as string;
       const user = req.user!;
       const workerCase = (req as any).workerCase;
 
@@ -195,7 +195,7 @@ router.patch(
       }
 
       const { caseManagerId, caseManagerName, secondaryAssigneeId } = parsed.data;
-      const caseId = req.params.id;
+      const caseId = req.params.id as string;
 
       await storage.assignCase(caseId, user.organizationId, caseManagerId, caseManagerName, secondaryAssigneeId);
 

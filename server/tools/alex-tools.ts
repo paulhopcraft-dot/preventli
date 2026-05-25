@@ -32,7 +32,7 @@ export const ALEX_TOOLS: AnthropicTool[] = [
   },
   {
     name: "get_case",
-    description: "Get full details for a specific worker case including certificates, actions, and RTW plan.",
+    description: "Get full details for a specific worker case including certificates, actions, RTW plan, and the stored compliance indicator. When asked about a worker's compliance status, report the `compliance.indicator` and `compliance.reason` from this payload verbatim — it is the source of truth. Do NOT re-derive compliance from certs or RTW plan.",
     input_schema: {
       type: "object",
       properties: {
@@ -127,7 +127,7 @@ export const ALEX_TOOLS: AnthropicTool[] = [
       properties: {
         case_id: { type: "string", description: "The worker case ID" },
         note: { type: "string", description: "The note content — what was discussed or observed" },
-        next_steps: { type: "array", items: { type: "string" }, description: "Optional list of next steps arising from this note" },
+        next_steps: { type: "array", items: { type: "string" }, description: "Optional list of next steps arising from this note" } as any,
       },
       required: ["case_id", "note"],
     },
@@ -223,6 +223,18 @@ export async function executeAlexTool(
         work_status: workerCase.workStatus,
         summary: workerCase.summary,
         days_off_work: null,
+        // Stored compliance indicator — source of truth. Report verbatim when asked
+        // about compliance; do NOT re-derive from certs or RTW plan.
+        compliance: workerCase.compliance
+          ? {
+              indicator: workerCase.compliance.indicator,
+              reason: workerCase.compliance.reason,
+              source: workerCase.compliance.source,
+              last_checked: workerCase.compliance.lastChecked,
+            }
+          : workerCase.complianceIndicator
+          ? { indicator: workerCase.complianceIndicator, reason: null, source: null, last_checked: null }
+          : null,
         open_actions: actions.filter((a) => a.status !== "done").map((a) => ({
           type: a.type,
           status: a.status,
@@ -329,7 +341,7 @@ export async function executeAlexTool(
         riskFlags: [],
         updatesCompliance: false,
         updatesRecoveryTimeline: false,
-      }]);
+      } as any]);
       return { success: true, note_id: noteId, message: `Note added to case for ${workerCase.workerName}` };
     }
 

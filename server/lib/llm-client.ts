@@ -2,14 +2,16 @@
  * LLM Client — portable API-based replacement for Claude CLI subprocess
  *
  * Supports:
- *   - OpenRouter  (primary — uses OpenAI-compatible SDK, set LLM_PROVIDER=openrouter)
+ *   - Groq        (recommended — Apache 2.0 models, fastest inference, set LLM_PROVIDER=groq)
+ *   - OpenRouter  (fallback — set LLM_PROVIDER=openrouter)
  *   - Anthropic   (alternative — set LLM_PROVIDER=anthropic)
  *
  * Drop-in replacement for the previous claude-cli.ts subprocess pattern.
  * Same signature: callClaude(prompt, timeoutMs?) => Promise<string>
  *
  * Environment variables:
- *   LLM_PROVIDER          'openrouter' | 'anthropic'   (default: openrouter)
+ *   LLM_PROVIDER          'groq' | 'openrouter' | 'anthropic'   (default: openrouter)
+ *   GROQ_API_KEY          Required when LLM_PROVIDER=groq
  *   OPENROUTER_API_KEY    Required when LLM_PROVIDER=openrouter
  *   ANTHROPIC_API_KEY     Required when LLM_PROVIDER=anthropic
  *   LLM_MODEL             Override model (optional)
@@ -22,10 +24,11 @@ const logger = createLogger("LLMClient");
 
 // ─── Provider configuration ───────────────────────────────────────────────────
 
-type Provider = "openrouter" | "anthropic" | "claude-cli";
+type Provider = "groq" | "openrouter" | "anthropic" | "claude-cli";
 
 function getProvider(): Provider {
   const p = (process.env.LLM_PROVIDER ?? "claude-cli").toLowerCase();
+  if (p === "groq") return "groq";
   if (p === "anthropic") return "anthropic";
   if (p === "openrouter") return "openrouter";
   return "claude-cli";
@@ -33,6 +36,7 @@ function getProvider(): Provider {
 
 // Default models per provider — override with LLM_MODEL env var
 const DEFAULT_MODELS: Record<Provider, string> = {
+  groq: "qwen/qwen3-32b",
   openrouter: "anthropic/claude-sonnet-4-5",
   anthropic: "claude-sonnet-4-5-20250929",
   "claude-cli": "",
@@ -96,6 +100,90 @@ async function callOpenRouter(prompt: string, timeoutMs: number): Promise<string
   } finally {
     clearTimeout(timer);
   }
+}
+
+// ─── Groq (OpenAI-compatible) ─────────────────────────────────────────────────
+
+async function callGroq(prompt: string, timeoutMs: number): Promise<string> {
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) {
+    throw new Error("GROQ_API_KEY is not set. Add it to your .env file or Render env vars.");
+  }
+
+  const model = getModel();
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model,
+        messages: [{ role: "user", content: prompt }],
+        temperature: 0.6,
+        reasoning_format: "hidden", // suppress thinking tokens — direct answer only
+      }),
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      const errorBody = await response.text().catch(() => "(no body)");
+      throw new Error(`Groq API error ${response.status}: ${errorBody.slice(0, 300)}`);
+    }
+
+    const data = await response.json() as {
+      choices?: Array<{ message?: { content?: string } }>;
+      error?: { message?: string };
+    };
+
+    if (data.error) {
+      throw new Error(`Groq error: ${data.error.message}`);
+    }
+
+    const content = data.choices?.[0]?.message?.content;
+    if (!content) {
+      throw new Error("Groq returned empty content");
+    }
+
+    return content.trim();
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * Return the LLM connection config for the streaming SSE endpoint.
+ * Centralises provider selection so chat.ts doesn't read env vars directly.
+ */
+export function getLLMStreamConfig(): {
+  apiKey: string | undefined;
+  baseUrl: string;
+  model: string;
+  extraBody: Record<string, unknown>;
+} {
+  const provider = getProvider();
+  if (provider === "groq") {
+    return {
+      apiKey: process.env.GROQ_API_KEY,
+      baseUrl: "https://api.groq.com/openai/v1",
+      model: process.env.LLM_MODEL ?? "qwen/qwen3-32b",
+      extraBody: { reasoning_format: "hidden" },
+    };
+  }
+  // openrouter and others
+  return {
+    apiKey: process.env.OPENROUTER_API_KEY,
+    baseUrl: process.env.OPENROUTER_BASE_URL ?? "https://openrouter.ai/api/v1",
+    model: process.env.LLM_MODEL ?? "anthropic/claude-sonnet-4-5",
+    extraBody: {
+      "HTTP-Referer": process.env.APP_URL ?? "https://preventli.com.au",
+      "X-Title": "Preventli",
+    },
+  };
 }
 
 // ─── Anthropic SDK ────────────────────────────────────────────────────────────
@@ -203,11 +291,20 @@ export async function callClaudeWithTools(
   maxIterations = 10,
   historyMessages?: ChatMessage[],
 ): Promise<string> {
-  const apiKey = process.env.OPENROUTER_API_KEY;
-  if (!apiKey) throw new Error("OPENROUTER_API_KEY is required for tool use");
+  const provider = getProvider();
+  const apiKey = provider === "groq"
+    ? process.env.GROQ_API_KEY
+    : process.env.OPENROUTER_API_KEY;
+  if (!apiKey) {
+    throw new Error(provider === "groq"
+      ? "GROQ_API_KEY is required for tool use"
+      : "OPENROUTER_API_KEY is required for tool use");
+  }
 
-  const baseUrl = process.env.OPENROUTER_BASE_URL ?? "https://openrouter.ai/api/v1";
-  const model = process.env.LLM_MODEL ?? "anthropic/claude-sonnet-4-5";
+  const baseUrl = provider === "groq"
+    ? "https://api.groq.com/openai/v1"
+    : (process.env.OPENROUTER_BASE_URL ?? "https://openrouter.ai/api/v1");
+  const model = process.env.LLM_MODEL ?? (provider === "groq" ? "qwen/qwen3-32b" : "anthropic/claude-sonnet-4-5");
 
   // Convert Anthropic tool format → OpenAI function format
   const openAiTools = tools.map((t) => ({
@@ -226,16 +323,21 @@ export async function callClaudeWithTools(
     { role: "user", content: userMessage },
   ];
 
+  const toolHeaders: Record<string, string> = {
+    "Authorization": `Bearer ${apiKey}`,
+    "Content-Type": "application/json",
+    ...(provider !== "groq" ? {
+      "HTTP-Referer": process.env.APP_URL ?? "https://preventli.com.au",
+      "X-Title": "Preventli",
+    } : {}),
+  };
+  const toolExtraBody = provider === "groq" ? { reasoning_format: "hidden" } : {};
+
   for (let i = 0; i < maxIterations; i++) {
     const response = await fetch(`${baseUrl}/chat/completions`, {
       method: "POST",
-      headers: {
-        "Authorization": `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-        "HTTP-Referer": process.env.APP_URL ?? "https://preventli.com.au",
-        "X-Title": "Preventli",
-      },
-      body: JSON.stringify({ model, messages, tools: openAiTools, tool_choice: "auto", temperature: 0.1 }),
+      headers: toolHeaders,
+      body: JSON.stringify({ model, messages, tools: openAiTools, tool_choice: "auto", temperature: 0.6, ...toolExtraBody }),
     });
 
     if (!response.ok) {
@@ -301,35 +403,42 @@ export async function callClaudeMultiTurn(
 ): Promise<string> {
   const provider = getProvider();
 
-  if (provider === "openrouter") {
-    const apiKey = process.env.OPENROUTER_API_KEY;
-    if (!apiKey) throw new Error("OPENROUTER_API_KEY is not set");
+  if (provider === "groq" || provider === "openrouter") {
+    const apiKey = provider === "groq" ? process.env.GROQ_API_KEY : process.env.OPENROUTER_API_KEY;
+    if (!apiKey) throw new Error(provider === "groq" ? "GROQ_API_KEY is not set" : "OPENROUTER_API_KEY is not set");
 
-    const baseUrl = process.env.OPENROUTER_BASE_URL ?? "https://openrouter.ai/api/v1";
+    const baseUrl = provider === "groq"
+      ? "https://api.groq.com/openai/v1"
+      : (process.env.OPENROUTER_BASE_URL ?? "https://openrouter.ai/api/v1");
     const model = getModel();
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
 
+    const headers: Record<string, string> = {
+      "Authorization": `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+      ...(provider !== "groq" ? {
+        "HTTP-Referer": process.env.APP_URL ?? "https://preventli.com.au",
+        "X-Title": "Preventli",
+      } : {}),
+    };
+
     try {
       const response = await fetch(`${baseUrl}/chat/completions`, {
         method: "POST",
-        headers: {
-          "Authorization": `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-          "HTTP-Referer": process.env.APP_URL ?? "https://preventli.com.au",
-          "X-Title": "Preventli",
-        },
+        headers,
         body: JSON.stringify({
           model,
           messages: [{ role: "system", content: systemPrompt }, ...messages],
-          temperature: 0.1,
+          temperature: 0.6,
+          ...(provider === "groq" ? { reasoning_format: "hidden" } : {}),
         }),
         signal: controller.signal,
       });
 
       if (!response.ok) {
         const err = await response.text().catch(() => "(no body)");
-        throw new Error(`OpenRouter error ${response.status}: ${err.slice(0, 300)}`);
+        throw new Error(`${provider === "groq" ? "Groq" : "OpenRouter"} error ${response.status}: ${err.slice(0, 300)}`);
       }
 
       const data = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
@@ -387,7 +496,9 @@ export async function callClaude(prompt: string, timeoutMs = 60_000): Promise<st
 
   const t0 = Date.now();
   try {
-    const result = provider === "anthropic"
+    const result = provider === "groq"
+      ? await callGroq(prompt, timeoutMs)
+      : provider === "anthropic"
       ? await callAnthropic(prompt, timeoutMs)
       : provider === "openrouter"
       ? await callOpenRouter(prompt, timeoutMs)
@@ -419,6 +530,9 @@ export async function checkLLMHealth(): Promise<{ ok: boolean; provider: string;
 
   try {
     // Validate API key is set — don't make a real API call for health checks
+    if (provider === "groq" && !process.env.GROQ_API_KEY) {
+      return { ok: false, provider, model, error: "GROQ_API_KEY not set" };
+    }
     if (provider === "openrouter" && !process.env.OPENROUTER_API_KEY) {
       return { ok: false, provider, model, error: "OPENROUTER_API_KEY not set" };
     }

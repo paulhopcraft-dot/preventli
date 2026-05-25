@@ -4,7 +4,6 @@ import express, { type Request, Response, NextFunction } from "express";
 import cors from "cors";
 import path from "path";
 import { registerRoutes } from "./routes";
-import { autoSeedPartnerIfMissing } from "./auto-seed-partner";
 import { setupVite, serveStatic } from "./vite";
 import { TranscriptIngestionModule } from "./services/transcripts";
 import { NotificationScheduler } from "./services/notificationScheduler";
@@ -112,6 +111,10 @@ app.get("/api/csrf-token", getCsrfToken);
 import inboundEmailRoutes from "./routes/inbound-email";
 app.use("/api/inbound-email", inboundEmailRoutes);
 
+// Postmark inbound webhook (basic-auth, before CSRF)
+import postmarkInboundRoutes from "./routes/postmark-inbound";
+app.use("/api/webhooks/postmark", postmarkInboundRoutes);
+
 // API docs imports (used inside startServer, after routes)
 import swaggerUi from "swagger-ui-express";
 import { openApiSpec } from "./lib/openapi";
@@ -193,10 +196,6 @@ const startServer = async () => {
 
   await registerRoutes(app);
 
-  // Demo-only: kick off the WorkBetter partner-tier seed if it hasn't run yet.
-  // Self-gating via canary org id; remove this call + module after the demo.
-  await autoSeedPartnerIfMissing();
-
   // API docs — registered after all routes so it wins over the catch-all below.
   // Override CSP: Swagger UI requires 'unsafe-inline' for its bundled scripts/styles.
   app.use("/api/docs", (_req, res, next) => {
@@ -242,6 +241,42 @@ const startServer = async () => {
       logger.server.error("Unhandled error", { status }, err);
     }
   });
+
+  // Boot-time schema migrations — additive only, idempotent, safe to re-run.
+  // Runs raw SQL so it works even when drizzle-kit is not installed.
+  // Add new columns/tables here whenever a schema change ships.
+  try {
+    const { pool } = await import("./db");
+    await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS preferred_name text`);
+    // Fresh installs: create with full schema matching shared/schema.ts
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS org_inbound_aliases (
+        id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+        email_alias varchar NOT NULL UNIQUE,
+        org_id varchar NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+        is_default boolean DEFAULT false,
+        created_at timestamp DEFAULT now() NOT NULL
+      )
+    `);
+    // Heal prod installs that were created by the earlier broken migration
+    // (missing id PK + is_default). All ops below are no-ops on correct tables.
+    await pool.query(`ALTER TABLE org_inbound_aliases ADD COLUMN IF NOT EXISTS id varchar DEFAULT gen_random_uuid()`);
+    await pool.query(`ALTER TABLE org_inbound_aliases ADD COLUMN IF NOT EXISTS is_default boolean DEFAULT false`);
+    await pool.query(`UPDATE org_inbound_aliases SET id = gen_random_uuid() WHERE id IS NULL`);
+    await pool.query(`
+      DO $$ BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.table_constraints
+          WHERE table_name = 'org_inbound_aliases' AND constraint_type = 'PRIMARY KEY'
+        ) THEN
+          ALTER TABLE org_inbound_aliases ADD PRIMARY KEY (id);
+        END IF;
+      END $$;
+    `);
+    logger.server.info("[migrations] Boot-time schema sync complete");
+  } catch (err) {
+    logger.server.error("[migrations] Boot-time schema sync failed", {}, err);
+  }
 
   // Boot-time storage check — warn loudly if file uploads will fail at request
   // time. Doesn't block startup (the server may be useful for read-only flows
