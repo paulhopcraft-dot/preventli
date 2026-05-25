@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { Loader2, ArrowLeft, CheckCircle } from "lucide-react";
+import { Loader2, ArrowLeft, CheckCircle, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -34,6 +34,9 @@ export default function ChangePasswordPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [showCurrent, setShowCurrent] = useState(false);
+  const [showNew, setShowNew] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
 
   const form = useForm<ChangePasswordFormData>({
     resolver: zodResolver(changePasswordSchema),
@@ -113,7 +116,25 @@ export default function ChangePasswordPage() {
                   <FormItem>
                     <FormLabel>Current password</FormLabel>
                     <FormControl>
-                      <Input type="password" autoComplete="current-password" disabled={isLoading} {...field} />
+                      <div className="relative">
+                        <Input
+                          type={showCurrent ? "text" : "password"}
+                          autoComplete="current-password"
+                          disabled={isLoading}
+                          className="pr-10"
+                          {...field}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowCurrent((v) => !v)}
+                          disabled={isLoading}
+                          tabIndex={-1}
+                          aria-label={showCurrent ? "Hide password" : "Show password"}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground disabled:opacity-50"
+                        >
+                          {showCurrent ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
+                      </div>
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -127,7 +148,25 @@ export default function ChangePasswordPage() {
                   <FormItem>
                     <FormLabel>New password</FormLabel>
                     <FormControl>
-                      <Input type="password" autoComplete="new-password" disabled={isLoading} {...field} />
+                      <div className="relative">
+                        <Input
+                          type={showNew ? "text" : "password"}
+                          autoComplete="new-password"
+                          disabled={isLoading}
+                          className="pr-10"
+                          {...field}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowNew((v) => !v)}
+                          disabled={isLoading}
+                          tabIndex={-1}
+                          aria-label={showNew ? "Hide password" : "Show password"}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground disabled:opacity-50"
+                        >
+                          {showNew ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
+                      </div>
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -141,7 +180,25 @@ export default function ChangePasswordPage() {
                   <FormItem>
                     <FormLabel>Confirm new password</FormLabel>
                     <FormControl>
-                      <Input type="password" autoComplete="new-password" disabled={isLoading} {...field} />
+                      <div className="relative">
+                        <Input
+                          type={showConfirm ? "text" : "password"}
+                          autoComplete="new-password"
+                          disabled={isLoading}
+                          className="pr-10"
+                          {...field}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowConfirm((v) => !v)}
+                          disabled={isLoading}
+                          tabIndex={-1}
+                          aria-label={showConfirm ? "Hide password" : "Show password"}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground disabled:opacity-50"
+                        >
+                          {showConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
+                      </div>
                     </FormControl>
                     <FormMessage />
                   </FormItem>

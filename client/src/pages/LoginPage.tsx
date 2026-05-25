@@ -9,7 +9,7 @@ import { Input } from "../components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "../components/ui/form";
 import { Alert, AlertDescription } from "../components/ui/alert";
-import { Loader2 } from "lucide-react";
+import { Loader2, Eye, EyeOff } from "lucide-react";
 import { PreventliLogo } from "@/components/PreventliLogo";
 
 const loginSchema = z.object({
@@ -22,6 +22,7 @@ type LoginFormData = z.infer<typeof loginSchema>;
 export default function LoginPage() {
   const { login, isLoading, error, isAuthenticated, user, clearError } = useAuth();
   const navigate = useNavigate();
+  const [showPassword, setShowPassword] = useState(false);
 
   const form = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
@@ -109,13 +110,26 @@ export default function LoginPage() {
                       </Link>
                     </div>
                     <FormControl>
-                      <Input
-                        type="password"
-                        placeholder="Enter your password"
-                        autoComplete="current-password"
-                        disabled={isLoading}
-                        {...field}
-                      />
+                      <div className="relative">
+                        <Input
+                          type={showPassword ? "text" : "password"}
+                          placeholder="Enter your password"
+                          autoComplete="current-password"
+                          disabled={isLoading}
+                          className="pr-10"
+                          {...field}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword((v) => !v)}
+                          disabled={isLoading}
+                          tabIndex={-1}
+                          aria-label={showPassword ? "Hide password" : "Show password"}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground disabled:opacity-50"
+                        >
+                          {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
+                      </div>
                     </FormControl>
                     <FormMessage />
                   </FormItem>
