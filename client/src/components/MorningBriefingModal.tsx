@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { X, AlertCircle, Stethoscope, ShieldAlert, CalendarClock, CheckCircle2 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { X, AlertCircle, Stethoscope, ShieldAlert, CalendarClock, CheckCircle2, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -50,6 +51,7 @@ const SEVERITY_ICON_COLOR: Record<AlertSeverity, string> = {
 
 export function MorningBriefingModal() {
   const { user, isAuthenticated } = useAuth();
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [briefing, setBriefing] = useState<BriefingData | null>(null);
   const [, setLoading] = useState(false);
@@ -86,6 +88,11 @@ export function MorningBriefingModal() {
       sessionStorage.setItem(getTodayKey(user.id), "1");
     }
     setOpen(false);
+  }
+
+  function openCase(caseId: string) {
+    dismiss();
+    navigate(`/employer/case/${caseId}`);
   }
 
   if (!open || !briefing) return null;
@@ -151,13 +158,16 @@ export function MorningBriefingModal() {
               {briefing.alerts.map((alert) => {
                 const Icon = CATEGORY_ICON[alert.category] ?? AlertCircle;
                 return (
-                  <div
+                  <button
                     key={alert.id}
+                    type="button"
+                    onClick={() => openCase(alert.caseId)}
                     className={cn(
-                      "flex items-start gap-3 rounded-xl border px-4 py-3",
+                      "group w-full text-left flex items-start gap-3 rounded-xl border px-4 py-3 transition-colors hover:brightness-95 focus:outline-none focus:ring-2 focus:ring-primary/40",
                       SEVERITY_STYLES[alert.severity],
                     )}
                     data-testid={`briefing-alert-${alert.category}-${alert.caseId}`}
+                    aria-label={`Open case for ${alert.workerName}`}
                   >
                     <Icon className={cn("w-4 h-4 mt-0.5 shrink-0", SEVERITY_ICON_COLOR[alert.severity])} />
                     <div className="min-w-0 flex-1">
@@ -167,7 +177,8 @@ export function MorningBriefingModal() {
                         ↳ {alert.suggestedAction}
                       </p>
                     </div>
-                  </div>
+                    <ChevronRight className="w-4 h-4 mt-0.5 shrink-0 opacity-50 group-hover:opacity-100 transition-opacity" />
+                  </button>
                 );
               })}
             </div>
