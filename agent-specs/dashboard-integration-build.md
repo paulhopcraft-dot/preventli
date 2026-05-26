@@ -111,12 +111,35 @@ Single script at `~/.claude/verify/dashboard-integration.sh` returns 0 when all 
 6. `add-card.ps1` writes a card to DB
 7. PRs exist on both repos against `main` (not merged)
 
-## Out of scope (v1)
+## Build status (2026-05-26)
 
+**Already done (DO NOT redo):**
+- Preventli `claude/zen-lalande-74a59e` commit `83d1395`: Node table in `shared/schema.ts`, migration `migrations/0014_add_dashboard_node_table.sql` (seeds business `cmn5cg9em000fd74nmfuxd953` + product `preventli-app`), this build plan doc.
+- Dashboard `feat/preventli-db-integration` commit `aa0c442`: `drizzle.config.ts` cleaned, `lib/schema.ts` cleaned, `render.yaml`, `.env.local.example`.
+
+**Build now (all in scope):**
+- Schema migration applied locally (`npm run db:push` or psql against migration file).
+- Dashboard `.env.local` repointed at Preventli's local Postgres.
+- Auth bridge: `POST /api/dashboard/sign-in-token` on Preventli (mints JWT with shared `JWT_SECRET`) + `middleware.ts` on dashboard (verifies `?t=<jwt>`, sets `dashboard_auth` cookie via `jose`).
+- "Build Status" nav link in Preventli admin sidebar (role-gated to `admin`).
+- Chat drawer in Preventli: floating bubble bottom-right on admin pages, drawer with message history + input, polls every 5s.
+- `POST /api/dashboard/chat` route on Preventli: persists turn into `alex_*` tables, calls Alex with `create_dashboard_card` + `update_dashboard_card_status` tools registered. Returns Alex reply.
+- Alex tools: `create_dashboard_card` (INSERT into `Node` with parentId=`preventli-app`) and `update_dashboard_card_status`. Both fire Telegram webhook (`ALERT_TELEGRAM_WEBHOOK` env, fail-open).
+- `.claude/scripts/add-card.ps1` + `.claude/scripts/complete-card.ps1` — wrap curl against dashboard's `/api/cards` endpoint, use `INTERNAL_API_KEY` from `.env`.
+- Dashboard `POST /api/cards` endpoint — auth via `Authorization: Bearer $INTERNAL_API_KEY`.
+
+**Deploy (must end live):**
+- Push both branches.
+- Open PRs against `main` on both repos. Merge after local verify green.
+- Render: create web service for dashboard repo (Render reads `render.yaml`). Set secret env vars: `DATABASE_URL` (same as Preventli's Render Postgres), `JWT_SECRET` (same as Preventli's), `INTERNAL_API_KEY`, `ALERT_TELEGRAM_WEBHOOK`. Optionally add custom domain `dashboard.preventli.ai` (requires CNAME).
+- Apply migration `0014` to Preventli's Render Postgres (boot-time runner or manual psql).
+- Confirm: hit `https://<dashboard-render-host>/` → board renders. Click "Build Status" in live Preventli admin → lands authenticated. Type a message in chat → card on board + Telegram fires.
+
+**Truly out of scope (v3+, not this session):**
 - Screenshot capture in chat
 - Console-error capture in chat
 - Alex auto-moving cards
 - Read-only mode for non-Paul admins
 - GitHub Issues mirror
 - Notification preferences UI
-- Multi-product split (single root node only)
+- Multi-product split (single product root only)
