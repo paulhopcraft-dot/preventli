@@ -875,8 +875,15 @@ async function seedWallara(): Promise<void> {
     extractionConfidence: 0.90,
     extractedAt: now.toISOString(),
   };
-  const marcusCerts = [
-    { weekOffset: 0, capacity: "no_work", name: "Initial off-work certificate", restrictions: [] as Array<{ type: string; description: string }>, restrictionsJson: null as FunctionalRestrictionsExtracted | null },
+  const marcusCerts: Array<{
+    weekOffset: number;
+    capacity: string;
+    name: string;
+    restrictions: Array<{ type: string; description: string }>;
+    restrictionsJson: FunctionalRestrictionsExtracted | null;
+    expiredDaysAgo?: number;
+  }> = [
+    { weekOffset: 0, capacity: "no_work", name: "Initial off-work certificate", restrictions: [], restrictionsJson: null },
     { weekOffset: 3, capacity: "no_work", name: "Week 4 extension — off-work", restrictions: [], restrictionsJson: null },
     {
       weekOffset: 7,
@@ -889,17 +896,24 @@ async function seedWallara(): Promise<void> {
       restrictionsJson: marcusWeek8Restrictions,
     },
     {
+      // Latest cert — anchored to today so the dashboard shows
+      // "12 days overdue" for the Wallara demo narrative.
       weekOffset: 11,
       capacity: "modified_duties",
       name: "Week 12 — full duties with restrictions",
       restrictions: [{ type: "lifting", description: "No overhead lifting >5kg" }],
       restrictionsJson: marcusWeek12Restrictions,
+      expiredDaysAgo: 12,
     },
   ];
   await db.insert(medicalCertificates).values(
     marcusCerts.map((c) => {
-      const start = new Date(marcusInjuryDate.getTime() + c.weekOffset * 7 * DAY_MS);
-      const end = new Date(start.getTime() + 28 * DAY_MS);
+      const start = c.expiredDaysAgo !== undefined
+        ? new Date(now.getTime() - (c.expiredDaysAgo + 14) * DAY_MS)
+        : new Date(marcusInjuryDate.getTime() + c.weekOffset * 7 * DAY_MS);
+      const end = c.expiredDaysAgo !== undefined
+        ? new Date(now.getTime() - c.expiredDaysAgo * DAY_MS)
+        : new Date(start.getTime() + 28 * DAY_MS);
       return {
         caseId: CASE_MARCUS_ID,
         organizationId: WALLARA_ORG_ID,
@@ -953,12 +967,21 @@ async function seedWallara(): Promise<void> {
     extractionConfidence: 0.92,
     extractedAt: now.toISOString(),
   };
-  const davidCerts = [
-    { weekOffset: 0, capacity: "no_work", name: "Initial off-work certificate", restrictions: [] as Array<{ type: string; description: string }>, restrictionsJson: null as FunctionalRestrictionsExtracted | null },
+  const davidCerts: Array<{
+    weekOffset: number;
+    capacity: string;
+    name: string;
+    restrictions: Array<{ type: string; description: string }>;
+    restrictionsJson: FunctionalRestrictionsExtracted | null;
+    expiredDaysAgo?: number;
+  }> = [
+    { weekOffset: 0, capacity: "no_work", name: "Initial off-work certificate", restrictions: [], restrictionsJson: null },
     { weekOffset: 4, capacity: "no_work", name: "Month 1 review — off-work continuation", restrictions: [], restrictionsJson: null },
     { weekOffset: 12, capacity: "no_work", name: "Month 3 review — off-work, conservative management", restrictions: [], restrictionsJson: null },
     { weekOffset: 20, capacity: "no_work", name: "Month 5 review — off-work, no surgical candidacy", restrictions: [], restrictionsJson: null },
     {
+      // Latest cert — anchored to today so the dashboard shows
+      // "16 days overdue" for the Wallara demo narrative.
       weekOffset: 24,
       capacity: "modified_duties",
       name: "Month 6 — IME-aligned modified duties (sedentary only)",
@@ -968,12 +991,17 @@ async function seedWallara(): Promise<void> {
         { type: "movement", description: "No bending or stooping below knee level" },
       ],
       restrictionsJson: davidWeek24Restrictions,
+      expiredDaysAgo: 16,
     },
   ];
   await db.insert(medicalCertificates).values(
     davidCerts.map((c) => {
-      const start = new Date(davidInjuryDate.getTime() + c.weekOffset * 7 * DAY_MS);
-      const end = new Date(start.getTime() + 28 * DAY_MS);
+      const start = c.expiredDaysAgo !== undefined
+        ? new Date(now.getTime() - (c.expiredDaysAgo + 14) * DAY_MS)
+        : new Date(davidInjuryDate.getTime() + c.weekOffset * 7 * DAY_MS);
+      const end = c.expiredDaysAgo !== undefined
+        ? new Date(now.getTime() - c.expiredDaysAgo * DAY_MS)
+        : new Date(start.getTime() + 28 * DAY_MS);
       return {
         caseId: CASE_DAVID_ID,
         organizationId: WALLARA_ORG_ID,
