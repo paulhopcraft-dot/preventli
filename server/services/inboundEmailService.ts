@@ -7,6 +7,8 @@ import {
 import { llmMatchEmailToCase } from "./llmEmailMatcher";
 import { createLogger } from "../lib/logger";
 import { markOutreachResponded, checkAndTriggerDowngradeOutreach } from "./workerOutreachService";
+import { resolveInboundMailbox } from "./inboundMailbox";
+import { draftReplyForInbound } from "./inboundReplyDrafter";
 import type { InsertCaseEmail, InsertEmailAttachment, CaseEmailDB } from "@shared/schema";
 
 const log = createLogger("InboundEmail");
@@ -255,6 +257,38 @@ export async function processInboundEmail(payload: InboundEmailPayload): Promise
         matchConfidence: match.confidence,
         hasCertAttachment,
         certKeywordsInContent,
+      });
+    }
+  }
+
+  // 9. AI-drafted reply for GPNet front-line + escalation mailboxes only.
+  //    Skipped when:
+  //      - the inbound did not match an existing case (Paul's spec: unmatched
+  //        = drop with log, no draft — including the auto-created-case path)
+  //      - the recipient mailbox is not one of the AI-drafted GPNet inboxes
+  //        (e.g. lisah@preventli.ai stays fully manual)
+  //    Fire-and-forget by design — webhook must respond 200 OK regardless.
+  if (caseId && organizationId && !isNewCase) {
+    const mailboxConfig = resolveInboundMailbox(toEmail);
+    if (mailboxConfig) {
+      draftReplyForInbound({
+        caseId,
+        organizationId,
+        mailboxConfig,
+        inbound: {
+          messageId,
+          fromEmail,
+          fromName,
+          subject,
+          bodyText,
+        },
+      }).catch((err) => {
+        log.error("Inbound reply draft failed", { caseId, mailbox: mailboxConfig.mailbox }, err);
+      });
+    } else if (toEmail) {
+      log.info("Inbound mailbox not configured for AI drafting — skipped", {
+        toEmail,
+        caseId,
       });
     }
   }

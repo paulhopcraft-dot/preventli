@@ -1637,6 +1637,12 @@ export const emailDrafts = pgTable("email_drafts", {
   caseContextSnapshot: jsonb("case_context_snapshot"),
   status: text("status").notNull().default("draft"),
   createdBy: varchar("created_by"),
+  // v0 email-drafter (inbound auto-reply): which GPNet mailbox the reply
+  // will be sent from, and the Message-ID being replied to (for threading).
+  // Nullable — only populated by the inbound-reply drafter, not by the
+  // case-manager-triggered draft service.
+  mailbox: text("mailbox"),
+  inReplyTo: text("in_reply_to"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
