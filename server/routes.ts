@@ -57,6 +57,7 @@ import hrDecisionsRoutes from "./routes/hr-decisions";
 import supportRoutes from "./routes/support";
 import outreachRoutes from "./routes/outreach";
 import morningBriefingRoutes from "./routes/morning-briefing";
+import dashboardRoutes from "./routes/dashboard";
 import type { RecoveryTimelineSummary } from "@shared/schema";
 import { evaluateClinicalEvidence } from "./services/clinicalEvidence";
 import { authorize, type AuthRequest } from "./middleware/auth";
@@ -249,6 +250,9 @@ export async function registerRoutes(app: Express): Promise<void> {
 
   // Alex Morning Briefing (JWT-protected)
   app.use("/api/morning-briefing", morningBriefingRoutes);
+
+  // Build-status board integration (preventli-dashboard) — Alex chat + sign-in handoff
+  app.use("/api/dashboard", dashboardRoutes);
 
   // Public questionnaire routes (no auth — worker magic link)
   app.use("/api/public", publicRoutes);

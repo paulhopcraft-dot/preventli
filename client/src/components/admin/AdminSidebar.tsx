@@ -1,3 +1,4 @@
+import type { MouseEvent } from "react";
 import { Link, useLocation } from "react-router-dom";
 import {
   Building2,
@@ -8,6 +9,7 @@ import {
   ChevronDown,
   LogOut,
   Activity,
+  Kanban,
 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -51,6 +53,43 @@ const menuItems = [
     icon: Activity,
   },
 ];
+
+const DASHBOARD_URL = (import.meta.env.VITE_DASHBOARD_URL as string | undefined) ?? "https://dashboard.preventli.ai";
+
+function BuildStatusLink() {
+  const handleClick = async (e: MouseEvent) => {
+    e.preventDefault();
+    try {
+      const res = await fetch("/api/dashboard/sign-in-token", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+      });
+      if (res.ok) {
+        const data = (await res.json()) as { token: string };
+        window.open(`${DASHBOARD_URL}?t=${encodeURIComponent(data.token)}`, "_blank", "noopener");
+        return;
+      }
+    } catch {
+      // fall through — open without token, dashboard will redirect to login if needed
+    }
+    window.open(DASHBOARD_URL, "_blank", "noopener");
+  };
+
+  return (
+    <a
+      href={DASHBOARD_URL}
+      onClick={handleClick}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition-colors"
+      data-testid="build-status-link"
+    >
+      <Kanban className="h-5 w-5" />
+      <span>Build Status</span>
+    </a>
+  );
+}
 
 export function AdminSidebar() {
   const { user, logout } = useAuth();
@@ -112,10 +151,13 @@ export function AdminSidebar() {
         {/* Separator */}
         <div className="my-4 border-t border-slate-700" />
 
+        {/* Build Status board — opens dashboard.preventli.ai with a fresh sign-in token */}
+        <BuildStatusLink />
+
         {/* Back to main app link */}
         <Link
           to="/"
-          className="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white transition-colors"
+          className="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white transition-colors mt-1"
         >
           <LayoutDashboard className="h-5 w-5" />
           <span>Back to Dashboard</span>

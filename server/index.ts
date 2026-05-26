@@ -196,6 +196,11 @@ const startServer = async () => {
 
   await registerRoutes(app);
 
+  // Ensure the dashboard-integration root rows exist (idempotent INSERT).
+  // Runs once per boot — drizzle:push creates the table, this seeds it.
+  const { seedDashboardRoots } = await import("./bootstrap/dashboard-seed");
+  await seedDashboardRoots();
+
   // API docs — registered after all routes so it wins over the catch-all below.
   // Override CSP: Swagger UI requires 'unsafe-inline' for its bundled scripts/styles.
   app.use("/api/docs", (_req, res, next) => {
