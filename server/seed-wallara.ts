@@ -17,6 +17,7 @@ import {
   rtwDuties,
   rtwDutyDemands,
   caseContacts,
+  caseActions,
   agentJobs,
   type FunctionalRestrictionsExtracted,
 } from "@shared/schema";
@@ -112,6 +113,7 @@ Today you should:
 • Approve the draft RTW plan for Sarah Chen when ready — medical clearance is in.
 • Schedule Naomi's workstation review (Prevention Check recommendation #1).
 • Check in with Marcus about the new restricted-duties schedule starting Monday.
+• Marcus Tanaka has a physiotherapist appointment with Sophie Nguyen today — I'll follow up with Marcus tomorrow morning to capture the updated treatment plan and progress notes, then update his case.
 
 Status:
 • 3 active injury claims (Sarah, Marcus, David — David is highest priority), 2 preventative cases (Priya, Naomi).
@@ -1371,6 +1373,27 @@ async function seedWallara(): Promise<void> {
       },
     },
   ] as any);
+
+  // ── 10b. Case actions — Marcus physio follow-up ──────────────────────────
+  // Mirrors the briefing line "Marcus has physio today, I'll follow up tomorrow".
+  // Shows on Marcus's case page in the action queue so the demo flow is real.
+  console.log("[seed-wallara] Inserting case actions...");
+  const tomorrow = new Date(now.getTime() + 1 * DAY_MS);
+  tomorrow.setHours(9, 0, 0, 0);
+  await db.insert(caseActions).values({
+    organizationId: WALLARA_ORG_ID,
+    caseId: CASE_MARCUS_ID,
+    type: "follow_up",
+    title: "Follow up with Marcus after today's physio appointment",
+    description:
+      "Marcus has a physiotherapist appointment with Sophie Nguyen at Northside Physiotherapy today. Call or message him tomorrow morning to capture the updated treatment plan, any change to restrictions, and his self-reported progress. Update the case notes and adjust the RTW trajectory if needed.",
+    rationale: "Active rotator-cuff RTW case — weekly physio cadence; case manager needs progress notes to keep the modified-duties plan calibrated.",
+    source: "ai_recommendation",
+    status: "pending",
+    priorityLevel: "medium",
+    dueDate: tomorrow,
+    assignedTo: "Ellen Burns",
+  } as any);
 
   // ── 11. Pre-baked morning briefing (coordinator agent job) ─────────────────
   console.log("[seed-wallara] Inserting pre-baked morning briefing agent job...");
