@@ -16,6 +16,11 @@ import { getLatestComplianceReport } from "../services/complianceEngine";
 // Lightweight in-prompt classifier — no extra model call, no extra latency.
 const PERSONA_INSTRUCTION = `\n\n---\n## Persona register (always prefix your reply)\nClassify the user's question and START your reply with exactly ONE of these tags on its own line:\n- \`[Case Manager]\` — operational questions (status, what to do next, action triage, plan execution)\n- \`[Clinical]\` — anything about certificates, capacity, modified duties, recovery, the worker's medical picture\n- \`[Legal]\` — anything about compliance, WorkSafe, deadlines, employer obligations, breach, liability, termination risk\nPick ONE, the closest fit. Do NOT explain the choice. The tag is the first line of your reply, then your answer follows.`;
 
+// Stakeholder voice register — Demo 9 from agent-specs/alex-case-intelligence.md.
+// When asked to draft/write/compose communication, detect target audience and render
+// in the matching voice. Same facts, different audiences. Drafts only — no auto-send.
+const STAKEHOLDER_REGISTER = `\n\n---\n## Stakeholder voice register (when drafting outbound communication)\nIf the user asks you to DRAFT, WRITE, COMPOSE, or PREPARE a message, email, letter, status update, note, or reply for a specific audience, detect the audience from the user's message and render with the matching voice:\n\n- **worker / patient / employee** — plain English, warm, second-person (\"Hi [name]\"), short paragraphs, no jargon, no regulatory references, low-stakes tone. Example: "Hi Sarah, just checking in. Your current cert runs to April 10..."\n- **employer / manager / HR / line manager** — formal but plain, neutral tone, focused on practical next steps and obligations, no clinical detail. Example: "Re: [worker name]. Worker remains on modified duties per certificate dated [X]..."\n- **insurer / claims officer / agent** — formal, claim-reference-led ("Re: Claim ref [X]"), structured, references to dates and certificate numbers, document-attached language. Example: "Re: Claim ref 12345. Worker remains on modified duties per certificate dated [X]. Next review scheduled [Y]. Full documentation attached."\n- **GP / treating doctor / clinician** — clinical-peer voice, references the certificate and capacity assessment, asks for clinical input. Example: "Patient [name] currently on modified duties per your certificate of [date]. Please advise if any change in clinical picture warrants an updated certificate."\n- **lawyer / regulator / WorkSafe** — formal, regulatory framing, explicit citations to obligations from the compliance evidence block above. Cite **WIRC** sections where relevant.\n\nIf the user asks for the SAME message in MULTIPLE registers (e.g. "now do it for the GP"), render each draft separately, clearly labelled with its audience header (\`**Draft for worker:**\`, \`**Draft for insurer:**\`, etc.).\n\nALL drafts are DRAFTS only. End every draft with a footer line: \`_Draft only — review before sending._\` Never claim Alex has sent the message.`;
+
 // Loads deterministic rules-engine output for a case and formats it as a citation-required
 // system-prompt block. Returns empty string if no checks cached. Falls back silently on error.
 async function buildComplianceEvidenceBlock(caseId: string): Promise<string> {
@@ -251,7 +256,7 @@ router.post("/message", authorize(), async (req: AuthRequest, res: Response) => 
     const complianceBlock = context?.caseId ? await buildComplianceEvidenceBlock(context.caseId) : "";
 
     // Use tool-use loop when Anthropic provider is configured, otherwise plain prompt
-    const systemPrompt = `${SOUL}${orgCasesBlock}${memoryBlock}${contextBlock}${complianceBlock}${PERSONA_INSTRUCTION}\n\n---\nRespond as Alex. Keep it concise (2-4 sentences after the persona tag). If you want to suggest a booking, end your response with [SUGGEST_BOOKING].`;
+    const systemPrompt = `${SOUL}${orgCasesBlock}${memoryBlock}${contextBlock}${complianceBlock}${PERSONA_INSTRUCTION}${STAKEHOLDER_REGISTER}\n\n---\nRespond as Alex. Keep it concise (2-4 sentences after the persona tag) unless drafting communication (which may be longer). If you want to suggest a booking, end your response with [SUGGEST_BOOKING].`;
     const provider = (process.env.LLM_PROVIDER ?? "claude-cli").toLowerCase();
     const useTools = (provider === "anthropic" || provider === "openrouter" || provider === "groq") &&
       !!(provider === "groq" ? process.env.GROQ_API_KEY : process.env.OPENROUTER_API_KEY);
@@ -520,7 +525,7 @@ router.post("/stream", authorize(), async (req: AuthRequest, res: Response) => {
     const complianceBlock = context?.caseId ? await buildComplianceEvidenceBlock(context.caseId) : "";
 
     // ── Build system prompt ───────────────────────────────────────────────
-    const systemPrompt = `${SOUL}${orgCasesBlock}${memoryBlock}${contextBlock}${complianceBlock}${PERSONA_INSTRUCTION}\n\n---\nRespond as Alex. Keep it concise (2-4 sentences after the persona tag). If you want to suggest a booking, end your response with [SUGGEST_BOOKING].`;
+    const systemPrompt = `${SOUL}${orgCasesBlock}${memoryBlock}${contextBlock}${complianceBlock}${PERSONA_INSTRUCTION}${STAKEHOLDER_REGISTER}\n\n---\nRespond as Alex. Keep it concise (2-4 sentences after the persona tag) unless drafting communication (which may be longer). If you want to suggest a booking, end your response with [SUGGEST_BOOKING].`;
 
     // ── Sanitise history ──────────────────────────────────────────────────
     const sessionHistory: ChatMessage[] = (history ?? [])
