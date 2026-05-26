@@ -281,9 +281,19 @@ function CommandCentre({ workerCase, caseActions, effectiveRiskLevel, onApproveR
     complianceRaw === "very high" || complianceRaw === "high" ? "compliant" :
     complianceRaw === "medium" ? "at-risk" : "non-compliant";
 
+  // Compliance reason — never display a bare "Non-Compliant" or "At Risk" badge
+  // without an inline reason. Priority order:
+  //   1. Hard cert-state signals (expired, missing) — most actionable
+  //   2. Stored reason from compliance engine (workerCase.compliance.reason) —
+  //      specific, case-aware text like "Case file incomplete — missing recent
+  //      functional capacity update". This used to live only in the hover
+  //      tooltip; now surfaced inline because user feedback rule says
+  //      "compliance always needs a reason — never display 'non-compliant' alone".
+  //   3. Generic fallback (only if neither of the above applies)
   const complianceIssue =
     certStatus?.expired ? `Medical cert expired ${certStatus.daysAgo} day${certStatus.daysAgo !== 1 ? "s" : ""} ago` :
     !workerCase.hasCertificate && weeksOff > 0 ? "No medical certificate on file" :
+    workerCase.compliance?.reason && complianceLevel !== "compliant" ? workerCase.compliance.reason :
     complianceLevel === "at-risk" ? "Compliance indicator flagged" :
     complianceLevel === "non-compliant" ? "One or more obligations not met" :
     "All obligations met";
@@ -493,11 +503,9 @@ function CommandCentre({ workerCase, caseActions, effectiveRiskLevel, onApproveR
                    complianceLevel === "at-risk"   ? "At Risk" : "Non-Compliant"}
                 </p>
                 <p className="text-xs text-muted-foreground mt-1 leading-snug">{complianceIssue}</p>
-                {showReason && (
-                  <p className="text-[10px] text-muted-foreground/80 mt-1 italic">
-                    Hover for details
-                  </p>
-                )}
+                {/* "Hover for details" hint removed — the stored reason is now
+                    rendered inline in complianceIssue above, so the tooltip is
+                    secondary context, not the only source of the reason. */}
               </CardContent>
             </Card>
           );
