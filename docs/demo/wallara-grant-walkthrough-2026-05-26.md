@@ -112,7 +112,7 @@ This buys you: (a) credibility — you're not a tinkerer, (b) diagnosis of Ellen
 
 ### Bridge into Layer 1
 
-> "Let me show you what that looks like in practice. Four things have shipped since the demo on the 15th, all of them specifically off your feedback."
+> "Let me show you what that looks like in practice. Four things have shipped since the demo on the 15th, all of them specifically off your feedback. After that I'll show you where the system goes next — there's a piece coming that I think you'll want to know about because WorkSafe Victoria is moving in the same direction."
 
 Then go straight to Layer 1. Don't pause for questions yet — questions land better after they've seen the product.
 
@@ -180,6 +180,57 @@ This is the demo's most active moment — you click a button and the system DOES
 
 ### Bridge to the grant ask
 > "All of this builds toward a bigger picture. WorkSafe Victoria runs a grant program — RTWI, Return to Work Incentives — and we've drafted a submission for Round 3. You're in it. I want to walk you through your role and ask if you're comfortable with it."
+
+---
+
+## Layer 1.5 — What's coming next: the biopsychosocial spine (3 min)
+
+**Where this goes in the meeting:** after Jenna's draft-RTW hero moment, before the grant ask. The room has just seen the system DO something. Now you tell them what's about to be added — and tie it to WorkSafe's own direction so it feels inevitable, not speculative.
+
+### Beat 1 — Name what's missing today (30 sec)
+
+> "Before I get to the WorkSafe grant — there's one piece I want to flag because it's what's shipping next, and it directly shapes why we're applying for the grant.
+>
+> Right now, when a new claim comes in, the case manager picks it up cold. They read the file, form an opinion, decide priority. That's the same process every Victorian employer runs. It works, but it has two problems: it's slow, and it depends entirely on the case manager's experience. A senior CM and a junior CM looking at the same case will get to very different answers."
+
+### Beat 2 — Name the framework + what we're building (90 sec)
+
+> "What we're building next is a **biopsychosocial triage layer**. It captures around 60 variables at Day 1 — physical injury characteristics, but also psychosocial markers like the worker's recovery expectations, fear-avoidance, perceived control, and social factors like employment status, support structures, language at home.
+>
+> Those 60 variables run through a scoring engine with weights from published occupational-health research — Iles, Cole, the Örebro screening questionnaire. The engine outputs a severity score, a predicted RTW duration band, a cost band, and — critically — the top 5 reason codes driving the score. Never a bare number. Always with the why.
+>
+> The case manager sees this BEFORE they open the file. The case is already routed to the right tier — junior fast-track, senior, or nurse-managed — and the week-1 actions are pre-loaded. The CM confirms or overrides. Human in the loop, always.
+>
+> The same model runs at four points: pre-employment, quarterly pulse check, prevention check, and at injury intake. Single risk spine across the full lifecycle. So we can show a worker's trajectory from clearance through deterioration through injury — and the model gets smarter every closed case."
+
+### Beat 3 — Why this isn't speculative: WorkSafe + global direction (45 sec)
+
+> "Why I'm bringing this up to you specifically — this isn't us inventing something. **icare NSW shipped a Day-1 triage tool built on biopsychosocial variables in 2019.** It's been the Australian gold standard for seven years. WorkSafe Victoria is moving in the same direction — biopsychosocial principles are already in their clinical practice guidance, and the framework is referenced through Recover at Work materials. The WHO and ILO both endorse biopsychosocial assessment as the global standard for occupational injury management — it's no longer 'innovative', it's 'expected'.
+>
+> What's been missing in Victoria is a tool that actually IMPLEMENTS it for employers, not just for scheme insurers. That's the gap we're filling. And it's exactly the kind of evidence-based intervention WorkSafe wants to fund through the RTWI grant — which leads me into what I want to ask you."
+
+### Then bridge directly into Layer 2 (the grant ask)
+
+> "All of this builds toward a bigger picture. WorkSafe Victoria runs a grant program — RTWI, Return to Work Incentives — and we've drafted a submission for Round 3. You're in it. I want to walk you through your role and ask if you're comfortable with it."
+
+### Honesty discipline — what NOT to say
+
+- ❌ Don't say "we already have this." It's not built yet. Caught lying = trust gone.
+- ❌ Don't quote a specific WorkSafe Vic document by name unless you can produce it — speak directionally ("moving toward", "referenced in their clinical guidance"), not citationally.
+- ❌ Don't promise a delivery date. Say "shipping next" or "the next major feature" — not "by August".
+- ✅ Do say "we're building it." Present-continuous, honest.
+- ✅ Do tie to icare NSW concretely — that's a verifiable public reference.
+- ✅ Do tie to WHO/ILO global framing — that's defensible at the level of "global standard".
+
+### If Ellen asks "when?"
+
+> "Three weeks of focused build for v1 — and I'm timing it deliberately so we have something to show at the RTWI assessment stage if the grant moves forward. Wallara would see it before public release because you're the pilot site."
+
+### If Ellen asks "can you show me?"
+
+If you went with Option A (PNG preview attachment on Jenna's case): *"Yes — on Jenna's case file there's a preview of what her Day-1 readout would have looked like. Want me to scroll back?"* Then show it.
+
+If you went with Option D (no preview shipped): *"Not on screen today — the v1 build kicks off after the meeting. But I can sketch the readout for you on paper if it helps."*
 
 ---
 
