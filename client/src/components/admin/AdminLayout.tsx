@@ -1,5 +1,6 @@
 import { Outlet } from "react-router-dom";
 import { AdminSidebar } from "./AdminSidebar";
+import { ChatBubble } from "./ChatBubble";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 export function AdminLayout() {
@@ -22,6 +23,9 @@ export function AdminLayout() {
           <Outlet />
         </div>
       </main>
+
+      {/* Floating Alex build-board chat, admin-only by virtue of AdminRoute */}
+      <ChatBubble />
     </div>
   );
 }
