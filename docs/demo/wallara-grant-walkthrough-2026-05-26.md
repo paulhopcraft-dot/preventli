@@ -92,10 +92,23 @@ Live walkthrough of prod app as Ellen surfaced these. **Fix before Wednesday** i
 **Beat 1 — Acknowledge the noise (15 sec)**
 > "Quick context before I show you anything. Every WHS and claims vendor right now is saying 'we use AI'. Most of them mean a chatbot or a document summariser. That's not what we're doing. I want to tell you what's actually different about Preventli, because it shapes what you're about to see."
 
-**Beat 2 — Where you came from + why it matters (45 sec)**
-> "My background is data analytics. I spent years building systems that surface patterns in operational data — finding the signal in the noise. The thing I learned the hard way: the moment you try to encode every pattern as a rule, the system snaps. Real life doesn't fit the rules. So you either keep adding branches until the logic is uninspectable, or you accept the system can't handle the messy cases — which is most of them. That's the wall every rule-based claims tool hits."
+**Beat 2 — Where you came from + why it matters (60 sec)**
 
-This buys you: (a) credibility — you're not a tinkerer, (b) diagnosis of Ellen's pain — she's TRIED to write the rules, (c) the "why Preventli exists" moment.
+> "A bit of context on me before I get into the product — because it explains why I've built it the way I have.
+>
+> I came up in data analytics. Years of looking at operational data, finding the signal in the noise — what patterns predict outcomes, what doesn't matter even though everyone thinks it does, where rule-based systems work and where they fall apart. Pattern recognition over rule-writing.
+>
+> From there I moved into workers compensation management — the actual operational side. Cases, certificates, RTW plans, employer conversations, insurer calls. What I saw on the inside was the exact gap you'd predict from the analytics chair: the systems being sold to manage these claims are all rule trees. Every workflow tool, every claims management platform — they assume you can write the rules for every possible case. And they all hit the same wall, which is that real workers, real GPs, real employers don't fit the rules.
+>
+> So Preventli is what I'd build if I were sitting in the analytics chair and the operational chair at the same time. Rules where rules belong — compliance, WIRC Act, certificate windows. Pattern recognition where patterns belong — when to escalate, what to do when a GP goes silent, which cases are about to go off-track. Those two things separated, both audited, both with human review at the points that matter."
+
+This buys you: (a) credibility — you've seen the data AND the operations, two angles on the same problem, (b) diagnosis of Ellen's pain — she's TRIED the rule-tree tools, (c) the "why Preventli exists" moment.
+
+**Optional ways to make Beat 2 more specific (verbal only — don't pre-script):**
+- Name the kind of data analytics work as you say it — *"insurance claims data"*, *"operational analytics in [sector]"*, *"BI / reporting across [domain]"*. Pick whichever framing you can speak about confidently.
+- Name a duration that's honest — *"a decade"* / *"most of my career before this"* / *"the better part of fifteen years"*. Stretch or compress to match reality.
+- Name a single "aha" moment if one springs to mind — *"the moment I realised every rule we added made the system worse, not better"* — that lands harder than a CV summary.
+- If she asks for specifics on companies or projects, answer warmly but generically — *"I've worked across a few sectors; the analytics work was mostly [type]. What mattered for Preventli was the lesson, not the logo."*
 
 **Beat 3 — The architecture you actually built (90 sec)**
 > "What I'm building is one layer up from 'we use AI'. It's two layers, separated on purpose:
