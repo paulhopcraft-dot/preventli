@@ -12,7 +12,7 @@ See: .planning/PROJECT.md (updated 2026-01-25)
 Phase: 7 of 11 (Email Generation)
 Plan: 1 of 3 complete
 Status: In progress
-Last activity: 2026-01-29 - Completed 07-01-PLAN.md (Organization Templates)
+Last activity: 2026-05-11 - Completed quick task 260511-ohv: Health checks appear in Cases list
 
 Progress: [#########.] 82%
 
@@ -107,6 +107,7 @@ None currently.
 | # | Description | Date | Commit | Directory |
 |---|-------------|------|--------|-----------|
 | 001 | Fix smoke test failures (logout, auth guard, special chars, timeouts, 500 errors) | 2026-01-28 | 913dae8 | [001-fix-smoke-test-failures](./quick/001-fix-smoke-test-failures/) |
+| 260511-ohv | Health checks appear in Cases list: add type column to worker_cases, create case row on check completion, show View Report + Convert to Case buttons in cases list UI | 2026-05-11 | 10c34a8 | [260511-ohv-health-checks-appear-in-cases-list-add-t](./quick/260511-ohv-health-checks-appear-in-cases-list-add-t/) |
 
 ## Next Action
 

@@ -62,6 +62,7 @@
   CaseLifecycleStage,
   CaseLifecycleLogDB,
   InsertCaseLifecycleLog,
+  Organization,
 } from "@shared/schema";
 import { LIFECYCLE_TRANSITIONS } from "@shared/schema";
 import { db } from "./db";
@@ -513,7 +514,9 @@ export interface IStorage {
     workStatus: string;
     riskLevel: string;
     summary?: string;
+    workerEmail?: string | null;
   }): Promise<WorkerCase>;
+  getOrganization(id: string): Promise<Organization | null>;
   clearAllWorkerCases(): Promise<void>;
   updateAISummary(caseId: string, organizationId: string, summary: string, model: string, workStatusClassification?: string): Promise<void>;
   needsSummaryRefresh(caseId: string, organizationId: string, currentModel?: string): Promise<boolean>;
@@ -733,6 +736,15 @@ export interface IStorage {
 }
 
 class DbStorage implements IStorage {
+  async getOrganization(id: string): Promise<Organization | null> {
+    const [row] = await db
+      .select()
+      .from(organizations)
+      .where(eq(organizations.id, id))
+      .limit(1);
+    return row ?? null;
+  }
+
   private async resolveGpEscalationThreshold(organizationId: string | null | undefined): Promise<number> {
     if (!organizationId) return 7;
     const row = await db
@@ -1283,6 +1295,7 @@ class DbStorage implements IStorage {
     workStatus: string;
     riskLevel: string;
     summary?: string;
+    workerEmail?: string | null;
   }): Promise<WorkerCase> {
     const now = new Date();
     const dueDate = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000); // 7 days from now
@@ -1311,6 +1324,7 @@ class DbStorage implements IStorage {
         summary: caseData.summary || `New claim for ${caseData.workerName}`,
         ticketIds: [],
         ticketCount: "1",
+        workerEmail: caseData.workerEmail ?? null,
       } as any)
       .returning();
 

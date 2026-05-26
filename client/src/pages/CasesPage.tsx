@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { PageLayout } from "@/components/PageLayout";
@@ -15,12 +15,49 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { getCsrfToken } from "@/lib/queryClient";
 import type { WorkerCase, PaginatedCasesResponse } from "@shared/schema";
 import { isLegitimateCase } from "@shared/schema";
+
+const riskBadgeColor = (level: string) => {
+  switch (level) {
+    case "High":
+      return "bg-red-100 text-red-800";
+    case "Medium":
+      return "bg-amber-100 text-amber-800";
+    default:
+      return "bg-emerald-100 text-emerald-800";
+  }
+};
+
+const typeBadgeStyle = (type: string | undefined) => {
+  switch (type) {
+    case "pre_employment": return "bg-sky-100 text-sky-800";
+    case "prevention":     return "bg-indigo-100 text-indigo-800";
+    case "wellness":       return "bg-emerald-100 text-emerald-800";
+    case "mental_health":  return "bg-violet-100 text-violet-800";
+    case "exit":           return "bg-slate-100 text-slate-800";
+    case "injury":
+    default:               return "bg-amber-100 text-amber-800";
+  }
+};
+
+const typeLabel = (type: string | undefined) => {
+  switch (type) {
+    case "pre_employment": return "Pre-employment";
+    case "mental_health":  return "Mental health";
+    case "prevention":     return "Prevention";
+    case "wellness":       return "Wellness";
+    case "exit":           return "Exit";
+    case "injury":
+    default:               return "Injury";
+  }
+};
 
 export default function CasesPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
 
@@ -30,6 +67,23 @@ export default function CasesPage() {
   const cases = paginatedData?.cases ?? [];
 
   const isOpenCase = (c: WorkerCase) => c.caseStatus !== "closed";
+
+  const convertMutation = useMutation({
+    mutationFn: async (caseId: string) => {
+      const csrfToken = await getCsrfToken();
+      const res = await fetch(`/api/cases/${caseId}/convert-to-injury`, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRF-Token": csrfToken,
+        },
+      });
+      if (!res.ok) throw new Error("Failed to convert");
+      return res.json();
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/cases"] }),
+  });
 
   const filteredCases = useMemo(() => {
     return cases.filter((c) => {
@@ -59,17 +113,6 @@ export default function CasesPage() {
       highRisk: active.filter((c) => c.riskLevel === "High").length,
     };
   }, [cases]);
-
-  const riskBadgeColor = (level: string) => {
-    switch (level) {
-      case "High":
-        return "bg-red-100 text-red-800";
-      case "Medium":
-        return "bg-amber-100 text-amber-800";
-      default:
-        return "bg-emerald-100 text-emerald-800";
-    }
-  };
 
   if (isLoading) {
     return (
@@ -170,6 +213,7 @@ export default function CasesPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Worker Name</TableHead>
+                  <TableHead>Type</TableHead>
                   <TableHead>Company</TableHead>
                   <TableHead>Date of Injury</TableHead>
                   <TableHead>Work Status</TableHead>
@@ -181,7 +225,7 @@ export default function CasesPage() {
               <TableBody>
                 {filteredCases.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8 text-slate-600">
+                    <TableCell colSpan={8} className="text-center py-8 text-slate-600">
                       No cases found
                     </TableCell>
                   </TableRow>
@@ -198,6 +242,11 @@ export default function CasesPage() {
                       }}
                     >
                       <TableCell className="font-medium">{workerCase.workerName}</TableCell>
+                      <TableCell>
+                        <Badge className={typeBadgeStyle(workerCase.type)}>
+                          {typeLabel(workerCase.type)}
+                        </Badge>
+                      </TableCell>
                       <TableCell>{workerCase.company}</TableCell>
                       <TableCell>{workerCase.dateOfInjury}</TableCell>
                       <TableCell>
@@ -213,12 +262,32 @@ export default function CasesPage() {
                       <TableCell className="max-w-[200px] truncate">
                         {workerCase.nextStep}
                       </TableCell>
-                      <TableCell className="text-right">
-                        <Link to={user?.role === "employer" ? `/employer/case/${workerCase.id}` : user?.role === "partner" ? `/partner/cases/${workerCase.id}` : `/summary/${workerCase.id}`}>
-                          <Button variant="ghost" size="sm">
-                            <span className="material-symbols-outlined text-sm">visibility</span>
-                          </Button>
-                        </Link>
+                      <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center justify-end gap-1">
+                          {workerCase.type && workerCase.type !== "injury" && workerCase.assessmentId && (
+                            <Link to={`/assessments/${workerCase.assessmentId}`}>
+                              <Button variant="ghost" size="sm" title="View Report">
+                                <span className="material-symbols-outlined text-sm">description</span>
+                              </Button>
+                            </Link>
+                          )}
+                          {workerCase.type && workerCase.type !== "injury" && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              title="Convert to Case"
+                              disabled={convertMutation.isPending}
+                              onClick={() => convertMutation.mutate(workerCase.id)}
+                            >
+                              <span className="material-symbols-outlined text-sm">swap_horiz</span>
+                            </Button>
+                          )}
+                          <Link to={user?.role === "employer" ? `/employer/case/${workerCase.id}` : user?.role === "partner" ? `/partner/cases/${workerCase.id}` : `/summary/${workerCase.id}`}>
+                            <Button variant="ghost" size="sm">
+                              <span className="material-symbols-outlined text-sm">visibility</span>
+                            </Button>
+                          </Link>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))
