@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { X, AlertCircle, Stethoscope, ShieldAlert, CalendarClock, CheckCircle2, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -26,9 +26,19 @@ interface BriefingData {
   hasData: boolean;
 }
 
-function getTodayKey(userId: string): string {
+// Single tab-scoped dismissal key. Per-day key (so a fresh briefing the next
+// day can still appear), per-user via prefix, but does NOT depend on user.id
+// resolving correctly at every render — the dismiss() handler writes whatever
+// user.id is at click time, and we also store a generic per-day fallback so
+// the re-open path is closed even if user identity hiccups.
+function getTodayKey(userId: string | undefined): string {
   const today = new Date().toISOString().split("T")[0];
-  return `alex_briefing_shown_${userId}_${today}`;
+  const userPart = userId ?? "anon";
+  return `alex_briefing_shown_${userPart}_${today}`;
+}
+function getDayFallbackKey(): string {
+  const today = new Date().toISOString().split("T")[0];
+  return `alex_briefing_shown_anyuser_${today}`;
 }
 
 const SEVERITY_STYLES: Record<AlertSeverity, string> = {
@@ -55,13 +65,27 @@ export function MorningBriefingModal() {
   const [open, setOpen] = useState(false);
   const [briefing, setBriefing] = useState<BriefingData | null>(null);
   const [, setLoading] = useState(false);
+  // Once the user has dismissed in this tab session, never re-open until the
+  // app is reloaded (or the user logs out). useRef survives React re-renders
+  // and useEffect re-runs without triggering more renders itself. This is the
+  // belt-and-braces guard against the modal re-popping on navigation when
+  // useAuth() returns a fresh user object reference and the useEffect re-fires.
+  const dismissedThisSession = useRef(false);
 
   useEffect(() => {
     if (!isAuthenticated || !user) return;
 
-    const key = getTodayKey(user.id);
-    const alreadyShown = sessionStorage.getItem(key);
-    if (alreadyShown) return;
+    // Multiple guards: runtime ref (strongest) + per-user sessionStorage +
+    // per-day fallback sessionStorage. If any of these say "shown", bail.
+    if (dismissedThisSession.current) return;
+    if (sessionStorage.getItem(getTodayKey(user.id))) {
+      dismissedThisSession.current = true;
+      return;
+    }
+    if (sessionStorage.getItem(getDayFallbackKey())) {
+      dismissedThisSession.current = true;
+      return;
+    }
 
     fetchBriefing();
   }, [isAuthenticated, user]);
@@ -84,9 +108,12 @@ export function MorningBriefingModal() {
   }
 
   function dismiss() {
-    if (user) {
-      sessionStorage.setItem(getTodayKey(user.id), "1");
-    }
+    // Lock immediately — closes the door before any re-render can run useEffect.
+    dismissedThisSession.current = true;
+    // Persist across navigation in case useEffect re-fires (it shouldn't given
+    // the ref guard above, but belt-and-braces).
+    sessionStorage.setItem(getTodayKey(user?.id), "1");
+    sessionStorage.setItem(getDayFallbackKey(), "1");
     setOpen(false);
   }
 
