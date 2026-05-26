@@ -100,11 +100,11 @@ This opens warm, not adversarial. No competitor swipes — you're not in a fight
 
 > "A bit of context on me before I get into the product — because it explains why I've built it the way I have.
 >
-> I came up in data analytics. Years of looking at operational data, finding the signal in the noise — what patterns predict outcomes, what doesn't matter even though everyone thinks it does, where rule-based systems work and where they fall apart. Pattern recognition over rule-writing.
+> I came up in data analytics. Years of looking at business data and figuring out what actually predicts outcomes — what matters, what doesn't, what you can write as a rule, and what you can't. Spotting patterns instead of trying to write a rule for every possible situation.
 >
-> From there I moved into workers compensation management — the actual operational side. Cases, certificates, RTW plans, employer conversations, insurer calls. What I saw on the inside was the exact gap you'd predict from the analytics chair: the systems being sold to manage these claims are all rule trees. Every workflow tool, every claims management platform — they assume you can write the rules for every possible case. And they all hit the same wall, which is that real workers, real GPs, real employers don't fit the rules.
+> From there I moved into workers compensation management — the actual hands-on side. Cases, certificates, return-to-work plans, employer conversations, insurer calls. What I saw on the inside was exactly what the data side had taught me to expect: the systems being sold to manage these claims are basically lists of rules. Every workflow tool, every claims platform — they all assume you can write a rule for every possible case. And they all hit the same wall, which is that real workers, real GPs, real employers don't fit neatly into rules.
 >
-> So Preventli is what I'd build if I were sitting in the analytics chair and the operational chair at the same time. Rules where rules belong — compliance, WIRC Act, certificate windows. Pattern recognition where patterns belong — when to escalate, what to do when a GP goes silent, which cases are about to go off-track. Those two things separated, both audited, both with human review at the points that matter."
+> So Preventli is what I'd build if I were sitting in the data analyst's chair and the case manager's chair at the same time. Rules where rules belong — compliance, WIRC Act, certificate windows. Judgment where judgment belongs — when to escalate, what to do when a GP goes silent, which cases are about to go off-track. Two things, kept separate on purpose. Both can be checked. Both have humans deciding at the points that matter."
 
 This buys you: (a) credibility — you've seen the data AND the operations, two angles on the same problem, (b) diagnosis of Ellen's pain — she's TRIED the rule-tree tools, (c) the "why Preventli exists" moment.
 
@@ -115,17 +115,17 @@ This buys you: (a) credibility — you've seen the data AND the operations, two 
 - If she asks for specifics on companies or projects, answer warmly but generically — *"I've worked across a few sectors; the analytics work was mostly [type]. What mattered for Preventli was the lesson, not the logo."*
 
 **Beat 3 — The architecture you actually built (90 sec)**
-> "What I'm building is one layer up from 'we use AI'. It's two layers, separated on purpose:
+> "What I'm building is one layer up from 'we use AI'. It's two layers, kept separate on purpose:
 >
-> **The compliance layer is hard rules.** WIRC Act, WorkSafe obligations, certificate windows, notification timing. Anything that's legally required, when, by whom — that lives in a deterministic rules engine. It's auditable. It doesn't hallucinate. If a worker has been off work for X weeks and there's no plan, the rules engine knows.
+> **The first layer is the rules layer — fixed, straightforward rules.** WIRC Act, WorkSafe obligations, certificate windows, when notifications are due. Anything that's legally required, when, by whom — sits in this layer. Same input, same answer, every time. You can always see why the system flagged something. It can't make things up. If a worker's been off work for too long with no plan, the rules layer knows.
 >
-> **The agent layer is judgment.** What to do when a GP goes silent. When the case is technically compliant on paper but the worker is going backwards. Whether to escalate this one or wait another week. Those signals are too messy for a rule tree — different combinations mean different things case by case. That's pattern recognition. That's agent territory.
+> **The second layer is the judgment layer.** What to do when a GP goes silent. When the case is technically compliant on paper but the worker's going backwards. Whether to escalate this one or wait another week. Those signals are too messy for a fixed rulebook — different combinations mean different things case by case. That's where you need judgment, not rules. That's what the second layer is for.
 >
-> The rules say 'this must happen'. The agent figures out HOW to make it happen in this specific case, with this specific GP, this specific worker, this specific employer. Both have human review at the points where it matters."
+> The rules say 'this must happen'. The judgment layer figures out HOW to make it happen in this specific case, with this specific GP, this specific worker, this specific employer. And there's a human checkpoint at the points where it matters."
 
 ### The one-liner to memorise (use it again later if anyone asks "but how is this different from [other tool]?")
 
-> *"A rules engine can tell you a case IS non-compliant. It can't tell you a case is going to BE non-compliant in four days unless someone moves. That's agent territory — and that's what Preventli does."*
+> *"A rules system can tell you a case IS non-compliant. It can't tell you a case is GOING to be non-compliant in four days unless someone moves. That's the judgment layer — and that's what Preventli is built on."*
 
 ### Bridge into Layer 1
 
@@ -133,10 +133,10 @@ This buys you: (a) credibility — you've seen the data AND the operations, two 
 
 Then go straight to Layer 1. Don't pause for questions yet — questions land better after they've seen the product.
 
-### If Ellen pushes back on "agents will do something stupid"
+### If Ellen pushes back on "what if the system does something stupid"
 
 You're ready. Your answer:
-> "That's the whole reason for separating the two layers. Anything regulated — anything where a wrong action has legal consequences — lives in rules, not in the agent. Anything judgement-based has a human review checkpoint. You'll see it on David's case in a minute — the IME panel has 5 recommended actions, and every single one is a button the coordinator presses, not something the agent does autonomously. The agent SURFACES the recommendation. The human decides. That's the design — and it's the design specifically because of what you're asking."
+> "That's exactly why we separate the two layers. Anything regulated — anything where a wrong action has legal consequences — sits in the rules layer, not the judgment layer. Anything that's a judgment call has a human checkpoint. You'll see it on David's case in a minute — the IME panel shows five recommended actions, and every single one is a button the case manager presses. The system shows the recommendation. The person decides. That's the design, on purpose."
 
 ---
 
@@ -212,19 +212,23 @@ This is the demo's most active moment — you click a button and the system DOES
 
 ### Beat 2 — Name the framework + what we're building (90 sec)
 
-> "What we're building next is a **biopsychosocial triage layer**. It captures around 60 variables at Day 1 — physical injury characteristics, but also psychosocial markers like the worker's recovery expectations, fear-avoidance, perceived control, and social factors like employment status, support structures, language at home.
+> "What we're building next is what's called a **biopsychosocial triage** — that's just a way of saying we look at the whole picture of a worker when a claim comes in, not only the physical injury.
 >
-> Those 60 variables run through a scoring engine with weights from published occupational-health research — Iles, Cole, the Örebro screening questionnaire. The engine outputs a severity score, a predicted RTW duration band, a cost band, and — critically — the top 5 reason codes driving the score. Never a bare number. Always with the why.
+> About sixty pieces of information get captured on Day 1. The physical side — body part, mechanism, severity. The mental side — how the worker thinks they'll recover, whether they're worried about the future, how much control they feel they have. And the life side — whether they're full-time or casual, how long they've been there, whether they have support at home, language at home.
 >
-> The case manager sees this BEFORE they open the file. The case is already routed to the right tier — junior fast-track, senior, or nurse-managed — and the week-1 actions are pre-loaded. The CM confirms or overrides. Human in the loop, always.
+> Those sixty inputs feed into a scoring tool. And the weights behind the scores aren't ones we made up — they come from published research on injury recovery. Names like Iles, Cole, the Örebro screening tool that's used worldwide. So we're not asking anyone to trust our guesses; we're using research-backed numbers.
 >
-> The same model runs at four points: pre-employment, quarterly pulse check, prevention check, and at injury intake. Single risk spine across the full lifecycle. So we can show a worker's trajectory from clearance through deterioration through injury — and the model gets smarter every closed case."
+> What comes out is a severity rating, a predicted return-to-work timeframe, an estimated cost range, and — most importantly — the top five reasons driving the score. Never just a number. Always with the why.
+>
+> The case manager sees this before they even open the file. The case has already been sent to the right person — fast-track, senior case manager, or nurse-managed — and the actions for the first week are ready to go. The case manager either says yes, or changes them. A person always has the final say.
+>
+> The same approach runs at four points across a worker's journey with Wallara: pre-employment, quarterly pulse check, prevention check, and at injury intake. One scoring system right across the lifecycle. So we can show a worker's path — from being cleared to work, through any early warning signs, through an injury if it happens, and back to work — and the system gets smarter on every closed case."
 
 ### Beat 3 — Why this isn't speculative: WorkSafe + global direction (45 sec)
 
 > "Why I'm bringing this up to you specifically — this isn't us inventing something. **icare NSW shipped a Day-1 triage tool built on biopsychosocial variables in 2019.** It's been the Australian gold standard for seven years. WorkSafe Victoria is moving in the same direction — biopsychosocial principles are already in their clinical practice guidance, and the framework is referenced through Recover at Work materials. The WHO and ILO both endorse biopsychosocial assessment as the global standard for occupational injury management — it's no longer 'innovative', it's 'expected'.
 >
-> What's been missing in Victoria is a tool that actually IMPLEMENTS it for employers, not just for scheme insurers. That's the gap we're filling. And it's exactly the kind of evidence-based intervention WorkSafe wants to fund through the RTWI grant — which leads me into what I want to ask you."
+> What's been missing in Victoria is a tool that actually puts this approach into practice for employers, not just for the big scheme insurers. That's the gap we're filling. And it's exactly the kind of research-backed approach WorkSafe wants to fund through the RTWI grant — which leads me into what I want to ask you."
 
 ### Then bridge directly into Layer 2 (the grant ask)
 
