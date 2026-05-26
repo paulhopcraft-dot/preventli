@@ -6,6 +6,29 @@
 
 ---
 
+## 🔍 SELF-TEST CHECKLIST (Tue night / Wed morning, ~5 min)
+
+Log into `https://app.preventli.ai` as `wallara@wallara.com.au / wallara01`. Hit each page below — confirm it loads and looks right. If any page is broken / ugly / slow, add it to the polish list and decide whether to skip it on Wed.
+
+| Page | What to confirm | Demo use? |
+|---|---|---|
+| `/` Dashboard | Morning briefing greets Ellen (after fix #5), 3 cases-needing-attention shown, table below | Open with this. 60s. |
+| `/cases` Cases list | All 6 workers visible (5 + Jenna after re-seed), risk levels render, filter works | 30s scan only. |
+| `/employer/case/case-wallara-jenna` ⭐ | NEW after re-seed. Has summary, current cert with restrictions, "Draft RTW Plan" button enabled | THE HERO. 4–5 min. |
+| `/employer/case/case-wallara-marcus` | Existing approved plan shows; auto-draft update button enabled | 1 min if time. |
+| `/employer/case/case-wallara-david` | IME panel renders with 5 numbered actions | 2 min — medico-legal showcase. |
+| `/employer/case/case-wallara-naomi` | Prevention Check report modal opens cleanly | 1 min — preventative pathway. |
+| `/checks` Health Checks | All 5+ check categories tab through cleanly | 30s — multi-pathway breadth. |
+| `/rtw-planner` | RTW Planner page loads (not 404), shows planning surface | Mention only if it works. |
+| `/employer/new-case` | New case form loads, fields don't crash | Mention if Ellen asks about onboarding new injuries. |
+| Settings / Users area | Self-serve invite for Michelle, Nicole, OHS officer | 30s — final beat: "you can do this without me." |
+
+**Pages I have NOT verified live this session:** `/checks`, `/rtw-planner`, `/checkins`, `/financials`, `/predictions`, `/risk`, `/employer/new-case`, Settings. Browser session kept expiring mid-walk. **You need to eyeball these tonight.** If any one is broken or empty, exclude it from Layer 1 — don't navigate somewhere that breaks the spell.
+
+**Session expiry warning:** JWT is 15 minutes. If you pause mid-demo (e.g. Ellen has a long question), you may get bounced to login. Options: (a) keep clicking every few minutes to keep the session live, (b) bump JWT TTL temporarily for the demo, (c) keep `wallara01` taped to your screen so re-login is 5 seconds.
+
+---
+
 ## 🚨 PRE-DEMO POLISH PUNCHLIST (live-tested 2026-05-26)
 
 Live walkthrough of prod app as Ellen surfaced these. **Fix before Wednesday** in this order:
@@ -115,11 +138,29 @@ Don't apologise for what's not done. Name what's new.
 - Frame: *"This is what we built to address your point about 24/7 follow-up. The system flags it; you don't have to remember."*
 - ⚠️ Caveat for yourself: per memory, `db:push` for the per-org threshold column may not have run on prod yet — check the column exists before this section. If badge isn't appearing, skip this and lead with #2.
 
-**2. Update-plan auto-draft (2–3 min) — Marcus's case**
-- Click into Marcus Tanaka. Show his existing RTW plan.
-- Show the "Auto-draft update" button (now enabled for `approved` plans — was greyed at last demo, fixed).
-- Walk through what an updated draft would look like with a new certificate.
-- Frame: *"Last demo, Naomi's case falsely flagged non-compliant. Marcus's plan-update button was greyed. Both fixed. The case manager always reviews before it sends."*
+**2. The Draft RTW Plan auto-draft flow (4–5 min) — Jenna Okafor's case** ⭐ HERO MOMENT
+
+This is the demo's most active moment — you click a button and the system DOES SOMETHING in front of Ellen. Practice this beat.
+
+- Click into **Jenna Okafor** on the Cases list (DSW, wrist injury, modified duties, no plan on file).
+- Frame her case for 30 seconds before clicking anything:
+  > *"Jenna is back at work on modified duties — splint on her right wrist, no lifting over 3 kilos, no repetitive movements, max 5 hours a day. She's been doing this for three weeks. But there's no formal RTW plan on file — which under WorkSafe Vic obligations is a gap. Watch what happens when I ask Preventli to draft one."*
+- Show the **prior-injury pattern callout** on her case summary (left shoulder strain 14 months ago, same role mechanism). One sentence:
+  > *"Notice the system has linked this to a prior injury 14 months ago — same role, same mechanism. That's the pattern Preventli surfaces. A rules engine wouldn't connect those two."*
+- Click **`Draft RTW Plan`** button.
+- Wait for the draft to generate (a few seconds — narrate while it works):
+  > *"What the agent is doing right now: reading the current cert restrictions, comparing them against every duty in the Disability Support Worker role, matching suitable duties to her current capacity, and proposing a graduated return schedule. All of that, on the spot."*
+- Once drafted, show the draft view: suitable duties (documentation, intake, light supervision), restricted duties (personal care, transfers, hoist), graduated hours, review cadence.
+- Click **WorkSafe Vic format** toggle:
+  > *"Same plan, rendered in the official WorkSafe Vic template — exactly the form your insurer is going to ask for. Print or PDF, ready to send."*
+- Click **Download** (PDF).
+- Land the closer:
+  > *"From clicking a button to having a WorkSafe-format RTW plan ready for review took 30 seconds. That's the agent layer doing the judgment work — and the coordinator confirms before anything goes out."*
+
+**Also worth a beat (1 min) on Marcus, if time allows:**
+- Click into Marcus Tanaka. Show his existing approved RTW plan.
+- Show that the "Auto-draft update" button is now enabled (was greyed at last demo — fixed).
+- Frame: *"For workers who already have a plan, the same drafter generates an update when capacity changes. Last demo this was broken. Fixed."*
 
 **3. Inbound email ingestion (2 min) — Wallara's tenant address**
 - This is the headline product commitment from last meeting.
