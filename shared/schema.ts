@@ -1446,6 +1446,9 @@ export const caseActions = pgTable("case_actions", {
   explanationJson: jsonb("explanation_json"),      // Full Explanation object from Phase 2
   priorityLevel: text("priority_level").$type<ActionPriority>().default("medium"), // critical|high|medium|low
 
+  // Alex chunk 6 — when this action was created in service of a plan step, link back so retro can score
+  planStepId: varchar("plan_step_id").references((): any => alexPlanSteps.id, { onDelete: "set null" }),
+
   status: text("status").notNull().default("pending"), // pending, in_progress, done, cancelled, overdue
   dueDate: timestamp("due_date"),
   priority: integer("priority").default(1), // Legacy numeric priority (kept for backwards compat)
@@ -2689,6 +2692,7 @@ export const chatMemory = pgTable("chat_memory", {
   organizationId: varchar("organization_id"),
   caseId: varchar("case_id"),       // nullable — set when context is a case
   workerId: varchar("worker_id"),   // nullable — set when context is a worker profile
+  conversationId: varchar("conversation_id").references((): any => alexConversations.id, { onDelete: "set null" }), // Alex chunk 7 state machine
   role: text("role").notNull(),     // "user" | "assistant"
   content: text("content").notNull(),
   createdAt: timestamp("created_at").defaultNow(),
@@ -2769,3 +2773,245 @@ export const outreachTemplates = pgTable("outreach_templates", {
 export type OutreachTemplateDB = typeof outreachTemplates.$inferSelect;
 export type InsertOutreachTemplate = typeof outreachTemplates.$inferInsert;
 export const insertOutreachTemplateSchema = createInsertSchema(outreachTemplates);
+
+// ============================================================================
+// ──── Alex Case Intelligence — chunk 1 schema foundation ────
+// Source spec: agent-specs/alex-case-intelligence.md
+// Shape doc:   agent-specs/SHAPE.md (chunk 1)
+// ADR:         docs/adr/0001-alex-vs-legacy-complianceagent.md (COEXIST verdict)
+// Conventions: varchar UUID PKs, organizationId scoping on all EXCEPT alex_patterns
+// (org-blind by design — no organization_id column at all).
+// ============================================================================
+
+// ── Enum types (TypeScript-level, mirrored as text columns) ──
+export type AlexOrgMemoryCategory = "contact_pref" | "escalation" | "insurer" | "policy" | "other";
+export type AlexOrgMemorySetBy = "admin" | "alex" | "cm_correction";
+export type AlexPatternCuratedBy = "karpathy" | "paul";
+export type AlexPlanCreatedBy = "alex" | "case_manager" | "paul";
+export type AlexPlanStatus = "proposed" | "approved" | "in_progress" | "complete" | "abandoned";
+export type AlexPlanStepOwner = "alex" | "case_manager" | "worker" | "employer" | "gp" | "external";
+export type AlexPlanStepStatus = "pending" | "in_progress" | "blocked" | "complete" | "skipped";
+export type AlexActionStatus = "proposed" | "approved" | "rejected" | "executed" | "failed";
+export type AlexReversibility = "reversible" | "reversible_with_audit" | "irreversible";
+export type AlexStakeholderRole = "worker" | "employer" | "gp" | "insurer" | "lawyer" | "regulator" | "other";
+export type AlexStakeholderContactMethod = "email" | "sms" | "phone" | "portal";
+export type AlexStakeholderRegister = "plain" | "formal" | "clinical";
+export type AlexTurnVerdict = "yes" | "no" | "maybe";
+export type AlexConversationState = "active" | "waiting_on_human" | "waiting_on_external" | "paused" | "closed";
+export type AlexKarpathyVerdict = "kept" | "reverted";
+
+// 1. alex_case_facts — curated structured facts extracted from chat_memory hourly
+export const alexCaseFacts = pgTable("alex_case_facts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  organizationId: varchar("organization_id").notNull(),
+  caseId: varchar("case_id").notNull().references(() => workerCases.id, { onDelete: "cascade" }),
+  fact: text("fact").notNull(),
+  sourceType: text("source_type"),         // e.g. "chat_memory" | "certificate" | "ticket"
+  sourceId: varchar("source_id"),          // FK-like, not enforced (heterogeneous source)
+  confidence: numeric("confidence"),       // 0.00–1.00
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export type AlexCaseFactDB = typeof alexCaseFacts.$inferSelect;
+export type InsertAlexCaseFact = typeof alexCaseFacts.$inferInsert;
+export const insertAlexCaseFactSchema = createInsertSchema(alexCaseFacts);
+
+// 2. alex_worker_memory — facts that persist across all of a worker's cases (org-scoped)
+export const alexWorkerMemory = pgTable("alex_worker_memory", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  organizationId: varchar("organization_id").notNull(),
+  workerNameNorm: varchar("worker_name_norm").notNull(), // normalised name for matching
+  workerIdFreshdesk: varchar("worker_id_freshdesk"),
+  fact: text("fact").notNull(),
+  sourceCaseIds: text("source_case_ids").array(),       // case ids that contributed this fact
+  confidence: numeric("confidence"),
+  lastConfirmedAt: timestamp("last_confirmed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export type AlexWorkerMemoryDB = typeof alexWorkerMemory.$inferSelect;
+export type InsertAlexWorkerMemory = typeof alexWorkerMemory.$inferInsert;
+export const insertAlexWorkerMemorySchema = createInsertSchema(alexWorkerMemory);
+
+// 3. alex_org_memory — per-org policies (mostly admin-set, some auto-learned from CM corrections)
+export const alexOrgMemory = pgTable("alex_org_memory", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  organizationId: varchar("organization_id").notNull(),
+  category: text("category").notNull().$type<AlexOrgMemoryCategory>(),
+  fact: text("fact").notNull(),
+  setBy: text("set_by").notNull().$type<AlexOrgMemorySetBy>(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+export type AlexOrgMemoryDB = typeof alexOrgMemory.$inferSelect;
+export type InsertAlexOrgMemory = typeof alexOrgMemory.$inferInsert;
+export const insertAlexOrgMemorySchema = createInsertSchema(alexOrgMemory);
+
+// 4. alex_patterns — CROSS-ORG, ORG-BLIND BY CONSTRUCTION. No organization_id column.
+//    PII filter on write (chunk 4). Curated weekly by Karpathy Loop. Read-only signal.
+export const alexPatterns = pgTable("alex_patterns", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  patternText: text("pattern_text").notNull(),
+  injuryCategory: varchar("injury_category"),
+  supportCount: integer("support_count").default(0),
+  confidence: numeric("confidence"),
+  curatedBy: text("curated_by").notNull().$type<AlexPatternCuratedBy>(),
+  createdAt: timestamp("created_at").defaultNow(),
+  lastValidatedAt: timestamp("last_validated_at"),
+});
+export type AlexPatternDB = typeof alexPatterns.$inferSelect;
+export type InsertAlexPattern = typeof alexPatterns.$inferInsert;
+export const insertAlexPatternSchema = createInsertSchema(alexPatterns);
+
+// 5. alex_plans — first-class plan objects (chunk 6)
+export const alexPlans = pgTable("alex_plans", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  organizationId: varchar("organization_id").notNull(),
+  caseId: varchar("case_id").notNull().references(() => workerCases.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  summary: text("summary"),
+  createdBy: text("created_by").notNull().$type<AlexPlanCreatedBy>(),
+  status: text("status").notNull().default("proposed").$type<AlexPlanStatus>(),
+  baselineCloseDays: integer("baseline_close_days"),  // org-median snapshot at plan creation
+  actualCloseDays: integer("actual_close_days"),       // captured at status=complete
+  retroNotes: text("retro_notes"),
+  retroScore: integer("retro_score"),                  // 1–5
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+export type AlexPlanDB = typeof alexPlans.$inferSelect;
+export type InsertAlexPlan = typeof alexPlans.$inferInsert;
+export const insertAlexPlanSchema = createInsertSchema(alexPlans);
+
+// 6. alex_plan_steps — ordered steps belonging to an alex_plan
+export const alexPlanSteps = pgTable("alex_plan_steps", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  planId: varchar("plan_id").notNull().references(() => alexPlans.id, { onDelete: "cascade" }),
+  ordinal: integer("ordinal").notNull(),
+  title: text("title").notNull(),
+  description: text("description"),
+  owner: text("owner").notNull().$type<AlexPlanStepOwner>(),
+  dueDate: timestamp("due_date"),
+  dependsOn: varchar("depends_on"),  // step.id of prerequisite (same table; not FK-enforced to avoid cycles)
+  status: text("status").notNull().default("pending").$type<AlexPlanStepStatus>(),
+  caseActionId: varchar("case_action_id"),  // when step is executed via case_actions queue (reverse of case_actions.plan_step_id)
+  completedAt: timestamp("completed_at"),
+});
+export type AlexPlanStepDB = typeof alexPlanSteps.$inferSelect;
+export type InsertAlexPlanStep = typeof alexPlanSteps.$inferInsert;
+export const insertAlexPlanStepSchema = createInsertSchema(alexPlanSteps);
+
+// 7. alex_actions — proposed-action queue (distinct from case_actions; chunk 2 gate)
+//    Irreversible / low-confidence tool calls land here for human approval. On approve, the
+//    underlying tool fires via the executor with skipGate=true (per chunk 1.5).
+export const alexActions = pgTable("alex_actions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  organizationId: varchar("organization_id").notNull(),
+  caseId: varchar("case_id").notNull().references(() => workerCases.id, { onDelete: "cascade" }),
+  turnId: varchar("turn_id"),  // FK to alex_turns.id (lazy — both tables in same chunk)
+  toolName: varchar("tool_name").notNull(),
+  toolInput: jsonb("tool_input"),
+  confidence: numeric("confidence"),
+  reversibility: text("reversibility").notNull().$type<AlexReversibility>(),
+  reasoningTrace: jsonb("reasoning_trace"),
+  status: text("status").notNull().default("proposed").$type<AlexActionStatus>(),
+  decidedBy: varchar("decided_by"),       // user id of CM who approved/rejected
+  decidedAt: timestamp("decided_at"),
+  executedAt: timestamp("executed_at"),
+  result: jsonb("result"),                // tool result captured back after firing
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export type AlexActionDB = typeof alexActions.$inferSelect;
+export type InsertAlexAction = typeof alexActions.$inferInsert;
+export const insertAlexActionSchema = createInsertSchema(alexActions);
+
+// 8. alex_case_stakeholders — per-case structured stakeholder map (chunk 5b)
+export const alexCaseStakeholders = pgTable("alex_case_stakeholders", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  organizationId: varchar("organization_id").notNull(),
+  caseId: varchar("case_id").notNull().references(() => workerCases.id, { onDelete: "cascade" }),
+  role: text("role").notNull().$type<AlexStakeholderRole>(),
+  name: varchar("name"),
+  contactMethod: text("contact_method").$type<AlexStakeholderContactMethod>(),
+  contactValue: varchar("contact_value"),
+  registerOverride: text("register_override").$type<AlexStakeholderRegister>(),
+  active: boolean("active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+export type AlexCaseStakeholderDB = typeof alexCaseStakeholders.$inferSelect;
+export type InsertAlexCaseStakeholder = typeof alexCaseStakeholders.$inferInsert;
+export const insertAlexCaseStakeholderSchema = createInsertSchema(alexCaseStakeholders);
+
+// 9. alex_turns — per-turn audit row capturing provenance + reasoning trace (chunk 2)
+export const alexTurns = pgTable("alex_turns", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  organizationId: varchar("organization_id").notNull(),
+  caseId: varchar("case_id").references(() => workerCases.id, { onDelete: "cascade" }),
+  userId: varchar("user_id"),
+  conversationId: varchar("conversation_id").references((): any => alexConversations.id, { onDelete: "set null" }),
+  userMessage: text("user_message").notNull(),
+  persona: varchar("persona"),                       // "case_manager" | "clinical" | "legal" (chunk 5a)
+  stakeholder: varchar("stakeholder"),
+  complianceLens: varchar("compliance_lens"),
+  dataLoaded: jsonb("data_loaded"),                  // [{type, id, summary}] provenance
+  toolsCalled: jsonb("tools_called"),                // [{name, input, output_summary, confidence}]
+  regulationsConsulted: jsonb("regulations_consulted"),
+  reasoningTrace: jsonb("reasoning_trace"),
+  responseText: text("response_text"),
+  verdict: text("verdict").$type<AlexTurnVerdict>(),
+  tokenCost: integer("token_cost"),
+  latencyMs: integer("latency_ms"),
+  promptParamsVersion: varchar("prompt_params_version"),  // NOT a FK — alex_prompt_params.version is non-unique by row
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export type AlexTurnDB = typeof alexTurns.$inferSelect;
+export type InsertAlexTurn = typeof alexTurns.$inferInsert;
+export const insertAlexTurnSchema = createInsertSchema(alexTurns);
+
+// 10. alex_conversations — state machine for chat sessions per case (chunk 7)
+export const alexConversations = pgTable("alex_conversations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  organizationId: varchar("organization_id").notNull(),
+  caseId: varchar("case_id").notNull().references(() => workerCases.id, { onDelete: "cascade" }),
+  startedByUserId: varchar("started_by_user_id"),
+  state: text("state").notNull().default("active").$type<AlexConversationState>(),
+  currentTopic: text("current_topic"),
+  branchParentId: varchar("branch_parent_id"),           // self-ref to alex_conversations.id (lazy)
+  escalationTargetUserId: varchar("escalation_target_user_id"),
+  lastActivityAt: timestamp("last_activity_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+  closedAt: timestamp("closed_at"),
+});
+export type AlexConversationDB = typeof alexConversations.$inferSelect;
+export type InsertAlexConversation = typeof alexConversations.$inferInsert;
+export const insertAlexConversationSchema = createInsertSchema(alexConversations);
+
+// 11. alex_prompt_params — Karpathy-tunable knobs (chunk 8)
+//     `version` is shared across all rows belonging to a single Karpathy snapshot — non-unique by row.
+export const alexPromptParams = pgTable("alex_prompt_params", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  key: varchar("key").notNull(),
+  value: jsonb("value").notNull(),
+  version: varchar("version").notNull(),      // groups all knobs in one Karpathy snapshot (non-unique per row)
+  active: boolean("active").notNull().default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export type AlexPromptParamDB = typeof alexPromptParams.$inferSelect;
+export type InsertAlexPromptParam = typeof alexPromptParams.$inferInsert;
+export const insertAlexPromptParamSchema = createInsertSchema(alexPromptParams);
+
+// 12. alex_karpathy_runs — log of weekly scoring + mutation verdicts (chunk 8)
+export const alexKarpathyRuns = pgTable("alex_karpathy_runs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  runDate: timestamp("run_date").notNull(),
+  scoresBefore: jsonb("scores_before"),
+  scoresAfter: jsonb("scores_after"),
+  scoringMeta: jsonb("scoring_meta"),         // dimension exclusions per volume gate (per SHAPE chunk 8)
+  mutation: jsonb("mutation"),                // { key, old, new }
+  verdict: text("verdict").$type<AlexKarpathyVerdict>(),
+  delta: numeric("delta"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export type AlexKarpathyRunDB = typeof alexKarpathyRuns.$inferSelect;
+export type InsertAlexKarpathyRun = typeof alexKarpathyRuns.$inferInsert;
+export const insertAlexKarpathyRunSchema = createInsertSchema(alexKarpathyRuns);
