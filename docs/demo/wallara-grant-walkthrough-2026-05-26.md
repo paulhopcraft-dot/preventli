@@ -89,8 +89,12 @@ Live walkthrough of prod app as Ellen surfaced these. **Fix before Wednesday** i
 
 ### Three beats. Land them in order.
 
-**Beat 1 — Acknowledge the noise (15 sec)**
-> "Quick context before I show you anything. Every WHS and claims vendor right now is saying 'we use AI'. Most of them mean a chatbot or a document summariser. That's not what we're doing. I want to tell you what's actually different about Preventli, because it shapes what you're about to see."
+**Beat 1 — Name the complexity + the outcome you're aiming at (30 sec)**
+> "Quick context before I show you anything. Claims and case management is genuinely complex — dozens of moving parts on every case, dozens of decisions per week per case manager, and a real cost when things slip through. What I want to show you is a set of tools that take what I know about case management — and use it to automate many of the workflows and the decision-making sitting underneath those cases.
+>
+> So your team gets to focus on what actually needs human judgment. And the outcomes we're aiming at for Wallara are the two that matter: faster return to work, and earlier interventions before injuries become claims."
+
+This opens warm, not adversarial. No competitor swipes — you're not in a fight with Salesforce or Power Automate. You're naming a hard problem, naming the outcomes Ellen actually cares about, and positioning yourself as the person bringing tools to solve it. Sets up Beat 2 to explain *why you specifically know what to automate*.
 
 **Beat 2 — Where you came from + why it matters (60 sec)**
 
