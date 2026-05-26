@@ -2797,3 +2797,25 @@ export const outreachTemplates = pgTable("outreach_templates", {
 export type OutreachTemplateDB = typeof outreachTemplates.$inferSelect;
 export type InsertOutreachTemplate = typeof outreachTemplates.$inferInsert;
 export const insertOutreachTemplateSchema = createInsertSchema(outreachTemplates);
+
+// Build status board — shared with preventli-dashboard repo.
+// Column shape must match D:\dev\preventli-dashboard\lib\schema.ts so both
+// Drizzle layers see identical rows. Table name "Node" (quoted, capital N)
+// matches the dashboard's expectations.
+export const node = pgTable("Node", {
+  id: text("id").primaryKey(),
+  type: text("type").notNull(),
+  parentId: text("parent_id"),
+  title: text("title").notNull(),
+  description: text("description"),
+  status: text("status"),
+  ownerType: text("owner_type"),
+  ownerId: text("owner_id"),
+  priority: integer("priority").default(0),
+  metadata: json("metadata"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at"),
+});
+
+export type NodeDB = typeof node.$inferSelect;
+export type InsertNode = typeof node.$inferInsert;
