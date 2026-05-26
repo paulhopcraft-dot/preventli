@@ -24,16 +24,12 @@ import { sendWelcomeEmail } from "../services/emailService";
 const SALT_ROUNDS = 10;
 const JWT_EXPIRES_IN = "8h"; // 8 hours for development (was 15m)
 const COOKIE_NAME = "preventli_auth";
-const LEGACY_COOKIE_NAME = "gpnet_auth"; // Pre-rebrand; read-only fallback, cleared on logout
 const COOKIE_MAX_AGE = 8 * 60 * 60 * 1000; // 8 hours in milliseconds (was 15 min)
 const REFRESH_COOKIE_NAME = "preventli_refresh";
-const LEGACY_REFRESH_COOKIE_NAME = "gpnet_refresh"; // Pre-rebrand; read-only fallback, cleared on logout
 const REFRESH_COOKIE_MAX_AGE = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
 
-// Read refresh cookie with backward-compat fallback to the pre-rebrand name.
-// Existing in-flight sessions keep working until JWT expiry; new logins get the new name.
 function readRefreshCookie(req: { cookies?: Record<string, string> }): string | undefined {
-  return req.cookies?.[REFRESH_COOKIE_NAME] ?? req.cookies?.[LEGACY_REFRESH_COOKIE_NAME];
+  return req.cookies?.[REFRESH_COOKIE_NAME];
 }
 
 // Helper to set auth cookie
@@ -47,7 +43,6 @@ function setAuthCookie(res: Response, token: string): void {
   });
 }
 
-// Helper to clear auth cookie (both current + legacy name to drop pre-rebrand sessions cleanly)
 function clearAuthCookie(res: Response): void {
   const opts = {
     httpOnly: true,
@@ -56,7 +51,6 @@ function clearAuthCookie(res: Response): void {
     path: "/",
   };
   res.clearCookie(COOKIE_NAME, opts);
-  res.clearCookie(LEGACY_COOKIE_NAME, opts);
 }
 
 // Helper to set refresh token cookie
@@ -70,7 +64,6 @@ function setRefreshCookie(res: Response, token: string): void {
   });
 }
 
-// Helper to clear refresh token cookie (both current + legacy name)
 function clearRefreshCookie(res: Response): void {
   const opts = {
     httpOnly: true,
@@ -79,7 +72,6 @@ function clearRefreshCookie(res: Response): void {
     path: "/api/auth",
   };
   res.clearCookie(REFRESH_COOKIE_NAME, opts);
-  res.clearCookie(LEGACY_REFRESH_COOKIE_NAME, opts);
 }
 
 // Exported so other controllers (e.g. partner.ts) can mint tokens after the
@@ -449,7 +441,6 @@ export async function me(req: AuthRequest, res: Response) {
 }
 
 export async function logout(req: AuthRequest, res: Response) {
-  // Revoke refresh token from cookie if present (supports legacy gpnet_refresh)
   const refreshToken = readRefreshCookie(req);
   if (refreshToken) {
     await revokeRefreshToken(refreshToken);
@@ -486,7 +477,6 @@ export async function logout(req: AuthRequest, res: Response) {
  */
 export async function refresh(req: Request, res: Response) {
   try {
-    // Get refresh token from cookie (supports legacy gpnet_refresh)
     const refreshToken = readRefreshCookie(req);
 
     if (!refreshToken) {
@@ -689,7 +679,6 @@ export async function getSessions(req: AuthRequest, res: Response) {
       });
     }
 
-    // Get current token family from the refresh token cookie (supports legacy gpnet_refresh)
     const refreshToken = readRefreshCookie(req);
     let currentTokenFamily: string | undefined;
 
