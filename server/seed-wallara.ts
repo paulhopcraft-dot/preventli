@@ -59,6 +59,7 @@ const WORKER_AISHA_ID = "worker-wallara-aisha";
 const WORKER_LIAM_ID = "worker-wallara-liam";
 const WORKER_DAVID_ID = "worker-wallara-david";
 const WORKER_NAOMI_ID = "worker-wallara-naomi";
+const WORKER_JENNA_ID = "worker-wallara-jenna";
 
 const CASE_SARAH_ID = "case-wallara-sarah";
 const CASE_MARCUS_ID = "case-wallara-marcus";
@@ -67,6 +68,10 @@ const CASE_PRIYA_ID = "case-wallara-priya";
 const CASE_DAVID_ID = "case-wallara-david";
 // Naomi Wright — preventative Health & Wellbeing demo case (no injury).
 const CASE_NAOMI_ID = "case-wallara-naomi";
+// Jenna Okafor — DSW with right-wrist De Quervain's tenosynovitis from repetitive transfers.
+// Working modified duties without a formal RTW plan — showcase for the manual "Draft RTW Plan"
+// auto-draft flow + WorkSafe Vic format toggle + PDF download.
+const CASE_JENNA_ID = "case-wallara-jenna";
 
 const RTW_PLAN_MARCUS_ID = "rtw-plan-wallara-marcus";
 const RTW_PLAN_VERSION_MARCUS_ID = "rtw-plan-version-wallara-marcus-v1";
@@ -107,6 +112,8 @@ Last night I:
 • Updated Marcus Tanaka's recovery trend — capacity improving, on track for full duties review in 2 weeks.
 • Generated Naomi Wright's GPNet Prevention Check Report from her completed assessment.
 • Flagged Sarah Chen's RTW plan as ready to draft (week-4 milestone reached).
+• Flagged Jenna Okafor — back at work on modified duties for 3 weeks, no formal RTW plan on file; auto-draft is ready when you are.
+• Surfaced prior-injury pattern: Jenna's right wrist injury follows a left-shoulder strain 14 months ago in the same role — recurring transfer-related strain.
 
 Today you should:
 • Action David Nguyen's IME — convene case conference, draft modified-duties RTW, initiate vocational reassessment.
@@ -370,6 +377,21 @@ async function seedWallara(): Promise<void> {
       phone: "0477 777 777",
       roleId: ROLE_COORD_ID,
     },
+    {
+      // Jenna Okafor — Disability Support Worker, 34yo, left-handed Nigerian-
+      // Australian. De Quervain's tenosynovitis (right wrist) from repetitive
+      // participant transfers — 9 weeks in, now back on modified duties.
+      // Showcase for the manual "Draft RTW Plan" auto-draft flow: rich mixed
+      // restrictions, DSW role has 6 duties spanning heavy (personal care,
+      // mobility) → light (documentation, intake), so the drafter produces a
+      // genuinely interesting plan rather than a trivial yes/no.
+      id: WORKER_JENNA_ID,
+      organizationId: WALLARA_ORG_ID,
+      name: "Jenna Okafor",
+      email: "jenna.okafor@wallara.com.au",
+      phone: "0488 888 888",
+      roleId: ROLE_DSW_ID,
+    },
   ] as any);
 
   // ── 5. Pre-employment assessments (one per worker, all passed) ─────────────
@@ -499,6 +521,23 @@ async function seedWallara(): Promise<void> {
       completedDate: new Date(now.getTime() - 730 * DAY_MS), // ~2 years ago
       assessorName: "Dr. Helen Mead",
       assessorType: "GP",
+    },
+    {
+      // Jenna Okafor — completed pre-emp ~18 months ago, full clearance.
+      // Important data anchor: confirms she came in fit; the recurring transfer
+      // injuries are role-related, not pre-existing — that's the pattern story.
+      id: "preemp-wallara-jenna",
+      organizationId: WALLARA_ORG_ID,
+      workerId: WORKER_JENNA_ID,
+      candidateName: "Jenna Okafor",
+      candidateEmail: "jenna.okafor@wallara.com.au",
+      positionTitle: "Disability Support Worker",
+      assessmentType: "functional_capacity",
+      status: "completed",
+      clearanceLevel: "cleared_unconditional",
+      completedDate: new Date(now.getTime() - 540 * DAY_MS), // ~18 months ago
+      assessorName: "Dr. Helen Mead",
+      assessorType: "Occupational Physician",
     },
   ] as any);
 
@@ -670,6 +709,44 @@ async function seedWallara(): Promise<void> {
     } as any,
   } as any);
 
+  // Jenna Okafor — DSW, De Quervain's right wrist, 9 weeks since onset.
+  // Currently on modified duties at work (3 weeks in) but no formal RTW plan
+  // documented. This is the showcase case for the manual "Draft RTW Plan"
+  // auto-draft demo: rich current cert restrictions + DSW role with mixed
+  // physical/light duties → drafter produces a genuinely interesting plan
+  // (some duties suitable, some restricted, graduated hours).
+  const jennaInjuryDate = new Date(now.getTime() - 63 * DAY_MS); // ~9 weeks ago
+  await db.insert(workerCases).values({
+    id: CASE_JENNA_ID,
+    organizationId: WALLARA_ORG_ID,
+    workerId: WORKER_JENNA_ID,
+    workerName: "Jenna Okafor",
+    company: "Wallara",
+    dateOfInjury: jennaInjuryDate,
+    claimNumber: "WC-WAL-006",
+    riskLevel: "Medium",
+    workStatus: "At work",
+    hasCertificate: true,
+    preInjuryRoleOverrideId: ROLE_DSW_ID,
+    complianceIndicator: "Medium",
+    currentStatus: "Modified duties at work — no formal RTW plan on file",
+    nextStep: "Draft RTW plan to formalise current modified-duties arrangement",
+    owner: "Ellen Burns",
+    dueDate: new Date(now.getTime() + 5 * DAY_MS).toISOString().slice(0, 10),
+    summary:
+      "De Quervain's tenosynovitis — right wrist, confirmed on ultrasound. Repetitive transfer / hoist work implicated. Currently on modified duties (no lifting >3kg right hand, no repetitive wrist movement, splint required) — pre-injury role unsustainable without formal plan. Prior pattern: left shoulder strain 14 months ago, same role mechanism.",
+    ticketIds: [],
+    ticketCount: "0",
+    lifecycleStage: "rtw_transition",
+    clinicalStatusJson: { rtwPlanStatus: "not_planned" } as any,
+    complianceJson: {
+      indicator: "Medium",
+      reason: "Worker on modified duties without documented RTW plan — required under WorkSafe Vic obligations",
+      source: "claude",
+      lastChecked: new Date(now.getTime() - 3 * 60 * 60 * 1000).toISOString(),
+    } as any,
+  } as any);
+
   // ── 7. Diagnosis scan attachments ──────────────────────────────────────────
   console.log("[seed-wallara] Inserting diagnosis-scan attachments...");
   await db.insert(caseAttachments).values([
@@ -736,6 +813,18 @@ async function seedWallara(): Promise<void> {
       name: "GPNet Prevention Check Report — Dr Priya Khatri (12/05/2026)",
       type: "prevention-check-report",
       url: "internal://prevention-check-report/case-wallara-naomi",
+    },
+    {
+      // Jenna — ultrasound confirming De Quervain's tenosynovitis right wrist.
+      organizationId: WALLARA_ORG_ID,
+      caseId: CASE_JENNA_ID,
+      name: "Ultrasound — Right Wrist (De Quervain's tenosynovitis)",
+      type: "diagnosis-scan",
+      // Source: https://commons.wikimedia.org/wiki/File:Wrist_ultrasound_dorsal_view.jpg (CC BY-SA)
+      url: scanUrl(
+        "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c4/Wrist_ultrasound_dorsal_view.jpg/960px-Wrist_ultrasound_dorsal_view.jpg",
+        "wallara-jenna-ultrasound",
+      ),
     },
   ] as any);
 
@@ -1022,6 +1111,130 @@ async function seedWallara(): Promise<void> {
         restrictions: c.restrictions,
         functionalRestrictionsJson: c.restrictionsJson,
         isCurrentCertificate: c.weekOffset === 24,
+        notes: c.name,
+      };
+    }) as any
+  );
+
+  // Jenna: 4 certs — week 0 off-work, week 2 specialist-wait off-work,
+  // week 5 early light-return, week 8 (current) graduated modified-duties with
+  // rich FunctionalRestrictionsExtracted so the auto-drafter has confidence.
+  // The current cert defines the SHOWCASE: nuanced wrist restrictions with
+  // partial capacity across most domains — drafter must identify suitable vs
+  // unsuitable DSW duties (documentation/intake suitable; personal-care/mobility
+  // unsuitable; community/medication modifiable). Confidence: 0.93.
+  const jennaWeek8Restrictions: FunctionalRestrictionsExtracted = {
+    sitting: "can",
+    standingWalking: "can",
+    bending: "can",
+    squatting: "can",
+    kneelingClimbing: "with_modifications", // avoid weight-bearing through right wrist
+    twisting: "can",
+    reachingOverhead: "with_modifications", // no weight in right hand overhead
+    reachingForward: "can",
+    neckMovement: "can",
+    lifting: "with_modifications",
+    liftingMaxKg: 3, // right hand only; two-handed lift up to 10kg OK
+    carrying: "with_modifications",
+    carryingMaxKg: 5,
+    pushing: "with_modifications", // no pushing with right hand alone
+    pulling: "cannot", // grip-intensive — avoid until splint removed
+    repetitiveMovements: "cannot", // no repetitive wrist flexion/extension
+    useOfInjuredLimb: "with_modifications", // right wrist — splint required during work
+    restMinutesPerHour: 5,
+    constraintDurationWeeks: 4,
+    maxWorkHoursPerDay: 5,
+    maxWorkDaysPerWeek: 5,
+    extractionConfidence: 0.93,
+    extractedAt: now.toISOString(),
+  };
+  // Week 5 — earlier light return. Splint just removed, more restrictive.
+  const jennaWeek5Restrictions: FunctionalRestrictionsExtracted = {
+    sitting: "can",
+    standingWalking: "can",
+    bending: "can",
+    squatting: "can",
+    kneelingClimbing: "cannot",
+    twisting: "can",
+    reachingOverhead: "cannot",
+    reachingForward: "with_modifications",
+    neckMovement: "can",
+    lifting: "with_modifications",
+    liftingMaxKg: 1,
+    carrying: "with_modifications",
+    carryingMaxKg: 2,
+    pushing: "cannot",
+    pulling: "cannot",
+    repetitiveMovements: "cannot",
+    useOfInjuredLimb: "cannot",
+    constraintDurationWeeks: 3,
+    maxWorkHoursPerDay: 4,
+    maxWorkDaysPerWeek: 3,
+    extractionConfidence: 0.91,
+    extractedAt: now.toISOString(),
+  };
+  const jennaCerts = [
+    {
+      weekOffset: 0,
+      capacity: "no_work",
+      name: "Initial off-work certificate — right wrist injury, ultrasound pending",
+      restrictions: [] as Array<{ type: string; description: string }>,
+      restrictionsJson: null as FunctionalRestrictionsExtracted | null,
+    },
+    {
+      weekOffset: 2,
+      capacity: "no_work",
+      name: "Week 2 — off work continuing, hand-therapy commenced, splinting",
+      restrictions: [],
+      restrictionsJson: null,
+    },
+    {
+      weekOffset: 5,
+      capacity: "modified_duties",
+      name: "Week 5 — early light return (3 days/wk, no use of right hand)",
+      restrictions: [
+        { type: "use of limb", description: "Splint required at all times; no use of right wrist" },
+        { type: "lifting", description: "No lifting with right hand; left-hand only up to 1kg" },
+        { type: "hours", description: "Maximum 4 hours per day, 3 days per week" },
+      ],
+      restrictionsJson: jennaWeek5Restrictions,
+    },
+    {
+      weekOffset: 8,
+      capacity: "modified_duties",
+      name: "Week 9 — graduated modified duties with splint",
+      restrictions: [
+        { type: "lifting", description: "No lifting >3kg with right hand; two-handed lift max 10kg" },
+        { type: "repetition", description: "No repetitive wrist flexion/extension (no hoist operation, no keyboard >20 min without break)" },
+        { type: "grip", description: "Avoid grip-intensive tasks; pulling restricted" },
+        { type: "use of limb", description: "Splint required during work hours" },
+        { type: "hours", description: "Maximum 5 hours per day, graduated increase fortnightly" },
+      ],
+      restrictionsJson: jennaWeek8Restrictions,
+    },
+  ];
+  await db.insert(medicalCertificates).values(
+    jennaCerts.map((c) => {
+      const start = new Date(jennaInjuryDate.getTime() + c.weekOffset * 7 * DAY_MS);
+      const end = new Date(start.getTime() + 14 * DAY_MS);
+      return {
+        caseId: CASE_JENNA_ID,
+        organizationId: WALLARA_ORG_ID,
+        workerId: WORKER_JENNA_ID,
+        issueDate: start,
+        startDate: start,
+        endDate: end,
+        capacity: c.capacity,
+        certificateType: "medical_certificate",
+        source: "manual",
+        treatingPractitioner: "Dr. Adaeze Onyema",
+        practitionerType: "GP",
+        clinicName: "Footscray West Family Medical",
+        fileName: `jenna-cert-week-${c.weekOffset + 1}.jpg`,
+        fileUrl: picsum(`wallara-jenna-cert-${c.weekOffset + 1}`),
+        restrictions: c.restrictions,
+        functionalRestrictionsJson: c.restrictionsJson,
+        isCurrentCertificate: c.weekOffset === 8,
         notes: c.name,
       };
     }) as any
@@ -1314,6 +1527,53 @@ async function seedWallara(): Promise<void> {
     },
     {
       caseId: CASE_NAOMI_ID,
+      organizationId: WALLARA_ORG_ID,
+      role: "employer_primary",
+      name: "Ellen Burns",
+      phone: "03 9000 9000",
+      email: "wallara@wallara.com.au",
+      company: "Wallara",
+      isPrimary: false,
+      isActive: true,
+    },
+
+    // ── Jenna Okafor — De Quervain's wrist (GP + hand therapist + employer) ──
+    {
+      caseId: CASE_JENNA_ID,
+      organizationId: WALLARA_ORG_ID,
+      role: "treating_gp",
+      name: "Dr. Adaeze Onyema",
+      phone: "03 9687 4411",
+      email: "adaeze.onyema@footscraywestmedical.com.au",
+      company: "Footscray West Family Medical",
+      isPrimary: true,
+      isActive: true,
+    },
+    {
+      caseId: CASE_JENNA_ID,
+      organizationId: WALLARA_ORG_ID,
+      role: "physiotherapist",
+      name: "Marcus Liang",
+      phone: "03 9314 2800",
+      email: "marcus.liang@westgatehandtherapy.com.au",
+      company: "Westgate Hand Therapy",
+      notes: "Certified hand therapist — splint fitting, graded loading, twice-weekly sessions.",
+      isPrimary: false,
+      isActive: true,
+    },
+    {
+      caseId: CASE_JENNA_ID,
+      organizationId: WALLARA_ORG_ID,
+      role: "case_manager",
+      name: "Ellen Burns",
+      phone: "03 9000 9000",
+      email: "wallara@wallara.com.au",
+      company: "Wallara",
+      isPrimary: false,
+      isActive: true,
+    },
+    {
+      caseId: CASE_JENNA_ID,
       organizationId: WALLARA_ORG_ID,
       role: "employer_primary",
       name: "Ellen Burns",
