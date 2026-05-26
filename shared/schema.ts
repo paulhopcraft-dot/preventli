@@ -2906,7 +2906,7 @@ export const alexActions = pgTable("alex_actions", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   organizationId: varchar("organization_id").notNull(),
   caseId: varchar("case_id").notNull().references(() => workerCases.id, { onDelete: "cascade" }),
-  turnId: varchar("turn_id"),  // FK to alex_turns.id (lazy — both tables in same chunk)
+  turnId: varchar("turn_id").references((): any => alexTurns.id, { onDelete: "set null" }), // lazy forward-ref — alex_turns declared later in same file
   toolName: varchar("tool_name").notNull(),
   toolInput: jsonb("tool_input"),
   confidence: numeric("confidence"),
