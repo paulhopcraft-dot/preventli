@@ -87,7 +87,21 @@ Live walkthrough of prod app as Ellen surfaced these. **Fix before Wednesday** i
 
 **Why this exists:** Every prospect right now is hearing "we use AI" from every vendor. You need to land your positioning in the first 3 minutes so the demo lands inside a frame, not as another AI tool. This also lets you bring your data-analytics background in as a wedge, not a CV line.
 
-### Three beats. Land them in order.
+### Four beats. Land them in order. (Beat 0 is the new partnership-framing beat.)
+
+**Beat 0 — The partnership offer up front (30 sec)** ⭐ MOST IMPORTANT SENTENCE OF THE MEETING
+
+This is what reframes the room from "vendor pitching to buyer" → "partners co-building". Land it before anything else.
+
+> "Before I show you anything — one thing up front. Preventli is new. We're in a beta phase. What that means for you is this: we're looking for input. We want your ideas, what you'd want out of it, what you like, what you don't. The whole reason for partnering with Wallara is because you and your team see these cases every day — you know what would actually help, and what's just noise.
+>
+> In return, you get to use it for free. Forever. While we're in this beta phase together. And there's actually one more part to that I'll come back to later — but free, forever, is the baseline."
+
+**Why this lands:**
+- Defuses "are you trying to sell me something?" before she even thinks it
+- Names her TEAM as the experts (genuinely true + flattering)
+- Forever-free is concrete value, real commitment, low risk to her
+- The *"one more part I'll come back to later"* creates a small open loop — pays off in Layer 2
 
 **Beat 1 — Name the complexity + the outcome you're aiming at (30 sec)**
 > "Quick context before I show you anything. Claims and case management is genuinely complex — dozens of moving parts on every case, dozens of decisions per week per case manager, and a real cost when things slip through. What I want to show you is a set of tools that take what I know about case management — and use it to automate many of the workflows and the decision-making sitting underneath those cases.
@@ -179,6 +193,30 @@ This is the demo's most active moment — you click a button and the system DOES
 - Show that the "Auto-draft update" button is now enabled (was greyed at last demo — fixed).
 - Frame: *"For workers who already have a plan, the same drafter generates an update when capacity changes. Last demo this was broken. Fixed."*
 
+**2.5 — David's IME panel (2 min) — medico-legal showcase** ⚠️ HONEST FRAMING REQUIRED
+
+This pairs well with Jenna's flow but covers a different case type (chronic, IME-driven). Ellen saw an earlier version at the last demo — what's important now is to **frame it honestly** so you don't accidentally claim the system *generates* the recommendations when it doesn't.
+
+- Click into David Nguyen's case.
+- Show the IME panel — Capacity Verdict, Key Diagnoses, Prognosis, the 5 numbered recommendations with action buttons (Book case conference, Open vocational reassessment, Auto-draft RTW plan, Log referral, Add diary item).
+- **Frame the IME panel honestly:**
+  > *"David's case. Chronic back injury, 6 months off work. His IME doctor — Dr Margaret Chen — has written a report with capacity findings, prognosis, and five recommended next steps. What Preventli does is take those steps out of the report PDF and put them right in front of the case manager as click-buttons. Book the case conference. Draft modified-duties plan. Refer to pain management. Diary three-month review. So they're not buried in a document nobody opens."*
+- Land the layer connection:
+  > *"And every single one of those is a button the case manager presses. The system shows the recommendation. The person decides. The rules layer enforces compliance. The judgment layer surfaces what's worth doing. Humans run the action."*
+
+**If she asks "does Preventli generate those recommendations?":**
+> *"Not yet — that's coming next quarter. Today the IME doctor still writes them. What changes next is the system reads the report itself and drafts recommendations before the doctor finalises them, then the doctor and case manager review. Same human checkpoints, just earlier in the process."*
+
+**Don't say:**
+- ❌ "The system reads the report and generates the actions" (not true today)
+- ❌ "The agent decides what to do next" (the IME doctor and case manager decide)
+- ❌ "It's all automated" (not — it's all surfaced + click-actioned)
+
+**Do say:**
+- ✅ "Preventli pulls the doctor's recommendations out of the PDF and puts them where the case manager works"
+- ✅ "Every action is a button a person presses"
+- ✅ "Auto-generation of recommendations is the next thing shipping"
+
 **3. Inbound email ingestion (2 min) — Wallara's tenant address**
 - This is the headline product commitment from last meeting.
 - Show the architecture verbally: `support+wallara@preventli.ai` (or the per-tenant alias) → Alex matches the email to a worker by name in subject → updates the case.
@@ -193,7 +231,7 @@ This is the demo's most active moment — you click a button and the system DOES
 ### Where to NOT spend time
 - Don't demo: Talk-with-Alex (not built yet — was on the commitment list)
 - Don't demo: voice/Zoom calls (v2/v3)
-- Don't open the medico-legal IME modal unless she asks — that was demoed already
+- Don't go into IME report INTERNAL content unless she asks for the medical detail — the surface view (capacity verdict + 5 actions) is the demo moment, not the full clinical content
 
 ### Bridge to the grant ask
 > "All of this builds toward a bigger picture. WorkSafe Victoria runs a grant program — RTWI, Return to Work Incentives — and we've drafted a submission for Round 3. You're in it. I want to walk you through your role and ask if you're comfortable with it."
@@ -270,6 +308,24 @@ Wallara is named as:
 - **Operational evidence source** — one or two metrics showing what changed once Preventli was in place
 - **Reference site** — WorkSafe assessors may want to see a working deployment; that's you
 - **Cross-sector peer** for the knowledge-sharing outputs at end of grant
+
+### Close the open loop from Beat 0 (30 sec) ⭐
+
+This is where the "I'll come back to later" payoff lands. Tone: matter-of-fact, not a sell.
+
+> "And — to close the loop from the start of this conversation — remember I said free forever was the baseline, and there was one more part? Here it is.
+>
+> If the grant funds, there's a budget line for Wallara as the named pilot partner. Your time providing input, your team's data, the reference-site role. That comes through as compensation — through the grant, not from me directly. So in the best case you're not just using Preventli for free, you're being paid for the input and the data you're already producing.
+>
+> Worst case — if the grant doesn't fund — nothing changes for you. You keep using it for free as we agreed. No downside."
+
+**Why this lands:**
+- Pays off the loop you opened in Beat 0 — feels like a kept promise, not a new pitch
+- Frames it conditionally ("if the grant funds") — honest, no overpromise
+- Names "no downside" explicitly — closes any reservation she might be holding
+
+**⚠️ HONESTY GUARDRAIL — do not commit to a dollar figure.** If she asks "how much?", say:
+> "Honestly we haven't worked it out yet. It's in the partner-allocation section of the budget — likely a few thousand dollars for your time across the 18 months, but I'd rather be straight that it's not finalised. I can confirm before you sign the letter of support."
 
 ### The three concrete asks (5 min)
 
