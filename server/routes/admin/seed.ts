@@ -27,4 +27,29 @@ router.post("/workbetter", async (_req: AuthRequest, res: Response) => {
   }
 });
 
+/**
+ * POST /api/admin/seed/wallara
+ *
+ * One-shot trigger to run the Wallara seed on the live server.
+ * Admin-only. Safe to call multiple times (seed is idempotent — deletes
+ * all rows scoped to org-wallara before re-inserting).
+ *
+ * Use case: forcing a re-seed after deploying changes to seed-wallara.ts
+ * when the boot-time seed step didn't pick up the change (e.g. between
+ * Render deploys, or to recover from a silent boot-seed failure).
+ */
+router.post("/wallara", async (_req: AuthRequest, res: Response) => {
+  try {
+    logger.api.info("[admin/seed] Triggering Wallara seed...");
+    // Dynamic import — boot doesn't pay the cost unless this endpoint is hit.
+    const { seedWallara } = await import("../../seed-wallara");
+    await seedWallara();
+    logger.api.info("[admin/seed] Wallara seed completed.");
+    res.json({ success: true, message: "Wallara seed completed." });
+  } catch (err) {
+    logger.api.error("[admin/seed] Seed failed", {}, err);
+    res.status(500).json({ error: "Seed failed", message: String(err) });
+  }
+});
+
 export default router;
