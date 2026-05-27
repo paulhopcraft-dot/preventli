@@ -67,6 +67,17 @@ interface NewCaseFormData {
   incidentDescription: string;
   injuryType: string;
 
+  // Care team (RTW multi-party distribution — phase 3)
+  // Captured up front so the plan distribution flow (phase 2) has every
+  // recipient available at draft time. Manager + treating doctor are required;
+  // physio is optional.
+  managerName: string;
+  managerEmail: string;
+  doctorName: string; // "Dr Greg Practitioner" or practice name
+  doctorEmail: string;
+  physioName: string;
+  physioEmail: string;
+
   // Recovery & Support
   hasPersonalFactors: boolean | null;
   personalFactorsNotes: string;
@@ -126,6 +137,12 @@ const initialFormData: NewCaseFormData = {
   incidentLocation: "",
   incidentDescription: "",
   injuryType: "",
+  managerName: "",
+  managerEmail: "",
+  doctorName: "",
+  doctorEmail: "",
+  physioName: "",
+  physioEmail: "",
   hasPersonalFactors: null,
   personalFactorsNotes: "",
   requiresAdditionalSupport: null,
