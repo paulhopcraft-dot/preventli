@@ -79,6 +79,14 @@ interface NewCaseFormData {
   physioName: string;
   physioEmail: string;
 
+  // Insurance / WorkCover (phase 3b — only required when hasLodgedClaim===true)
+  // Captured inline so the multi-party distribute flow can CC the insurer case
+  // manager on WorkCover claims (spec req 1, WorkCover branch).
+  claimNumber: string;
+  insurerName: string;
+  insurerCsmName: string;
+  insurerCsmEmail: string;
+
   // Recovery & Support
   hasPersonalFactors: boolean | null;
   personalFactorsNotes: string;
@@ -144,6 +152,10 @@ const initialFormData: NewCaseFormData = {
   doctorEmail: "",
   physioName: "",
   physioEmail: "",
+  claimNumber: "",
+  insurerName: "",
+  insurerCsmName: "",
+  insurerCsmEmail: "",
   hasPersonalFactors: null,
   personalFactorsNotes: "",
   requiresAdditionalSupport: null,
@@ -289,6 +301,13 @@ export default function EmployerNewCasePage() {
       submitData.append("physioName", formData.physioName);
       submitData.append("physioEmail", formData.physioEmail);
 
+      // WorkCover / insurance details (phase 3b — only meaningful when hasLodgedClaim===true)
+      submitData.append("hasLodgedClaim", String(formData.hasLodgedClaim));
+      submitData.append("claimNumber", formData.claimNumber);
+      submitData.append("insurerName", formData.insurerName);
+      submitData.append("insurerCsmName", formData.insurerCsmName);
+      submitData.append("insurerCsmEmail", formData.insurerCsmEmail);
+
       // Add files
       formData.documents.forEach((doc, index) => {
         submitData.append(`document_${index}`, doc.file);
@@ -338,46 +357,10 @@ export default function EmployerNewCasePage() {
   const selectedWorker = existingWorkers.find(w => w.id === formData.existingWorkerId);
   const hasExistingCase = selectedWorker?.hasActiveCase;
 
-  // WorkSafe redirect view
-  if (formData.hasLodgedClaim === true) {
-    return (
-      <PageLayout title="New Case" subtitle="Report a workplace incident">
-        <div className="max-w-2xl mx-auto">
-          <Card className="border-blue-200 bg-blue-50">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-blue-800">
-                <ExternalLink className="w-5 h-5" />
-                Complete Employer Claim Form
-              </CardTitle>
-              <CardDescription className="text-blue-700">
-                Since the worker has lodged a claim, you'll need to complete the employer claim form on the WorkSafe Victoria website.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-sm text-blue-800">
-                As the employer, you are required to submit your part of the claim form within 10 calendar days of being notified of the claim.
-              </p>
-              <div className="flex gap-3">
-                <Button
-                  onClick={() => window.open("https://www.worksafe.vic.gov.au/claims", "_blank")}
-                  className="bg-blue-600 hover:bg-blue-700"
-                >
-                  <ExternalLink className="w-4 h-4 mr-2" />
-                  Go to WorkSafe Victoria
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => updateField("hasLodgedClaim", null)}
-                >
-                  Go Back
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </PageLayout>
-    );
-  }
+  // (WorkCover-redirect view removed 2026-05-27 — both lodged and non-lodged
+  // claims now go through the same form; WorkCover details are captured inline
+  // when hasLodgedClaim === true so the RTW plan distribute flow has the
+  // insurer case manager available at draft time.)
 
   return (
     <PageLayout title="New Case" subtitle="Report a workplace incident">
@@ -424,8 +407,10 @@ export default function EmployerNewCasePage() {
           </CardContent>
         </Card>
 
-        {/* Rest of form only shows if claim not lodged */}
-        {formData.hasLodgedClaim === false && (
+        {/* Rest of form shows once the claim-status question has been answered.
+            Both YES (WorkCover) and NO (preventative) flow through the same form;
+            WorkCover details are captured in the conditional Insurance card below. */}
+        {formData.hasLodgedClaim !== null && (
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Section 2: Worker Details */}
             <Card>
@@ -646,6 +631,66 @@ export default function EmployerNewCasePage() {
                 </div>
               </CardContent>
             </Card>
+
+            {/* Section 2c: Insurance / WorkCover (phase 3b — visible only when claim lodged) */}
+            {formData.hasLodgedClaim === true && (
+              <Card className="border-blue-200">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <ExternalLink className="w-5 h-5 text-primary" />
+                    Insurance / WorkCover
+                  </CardTitle>
+                  <CardDescription>
+                    Required for WorkCover claims so the insurer case manager can be CC'd on the return-to-work plan.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="claimNumber">Claim Number *</Label>
+                      <Input
+                        id="claimNumber"
+                        placeholder="e.g., WC-2026-12345"
+                        value={formData.claimNumber}
+                        onChange={(e) => updateField("claimNumber", e.target.value)}
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="insurerName">Insurer Name *</Label>
+                      <Input
+                        id="insurerName"
+                        placeholder="e.g., Allianz, EML, Gallagher Bassett"
+                        value={formData.insurerName}
+                        onChange={(e) => updateField("insurerName", e.target.value)}
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="insurerCsmName">Insurance Case Manager Name *</Label>
+                      <Input
+                        id="insurerCsmName"
+                        placeholder="e.g., Carla CaseManager"
+                        value={formData.insurerCsmName}
+                        onChange={(e) => updateField("insurerCsmName", e.target.value)}
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="insurerCsmEmail">Insurance Case Manager Email *</Label>
+                      <Input
+                        id="insurerCsmEmail"
+                        type="email"
+                        placeholder="case.manager@allianz.com.au"
+                        value={formData.insurerCsmEmail}
+                        onChange={(e) => updateField("insurerCsmEmail", e.target.value)}
+                        required
+                      />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             {/* Section 3: Incident Details */}
             <Card>
