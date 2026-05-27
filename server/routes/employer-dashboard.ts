@@ -83,6 +83,15 @@ const employerCreateCaseSchema = z.object({
   doctorEmail: optionalEmail,
   physioName: z.string().optional(),
   physioEmail: optionalEmail,
+  // WorkCover claim (RTW multi-party distribution — phase 3b).
+  // Captured when hasLodgedClaim === 'true'. Claim number persists to
+  // worker_cases.claimNumber; insurer details become an insurer case_contacts
+  // row so phase 2 distribute resolves the insurer for the courtesy CC.
+  hasLodgedClaim: z.string().optional(),
+  claimNumber: z.string().optional(),
+  insurerName: z.string().optional(),
+  insurerCsmName: z.string().optional(),
+  insurerCsmEmail: optionalEmail,
 });
 
 const logger = createLogger('EmployerDashboard');
@@ -538,6 +547,29 @@ router.post('/cases', authorize(), upload.any(), async (req: Request, res: Respo
         role: 'physiotherapist',
         name: formData.physioName,
         email: formData.physioEmail,
+      });
+    }
+
+    // Phase 3b — WorkCover claim: persist claim number on the case and create
+    // the insurer case_contacts row so phase 2 distribute resolves them as the
+    // courtesy CC. Only when the gateway question was answered YES.
+    const isWorkCover = formData.hasLodgedClaim === 'true';
+    if (isWorkCover && formData.claimNumber && formData.claimNumber.trim().length > 0) {
+      try {
+        await db.update(workerCases)
+          .set({ claimNumber: formData.claimNumber.trim() } as any)
+          .where(eq(workerCases.id, newCase.id));
+      } catch (err) {
+        logger.error('Failed to persist claimNumber on new WorkCover case', {
+          caseId: newCase.id,
+        }, err);
+      }
+    }
+    if (isWorkCover && formData.insurerCsmEmail && formData.insurerCsmName) {
+      careTeamContacts.push({
+        role: 'insurer',
+        name: formData.insurerCsmName,
+        email: formData.insurerCsmEmail,
       });
     }
     for (const c of careTeamContacts) {
