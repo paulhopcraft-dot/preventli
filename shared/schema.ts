@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, boolean, json, jsonb, integer, numeric, primaryKey, index } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, boolean, json, jsonb, integer, numeric, primaryKey, index, bigint } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -2830,3 +2830,29 @@ export const node = pgTable("Node", {
 
 export type NodeDB = typeof node.$inferSelect;
 export type InsertNode = typeof node.$inferInsert;
+
+// IMAP poller per-mailbox cursor state. One row per polled mailbox address.
+// UIDs and UIDVALIDITY are 32-bit unsigned per RFC 3501; bigint keeps headroom.
+export const imapMailboxState = pgTable("imap_mailbox_state", {
+  mailbox: varchar("mailbox").primaryKey(),
+  uidValidity: bigint("uid_validity", { mode: "number" }).notNull(),
+  lastSeenUid: bigint("last_seen_uid", { mode: "number" }).notNull(),
+  lastPolledAt: timestamp("last_polled_at"),
+  lastErrorAt: timestamp("last_error_at"),
+  lastError: text("last_error"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export type ImapMailboxStateDB = typeof imapMailboxState.$inferSelect;
+// Explicit insert type — drizzle's $inferInsert on bigint(mode:"number") +
+// nullable timestamps drops the optional columns in this drizzle version.
+// Spelling it out lets the IMAP poller pass cursor + status fields cleanly.
+export type InsertImapMailboxState = {
+  mailbox: string;
+  uidValidity: number;
+  lastSeenUid: number;
+  lastPolledAt?: Date | null;
+  lastErrorAt?: Date | null;
+  lastError?: string | null;
+};

@@ -50,6 +50,8 @@
   InsertCaseEmail,
   EmailAttachmentDB,
   InsertEmailAttachment,
+  ImapMailboxStateDB,
+  InsertImapMailboxState,
   WorkerDB,
   InsertWorker,
   TelehealthBookingDB,
@@ -96,6 +98,7 @@ import {
   preEmploymentHealthHistory,
   caseEmails,
   emailAttachments,
+  imapMailboxState,
   workers,
   telehealthBookings,
   caseDocuments,
@@ -730,6 +733,10 @@ export interface IStorage {
   findCaseContactByEmail(email: string): Promise<{ caseId: string; organizationId: string; role: string } | null>;
   getFailedCaseEmails(): Promise<CaseEmailDB[]>;
   assignEmailToCase(emailId: string, caseId: string): Promise<CaseEmailDB>;
+
+  // IMAP poller cursor state
+  getImapMailboxState(mailbox: string): Promise<ImapMailboxStateDB | null>;
+  upsertImapMailboxState(state: InsertImapMailboxState): Promise<ImapMailboxStateDB>;
 
   // Chat Memory — Alex per-case/worker conversation history
   getChatMemory(key: { caseId?: string; workerId?: string }, limit?: number): Promise<ChatMemoryDB[]>;
@@ -4236,6 +4243,37 @@ class DbStorage implements IStorage {
       .select()
       .from(emailAttachments)
       .where(eq(emailAttachments.emailId, emailId));
+  }
+
+  async getImapMailboxState(mailbox: string): Promise<ImapMailboxStateDB | null> {
+    const [row] = await db
+      .select()
+      .from(imapMailboxState)
+      .where(eq(imapMailboxState.mailbox, mailbox))
+      .limit(1);
+    return row ?? null;
+  }
+
+  async upsertImapMailboxState(state: InsertImapMailboxState): Promise<ImapMailboxStateDB> {
+    // The set-clause type inference is broken for this table's mix of bigint
+    // (mode:number) + nullable timestamps in this drizzle version; matches the
+    // workaround used in other onConflictDoUpdate sites in this file (line ~1421).
+    const [row] = await db
+      .insert(imapMailboxState)
+      .values({ ...state, updatedAt: new Date() })
+      .onConflictDoUpdate({
+        target: imapMailboxState.mailbox,
+        set: ({
+          uidValidity: state.uidValidity,
+          lastSeenUid: state.lastSeenUid,
+          lastPolledAt: state.lastPolledAt ?? null,
+          lastErrorAt: state.lastErrorAt ?? null,
+          lastError: state.lastError ?? null,
+          updatedAt: new Date(),
+        } as any),
+      })
+      .returning();
+    return row;
   }
 
   async findCaseContactByEmail(email: string): Promise<{ caseId: string; organizationId: string; role: string } | null> {
