@@ -37,7 +37,7 @@ const MAILBOXES: Record<string, InboundMailboxConfig> = {
     signature: [
       "Kind regards,",
       "Jacinta Bailey",
-      "Client Relationship Manager",
+      "Customer Service Manager",
       "GPNet — jacinta.bailey@gpnet.au",
     ].join("\n"),
   },

@@ -15,7 +15,7 @@ describe("resolveInboundMailbox", () => {
     expect(cfg).not.toBeNull();
     expect(cfg!.mailbox).toBe("jacinta.bailey@gpnet.au");
     expect(cfg!.signerName).toBe("Jacinta Bailey");
-    expect(cfg!.signature).toContain("Client Relationship Manager");
+    expect(cfg!.signature).toContain("Customer Service Manager");
   });
 
   it("returns null for lisah@preventli.ai — Lisa replies manually, NEVER AI-drafted", () => {
