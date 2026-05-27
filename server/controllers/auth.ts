@@ -436,6 +436,10 @@ export async function me(req: AuthRequest, res: Response) {
           ...userResult[0],
           organizationId: req.user.organizationId,
           activeOrganizationId: req.activeOrganizationId ?? null,
+          // Surface gpnetOnly home-org status so the frontend can show or hide
+          // the gpnetOnly toggle. Backend is the real gate (see
+          // server/routes/admin/organizations.ts privilege-escalation check).
+          homeOrgIsGpnetOnly: req.user.homeOrgIsGpnetOnly ?? false,
         },
       },
     });

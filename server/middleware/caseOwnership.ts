@@ -4,6 +4,7 @@ import { storage } from "../storage";
 import { WorkerCase } from "@shared/schema";
 import { logAuditEvent, AuditEventTypes } from "../services/auditLogger";
 import { logger } from "../lib/logger";
+import { viewerFromRequest } from "../lib/orgVisibility";
 
 /**
  * Middleware to verify that the authenticated user has access to the requested case.
@@ -53,10 +54,13 @@ export function requireCaseOwnership() {
         });
       }
 
-      // ADMIN BYPASS: Admins can access all cases (cross-organization)
+      // ADMIN BYPASS: Admins can access all cases (cross-organization).
+      // gpnetOnly curtain: when the admin's home org is NOT gpnetOnly (Lisa
+      // scenario), getGPNet2CaseByIdAdmin filters out cases belonging to
+      // gpnet_only orgs and returns null — same 404 path as a missing case,
+      // so existence isn't leaked by ID.
       if (user.role === "admin") {
-        // For admins, fetch case without organization filter
-        const workerCase = await storage.getGPNet2CaseByIdAdmin(caseId);
+        const workerCase = await storage.getGPNet2CaseByIdAdmin(caseId, viewerFromRequest(req));
 
         if (!workerCase) {
           return res.status(404).json({

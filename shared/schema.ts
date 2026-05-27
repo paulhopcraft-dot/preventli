@@ -1821,6 +1821,11 @@ export const organizations = pgTable("organizations", {
   notes: text("notes"),
   // GP escalation detection: days past latest cert expiry before flagging the case
   gpEscalationThresholdDays: integer("gp_escalation_threshold_days").notNull().default(7),
+  // One-way visibility curtain: when true, this org + its cases are invisible
+  // to admins whose home org is NOT gpnetOnly. GPNet-side admins (admin in a
+  // gpnetOnly home org) see everything. Default false preserves existing
+  // behaviour for all orgs until Paul flips one manually.
+  gpnetOnly: boolean("gpnet_only").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

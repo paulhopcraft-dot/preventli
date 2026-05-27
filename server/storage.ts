@@ -114,6 +114,7 @@ import { combineRestrictions } from "./services/restrictionMapper";
 import { detectGpEscalation } from "./services/gpEscalation";
 import { eq, desc, asc, inArray, ilike, sql, and, lte, gte, or, isNull, ne } from "drizzle-orm";
 import { logger } from "./lib/logger";
+import { gpnetOnlyExclusionPredicate, type Viewer } from "./lib/orgVisibility";
 
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
 
@@ -501,10 +502,10 @@ export interface PaginatedCasesResult {
 
 export interface IStorage {
   // Case methods - UPDATED for multi-tenant isolation
-  getCases(organizationId: string, isAdmin?: boolean): Promise<WorkerCase[]>;
-  getCasesPaginated(organizationId: string | undefined, page: number, limit: number): Promise<PaginatedCasesResult>;
+  getCases(organizationId: string, isAdmin?: boolean, viewer?: Viewer): Promise<WorkerCase[]>;
+  getCasesPaginated(organizationId: string | undefined, page: number, limit: number, viewer?: Viewer): Promise<PaginatedCasesResult>;
   getGPNet2CaseById(id: string, organizationId: string): Promise<WorkerCase | null>;
-  getGPNet2CaseByIdAdmin(id: string): Promise<WorkerCase | null>; // Admin-only, no org filter
+  getGPNet2CaseByIdAdmin(id: string, viewer?: Viewer): Promise<WorkerCase | null>; // Admin-only, no org filter — viewer applies gpnetOnly curtain when supplied
   syncWorkerCaseFromFreshdesk(caseData: Partial<WorkerCase>): Promise<void>;
   createCase(caseData: {
     organizationId: string;
@@ -755,20 +756,18 @@ class DbStorage implements IStorage {
     return row[0]?.days ?? 7;
   }
 
-  async getCases(organizationId: string, isAdmin?: boolean): Promise<WorkerCase[]> {
+  async getCases(organizationId: string, isAdmin?: boolean, viewer?: Viewer): Promise<WorkerCase[]> {
+    const openOnly = or(eq(workerCases.caseStatus, "open"), isNull(workerCases.caseStatus));
+    const gpnetCurtain = viewer
+      ? gpnetOnlyExclusionPredicate(viewer, workerCases.organizationId)
+      : undefined;
+    const whereClause = isAdmin
+      ? and(openOnly, gpnetCurtain)
+      : and(eq(workerCases.organizationId, organizationId), openOnly, gpnetCurtain);
     const dbCases = await db
       .select()
       .from(workerCases)
-      .where(isAdmin
-        ? or(eq(workerCases.caseStatus, "open"), isNull(workerCases.caseStatus))
-        : and(
-          eq(workerCases.organizationId, organizationId),
-          // Filter out closed cases - only show open cases by default
-          or(
-            eq(workerCases.caseStatus, "open"),
-            isNull(workerCases.caseStatus)
-          )
-        ));
+      .where(whereClause);
     const caseIds = dbCases.map((dbCase) => dbCase.id);
 
     const notesByCase = new Map<string, CaseDiscussionNote[]>();
@@ -912,20 +911,15 @@ class DbStorage implements IStorage {
     return casesWithAttachments;
   }
 
-  async getCasesPaginated(organizationId: string | undefined, page: number, limit: number): Promise<PaginatedCasesResult> {
+  async getCasesPaginated(organizationId: string | undefined, page: number, limit: number, viewer?: Viewer): Promise<PaginatedCasesResult> {
     // Build where conditions - admin users (organizationId = undefined) see all cases
+    const openOnly = or(eq(workerCases.caseStatus, "open"), isNull(workerCases.caseStatus));
+    const gpnetCurtain = viewer
+      ? gpnetOnlyExclusionPredicate(viewer, workerCases.organizationId)
+      : undefined;
     const conditions = organizationId
-      ? and(
-          eq(workerCases.organizationId, organizationId),
-          or(
-            eq(workerCases.caseStatus, "open"),
-            isNull(workerCases.caseStatus)
-          )
-        )
-      : or(
-          eq(workerCases.caseStatus, "open"),
-          isNull(workerCases.caseStatus)
-        );
+      ? and(eq(workerCases.organizationId, organizationId), openOnly, gpnetCurtain)
+      : and(openOnly, gpnetCurtain);
 
     // Get total count first
     const countResult = await db
@@ -1204,12 +1198,18 @@ class DbStorage implements IStorage {
     return applyDiscussionInsights(caseData, discussionNotes, discussionInsights);
   }
 
-  async getGPNet2CaseByIdAdmin(id: string): Promise<WorkerCase | null> {
-    // Admin version - NO organization filter (can access any case)
+  async getGPNet2CaseByIdAdmin(id: string, viewer?: Viewer): Promise<WorkerCase | null> {
+    // Admin version - NO organization filter (can access any case).
+    // gpnet-only curtain: when a viewer is supplied AND they're a Preventli-side
+    // admin, exclude cases whose org has gpnet_only=true. Treat as not-found
+    // rather than 403 — don't leak existence by ID.
+    const gpnetCurtain = viewer
+      ? gpnetOnlyExclusionPredicate(viewer, workerCases.organizationId)
+      : undefined;
     const dbCase = await db
       .select()
       .from(workerCases)
-      .where(eq(workerCases.id, id))
+      .where(and(eq(workerCases.id, id), gpnetCurtain))
       .limit(1);
 
     if (dbCase.length === 0) {
