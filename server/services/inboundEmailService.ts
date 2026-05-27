@@ -28,7 +28,7 @@ export interface InboundEmailPayload {
     sizeBytes: number;
     base64Data?: string;
   }>;
-  source?: "sendgrid" | "postmark" | "demo" | "freshdesk" | "manual";
+  source?: "sendgrid" | "postmark" | "imap" | "demo" | "freshdesk" | "manual";
   /** Optional simulated date for demo/test scenarios (ISO string or Date) */
   receivedAt?: string | Date;
 }
@@ -244,7 +244,7 @@ export async function processInboundEmail(payload: InboundEmailPayload): Promise
   }
 
   if (certificateDetected && caseId) {
-    if (shouldAutoCreateCertificate(match.method, match.confidence ?? null, hasCertAttachment)) {
+    if (shouldAutoCreateCertificate(match.method, match.confidence ?? null, hasCertAttachment, source)) {
       try {
         await createCertificateFromEmail(caseId, subject, bodyText, fromName, effectiveDate);
       } catch (err) {
@@ -349,8 +349,14 @@ export function shouldAutoCreateCertificate(
   method: string,
   confidence: number | null,
   hasCertAttachment: boolean,
+  source?: InboundEmailPayload["source"],
 ): boolean {
   if (!hasCertAttachment) return false;
+  // IMAP-sourced mail is untrusted at the perimeter: anyone on the internet
+  // can email support@gpnet.au with a PDF named medical-certificate.pdf.
+  // Until a sender-allowlist exists, refuse to auto-write clinical data from
+  // this source. Email still surfaces as a discussion note for human review.
+  if (source === "imap") return false;
   if (HIGH_TRUST_MATCH_METHODS.has(method)) return true;
   if (method === "llm") return (confidence ?? 0) >= LLM_CERT_CONFIDENCE_FLOOR;
   return false;
