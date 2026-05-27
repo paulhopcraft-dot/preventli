@@ -8,7 +8,7 @@
 
 import React, { useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import { ArrowLeft, Printer } from "lucide-react";
+import { ArrowLeft, Printer, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PlanPrintView } from "@/components/rtw/PlanPrintView";
 import { PlanDetailView } from "@/components/rtw/PlanDetailView";
@@ -78,6 +78,13 @@ export default function PlanPage(): React.JSX.Element {
             Print / Save as PDF
           </Button>
         )}
+
+        <Button asChild size="sm" data-testid="rtw-plan-distribute">
+          <Link to={`/rtw/plans/${planId}/distribute`}>
+            <Send className="h-4 w-4 mr-1.5" />
+            Distribute to care team
+          </Link>
+        </Button>
       </div>
 
       {view === "internal" ? (
