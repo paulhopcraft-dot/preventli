@@ -33,6 +33,7 @@ import {
   Paperclip,
   ArrowRight,
   Save,
+  Stethoscope,
 } from "lucide-react";
 
 // Type for existing workers
@@ -279,6 +280,14 @@ export default function EmployerNewCasePage() {
       submitData.append("requiresAdditionalSupport", String(formData.requiresAdditionalSupport));
       submitData.append("supportNotes", formData.supportNotes);
       submitData.append("hasRtwPlan", String(formData.hasRtwPlan));
+
+      // Care team contacts (RTW multi-party distribution — phase 3)
+      submitData.append("managerName", formData.managerName);
+      submitData.append("managerEmail", formData.managerEmail);
+      submitData.append("doctorName", formData.doctorName);
+      submitData.append("doctorEmail", formData.doctorEmail);
+      submitData.append("physioName", formData.physioName);
+      submitData.append("physioEmail", formData.physioEmail);
 
       // Add files
       formData.documents.forEach((doc, index) => {
@@ -557,6 +566,84 @@ export default function EmployerNewCasePage() {
                     </div>
                   </div>
                 )}
+              </CardContent>
+            </Card>
+
+            {/* Section 2b: Care Team (RTW multi-party distribution — phase 3) */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Stethoscope className="w-5 h-5 text-primary" />
+                  Care Team
+                </CardTitle>
+                <CardDescription>
+                  Captured up front so the worker's return-to-work plan can be sent to everyone at once.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="managerName">Manager Name *</Label>
+                    <Input
+                      id="managerName"
+                      placeholder="e.g., Mick Manager"
+                      value={formData.managerName}
+                      onChange={(e) => updateField("managerName", e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="managerEmail">Manager Email *</Label>
+                    <Input
+                      id="managerEmail"
+                      type="email"
+                      placeholder="manager@example.com"
+                      value={formData.managerEmail}
+                      onChange={(e) => updateField("managerEmail", e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="doctorName">Treating Doctor / Practice *</Label>
+                    <Input
+                      id="doctorName"
+                      placeholder="e.g., Dr Greg Practitioner or Smith Family Practice"
+                      value={formData.doctorName}
+                      onChange={(e) => updateField("doctorName", e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="doctorEmail">Doctor Email *</Label>
+                    <Input
+                      id="doctorEmail"
+                      type="email"
+                      placeholder="doctor@practice.com"
+                      value={formData.doctorEmail}
+                      onChange={(e) => updateField("doctorEmail", e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="physioName">Physio Name / Practice</Label>
+                    <Input
+                      id="physioName"
+                      placeholder="Optional"
+                      value={formData.physioName}
+                      onChange={(e) => updateField("physioName", e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="physioEmail">Physio Email</Label>
+                    <Input
+                      id="physioEmail"
+                      type="email"
+                      placeholder="Optional"
+                      value={formData.physioEmail}
+                      onChange={(e) => updateField("physioEmail", e.target.value)}
+                    />
+                  </div>
+                </div>
               </CardContent>
             </Card>
 
