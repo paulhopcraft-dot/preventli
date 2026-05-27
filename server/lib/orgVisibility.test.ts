@@ -5,6 +5,7 @@ import {
   shouldExcludeGpnetOnlyOrgs,
   isGpnetSideAdmin,
   gpnetOnlyExclusionPredicate,
+  shouldDefaultGpnetOnly,
   type Viewer,
 } from "./orgVisibility";
 
@@ -108,5 +109,35 @@ describe("gpnetOnlyExclusionPredicate", () => {
     expect(lower).toContain("not exists");
     expect(lower).toContain("gpnet_only");
     expect(compiled.sql).toContain("organization_id");
+  });
+});
+
+describe("shouldDefaultGpnetOnly", () => {
+  it("returns true when GPNet-side admin omits the flag (private by default)", () => {
+    expect(shouldDefaultGpnetOnly(undefined, true)).toBe(true);
+  });
+
+  it("returns undefined when Preventli-side admin omits the flag (DB default applies)", () => {
+    expect(shouldDefaultGpnetOnly(undefined, false)).toBeUndefined();
+  });
+
+  it("respects an explicit true from GPNet-side admin", () => {
+    expect(shouldDefaultGpnetOnly(true, true)).toBe(true);
+  });
+
+  it("respects an explicit false from GPNet-side admin (opt-in to share at create time)", () => {
+    expect(shouldDefaultGpnetOnly(false, true)).toBe(false);
+  });
+
+  it("respects an explicit false from Preventli-side admin", () => {
+    expect(shouldDefaultGpnetOnly(false, false)).toBe(false);
+  });
+
+  it("does NOT silently elevate when Preventli-side submits true (privilege check is the route's job)", () => {
+    // Helper is pure — it returns the submitted value verbatim and lets the
+    // route handler's separate isGpnetSideAdmin gate reject the privilege
+    // escalation with 403. Keeping that responsibility split keeps the helper
+    // testable in isolation.
+    expect(shouldDefaultGpnetOnly(true, false)).toBe(true);
   });
 });

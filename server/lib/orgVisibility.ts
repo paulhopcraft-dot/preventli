@@ -71,6 +71,26 @@ export function isGpnetSideAdmin(viewer: Viewer): boolean {
 }
 
 /**
+ * Default the gpnetOnly flag when a new organisation is being created via the
+ * admin API. Private-by-default for GPNet-side admins (Paul, the superuser):
+ * onboard a client privately, opt-in to share with Preventli-side admins
+ * later. Preventli-side creators are unaffected — the flag stays whatever they
+ * sent (typically false / unset → false at the schema level).
+ *
+ * Pure function so the route handler stays a thin wrapper and the policy is
+ * unit-testable in isolation. Pair with the privilege-escalation gate that
+ * rejects `gpnetOnly=true` from non-GPNet-side admins.
+ */
+export function shouldDefaultGpnetOnly(
+  submittedValue: boolean | undefined,
+  isGpnetAdmin: boolean,
+): boolean | undefined {
+  if (submittedValue !== undefined) return submittedValue;
+  if (isGpnetAdmin) return true;
+  return undefined; // let the DB schema default (false) apply
+}
+
+/**
  * Returns a Drizzle SQL fragment that, when ANDed into a query's WHERE clause,
  * excludes rows whose `orgIdColumn` points to a gpnetOnly organisation.
  * Returns `undefined` when no exclusion is needed (so callers can omit the

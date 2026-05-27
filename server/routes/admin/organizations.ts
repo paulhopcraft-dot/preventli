@@ -9,6 +9,7 @@ import { logger } from "../../lib/logger";
 import {
   gpnetOnlyExclusionPredicate,
   isGpnetSideAdmin,
+  shouldDefaultGpnetOnly,
   viewerFromRequest,
 } from "../../lib/orgVisibility";
 
@@ -157,15 +158,23 @@ router.post("/", async (req: AuthRequest, res: Response) => {
     }
 
     const data = validation.data;
+    const viewer = viewerFromRequest(req);
+    const isGpnetAdmin = isGpnetSideAdmin(viewer);
 
     // Privilege-escalation gate: only GPNet-side admins may create orgs with
     // gpnetOnly=true. Preventli-side admins (e.g. Lisa) cannot mint a new
     // org and then promote themselves into it.
-    if ((data as any).gpnetOnly === true && !isGpnetSideAdmin(viewerFromRequest(req))) {
+    if ((data as any).gpnetOnly === true && !isGpnetAdmin) {
       return res.status(403).json({
         error: "Forbidden",
         message: "Only GPNet-side admins may set gpnetOnly on an organisation",
       });
+    }
+
+    // Private-by-default for GPNet superuser: see shouldDefaultGpnetOnly docs.
+    const defaultedGpnetOnly = shouldDefaultGpnetOnly((data as any).gpnetOnly, isGpnetAdmin);
+    if (defaultedGpnetOnly !== undefined) {
+      (data as any).gpnetOnly = defaultedGpnetOnly;
     }
 
     // Check for duplicate slug

@@ -105,6 +105,16 @@ export default function CompanyForm() {
   });
   const canEditGpnetOnly = Boolean(meData?.data?.user?.homeOrgIsGpnetOnly);
 
+  // Private-by-default for the superuser: when a GPNet-side admin opens the
+  // new-org form, pre-toggle the gpnetOnly switch ON. Editing existing orgs
+  // is unaffected (the org's own value loads from the API). Server enforces
+  // the same default if the client never flips the switch.
+  useEffect(() => {
+    if (!isEditing && canEditGpnetOnly) {
+      form.setValue("gpnetOnly", true);
+    }
+  }, [canEditGpnetOnly, isEditing, form]);
+
   // Populate form when editing
   useEffect(() => {
     if (orgData?.data) {
