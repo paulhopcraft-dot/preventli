@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Send, X, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
+import { getCsrfToken } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
 
 interface ChatMessage {
@@ -85,10 +86,14 @@ export function ChatDrawer({ open, onClose }: ChatDrawerProps) {
     setDraft("");
 
     try {
+      const csrfToken = await getCsrfToken().catch(() => "");
       const res = await fetch("/api/dashboard/chat", {
         method: "POST",
         credentials: "include",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(csrfToken ? { "X-CSRF-Token": csrfToken } : {}),
+        },
         body: JSON.stringify({
           message: text,
           pageContext: {

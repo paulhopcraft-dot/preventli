@@ -1,5 +1,6 @@
 import type { MouseEvent } from "react";
 import { Link, useLocation } from "react-router-dom";
+import { getCsrfToken } from "@/lib/queryClient";
 import {
   Building2,
   Shield,
@@ -60,10 +61,14 @@ function BuildStatusLink() {
   const handleClick = async (e: MouseEvent) => {
     e.preventDefault();
     try {
+      const csrfToken = await getCsrfToken().catch(() => "");
       const res = await fetch("/api/dashboard/sign-in-token", {
         method: "POST",
         credentials: "include",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(csrfToken ? { "X-CSRF-Token": csrfToken } : {}),
+        },
       });
       if (res.ok) {
         const data = (await res.json()) as { token: string };
