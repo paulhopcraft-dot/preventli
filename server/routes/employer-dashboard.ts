@@ -50,11 +50,16 @@ const upload = multer({
 });
 
 // Schema for employer case creation
+// Helper: optional email — accepts empty string (form sends "" when blank) OR
+// a valid email. Used for physio (optional) and to keep the existing
+// workerEmail behaviour permissive.
+const optionalEmail = z.union([z.literal(''), z.string().email()]).optional();
+
 const employerCreateCaseSchema = z.object({
   workerType: z.enum(['existing', 'new']),
   existingWorkerId: z.string().optional(),
   workerName: z.string().optional(),
-  workerEmail: z.string().email().optional(),
+  workerEmail: optionalEmail,
   workerPhone: z.string().optional(),
   workerDob: z.string().optional(),
   workerAddress: z.string().optional(),
@@ -68,6 +73,16 @@ const employerCreateCaseSchema = z.object({
   requiresAdditionalSupport: z.string().optional(),
   supportNotes: z.string().optional(),
   hasRtwPlan: z.string().optional(),
+  // Care team contacts (RTW multi-party distribution — phase 3).
+  // Manager + treating doctor required when workerType='new'; physio always
+  // optional. Enforcement is done in the route handler so existing-worker
+  // submissions (which don't go through the Care Team UI) aren't blocked.
+  managerName: z.string().optional(),
+  managerEmail: optionalEmail,
+  doctorName: z.string().optional(),
+  doctorEmail: optionalEmail,
+  physioName: z.string().optional(),
+  physioEmail: optionalEmail,
 });
 
 const logger = createLogger('EmployerDashboard');
@@ -496,6 +511,56 @@ router.post('/cases', authorize(), upload.any(), async (req: Request, res: Respo
       summary,
       workerEmail: formData.workerEmail ?? null,
     });
+
+    // RTW multi-party distribution — phase 3:
+    // Capture care-team contacts as case_contacts rows so the plan-distribute
+    // flow has every recipient available at draft time. Manager + treating
+    // doctor are required for new-worker submissions; physio is optional.
+    // Existing-worker submissions don't go through the Care Team UI yet so
+    // we only create rows when the relevant email is populated.
+    const careTeamContacts: Array<{ role: string; name: string; email: string }> = [];
+    if (formData.managerEmail && formData.managerName) {
+      careTeamContacts.push({
+        role: 'employer_primary',
+        name: formData.managerName,
+        email: formData.managerEmail,
+      });
+    }
+    if (formData.doctorEmail && formData.doctorName) {
+      careTeamContacts.push({
+        role: 'treating_gp',
+        name: formData.doctorName,
+        email: formData.doctorEmail,
+      });
+    }
+    if (formData.physioEmail && formData.physioName) {
+      careTeamContacts.push({
+        role: 'physiotherapist',
+        name: formData.physioName,
+        email: formData.physioEmail,
+      });
+    }
+    for (const c of careTeamContacts) {
+      try {
+        await storage.createCaseContact({
+          caseId: newCase.id,
+          organizationId,
+          role: c.role,
+          name: c.name,
+          email: c.email,
+          isPrimary: true,
+          isActive: true,
+        });
+      } catch (err) {
+        logger.error('Failed to create case_contact for new case', {
+          caseId: newCase.id,
+          role: c.role,
+        }, err);
+        // Don't fail the whole case creation — the contact can be added
+        // manually later. Phase 2 distribute flow will surface the missing
+        // contact with a blocking error pointing back to the contacts page.
+      }
+    }
 
     // Handle file uploads - store file references in caseAttachments table directly
     const files = req.files as Express.Multer.File[];
