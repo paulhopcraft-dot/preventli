@@ -124,7 +124,7 @@ export function ChatDrawer({ open, onClose }: ChatDrawerProps) {
 
   return (
     <div
-      className="fixed bottom-20 right-6 z-50 w-96 max-w-[calc(100vw-2rem)] h-[32rem] max-h-[calc(100vh-8rem)] bg-card border rounded-xl shadow-2xl flex flex-col"
+      className="fixed bottom-44 right-6 z-50 w-96 max-w-[calc(100vw-2rem)] h-[32rem] max-h-[calc(100vh-12rem)] bg-card border rounded-xl shadow-2xl flex flex-col"
       data-testid="chat-drawer"
     >
       <header className="flex items-center justify-between px-4 py-3 border-b">
