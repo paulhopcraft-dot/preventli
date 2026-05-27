@@ -12,6 +12,13 @@ export interface SendEmailOptions {
   subject: string;
   body: string;
   html?: string;
+  /**
+   * Optional Reply-To header. Used by the multi-party RTW plan distribution
+   * (spec §3) to thread replies back to the case manager rather than the
+   * service's from-address. Both Resend and SMTP providers below pass this
+   * through to the underlying transport when set.
+   */
+  replyTo?: string;
 }
 
 export interface SendEmailResult {
@@ -74,6 +81,7 @@ async function sendViaResend(options: SendEmailOptions): Promise<SendEmailResult
         subject: options.subject,
         text: options.body,
         html: options.html,
+        ...(options.replyTo ? { reply_to: options.replyTo } : {}),
       }),
       signal: controller.signal,
     });
@@ -123,6 +131,7 @@ async function sendViaSmtp(options: SendEmailOptions): Promise<SendEmailResult> 
       subject: options.subject,
       text: options.body,
       html: options.html || undefined,
+      ...(options.replyTo ? { replyTo: options.replyTo } : {}),
     });
     logger.email.info("Email sent via SMTP", { messageId: info.messageId });
     return { success: true, messageId: info.messageId };
