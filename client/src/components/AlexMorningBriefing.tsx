@@ -120,7 +120,7 @@ export function AlexMorningBriefing({ actions = [] }: Props) {
 
   if (!user) return null;
 
-  const firstName = getFirstName(user.email);
+  const firstName = user.preferredName?.trim() || getFirstName(user.email);
 
   const briefingTime = new Date();
   briefingTime.setHours(7, 48, 0, 0);
