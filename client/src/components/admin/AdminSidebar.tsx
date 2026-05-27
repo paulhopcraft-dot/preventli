@@ -55,7 +55,7 @@ const menuItems = [
   },
 ];
 
-const DASHBOARD_URL = (import.meta.env.VITE_DASHBOARD_URL as string | undefined) ?? "https://dashboard.preventli.ai";
+const DASHBOARD_URL = (import.meta.env.VITE_DASHBOARD_URL as string | undefined) ?? "https://preventli-dashboard.onrender.com";
 
 function BuildStatusLink() {
   const handleClick = async (e: MouseEvent) => {
