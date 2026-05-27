@@ -46,7 +46,7 @@ The helper is named `shouldExcludeGpnetOnlyOrgs` / `gpnetOnlyExclusionPredicate`
 **v0 boundary (what is filtered, what is not):**
 - ✅ `getCases`, `getCasesPaginated` — the dashboard list path and 6 other authed call-sites in `server/routes.ts` (smart-actions, workspace/stats, ai/chat, ai/proactive-guidance, ai/intelligent-summary, compliance).
 - ✅ `getGPNet2CaseByIdAdmin` — the admin-bypass path in `requireCaseOwnership`, which guards every `/api/cases/:id/*` subroute.
-- ✅ `GET /api/admin/organizations` list + single + PUT (write gate).
+- ✅ `GET /api/admin/organizations` list + single + PUT (write gate) + DELETE + POST/DELETE logo.
 - ❌ `/api/control/overview` aggregate counts — Lisa will see global totals that include hidden orgs' cases/users. Documented in [`.planning/work-gpnet-only-flag.md`](../../.planning/work-gpnet-only-flag.md) Out-of-scope. Future fix.
 - ❌ `/api/agents/*` (Alex agent tools) — call `getCases` and various by-id methods directly. Alex tools generally run admin-scoped; if Lisa interacts with Alex she could surface gpnetOnly data. Future fix.
 - ❌ Audit-event search, notification listing for admins, freshdesk sync — not user-facing for v0 use case.

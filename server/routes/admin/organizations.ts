@@ -338,11 +338,14 @@ router.delete("/:id", async (req: AuthRequest, res: Response) => {
   try {
     const id = req.params.id as string;
 
-    // Check organization exists
+    // gpnetOnly curtain: Preventli-side admins get 404 on hidden orgs.
+    const gpnetCurtain = gpnetOnlyExclusionPredicate(viewerFromRequest(req), organizations.id);
+
+    // Check organization exists (and is visible to this viewer)
     const existing = await db
       .select({ id: organizations.id })
       .from(organizations)
-      .where(eq(organizations.id, id))
+      .where(and(eq(organizations.id, id), gpnetCurtain))
       .limit(1);
 
     if (existing.length === 0) {
@@ -393,11 +396,14 @@ router.post(
         });
       }
 
-      // Check organization exists
+      // gpnetOnly curtain: Preventli-side admins get 404 on hidden orgs.
+      const gpnetCurtain = gpnetOnlyExclusionPredicate(viewerFromRequest(req), organizations.id);
+
+      // Check organization exists (and is visible to this viewer)
       const existing = await db
         .select({ id: organizations.id, logoUrl: organizations.logoUrl })
         .from(organizations)
-        .where(eq(organizations.id, id))
+        .where(and(eq(organizations.id, id), gpnetCurtain))
         .limit(1);
 
       if (existing.length === 0) {
@@ -449,11 +455,14 @@ router.delete("/:id/logo", async (req: AuthRequest, res: Response) => {
   try {
     const id = req.params.id as string;
 
-    // Check organization exists
+    // gpnetOnly curtain: Preventli-side admins get 404 on hidden orgs.
+    const gpnetCurtain = gpnetOnlyExclusionPredicate(viewerFromRequest(req), organizations.id);
+
+    // Check organization exists (and is visible to this viewer)
     const existing = await db
       .select({ id: organizations.id, logoUrl: organizations.logoUrl })
       .from(organizations)
-      .where(eq(organizations.id, id))
+      .where(and(eq(organizations.id, id), gpnetCurtain))
       .limit(1);
 
     if (existing.length === 0) {
