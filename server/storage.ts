@@ -102,6 +102,7 @@ import {
   chatMemory,
   caseLifecycleLogs,
   type RTWPlanDB,
+  type RTWDistributionStatus,
   type RTWPlanVersionDB,
   type RTWPlanDutyDB,
   type RTWPlanScheduleDB,
@@ -671,6 +672,71 @@ export interface IStorage {
   // RTW Plan Output - Email Management (OUT-07, OUT-08)
   savePlanEmail(planId: string, email: PlanEmailDraft): Promise<void>;
   getPlanEmail(planId: string): Promise<PlanEmailDraft | null>;
+
+  // RTW Multi-Party Distribution (phase 2) — see agent-specs/rtw-plan-multi-party-distribution.md
+  getCaseDistributionContext(
+    caseId: string,
+    organizationId: string,
+  ): Promise<{
+    workerName: string;
+    workerEmail: string | null;
+    companyName: string;
+    claimNumber: string | null;
+    contacts: CaseContactDB[];
+  } | null>;
+  markContactDistributed(contactId: string, organizationId: string, at?: Date): Promise<boolean>;
+  markContactResponded(
+    contactId: string,
+    organizationId: string,
+    responseText: string,
+    at?: Date,
+  ): Promise<CaseContactDB | null>;
+  updatePlanDistributionStatus(
+    planId: string,
+    organizationId: string,
+    status: RTWDistributionStatus,
+  ): Promise<boolean>;
+  /**
+   * Approve an RTW plan. Enforces the distribution gate inside the storage layer
+   * so both the HTTP route AND the Alex agent tool (rtw-tools.ts) go through the
+   * same compliance check — a route-level gate is theatre if other callers
+   * bypass it. Returns `{ approved: true, ... }` on success; `{ approved: false,
+   * reason }` if the plan exists but the gate refused. `null` when plan missing.
+   */
+  approveRTWPlan(
+    planId: string,
+    organizationId: string,
+    opts?: { bypassReason?: string | null },
+  ): Promise<
+    | { approved: true; bypassReason: string | null; priorDistributionStatus: RTWDistributionStatus }
+    | { approved: false; reason: "distribution_incomplete"; currentDistributionStatus: RTWDistributionStatus }
+    | null
+  >;
+  /**
+   * v1 same-case multi-plan guard. Returns true if a plan other than `excludePlanId`
+   * exists on the case with `distributionStatus != 'not_distributed'`. Prevents
+   * the per-contact tracking columns being silently corrupted by a second plan's
+   * distribute round (per-plan tracking lands in v2 via rtw_plan_distributions).
+   */
+  hasOtherDistributedPlansOnCase(
+    caseId: string,
+    organizationId: string,
+    excludePlanId: string,
+  ): Promise<boolean>;
+  /**
+   * Idempotently create a `role='worker'` case_contacts row for tracking the
+   * worker's distribution + response state. Worker email lives on
+   * worker_cases.workerEmail; this method gives that worker a home in
+   * case_contacts so lastDistributedAt and respondedAt have somewhere to live.
+   * `isPrimary` is set to false to avoid clashing with existing primary contacts.
+   */
+  ensureWorkerContact(
+    caseId: string,
+    organizationId: string,
+    args: { workerName: string; workerEmail: string },
+  ): Promise<CaseContactDB>;
+  // (getCaseContactById already declared above — re-used here for IDOR-safe
+  // writes in the response-mark route.)
 
   // Email Templates - Organization-specific templates (EMAIL-09)
   getEmailTemplate(organizationId: string, templateType: string): Promise<EmailTemplateDB | null>;
@@ -3591,6 +3657,202 @@ class DbStorage implements IStorage {
 
     return role || null;
   }
+
+  // ============================================================================
+  // RTW Multi-Party Distribution — phase 2
+  // ============================================================================
+
+  async getCaseDistributionContext(
+    caseId: string,
+    organizationId: string,
+  ): Promise<{
+    workerName: string;
+    workerEmail: string | null;
+    companyName: string;
+    claimNumber: string | null;
+    contacts: CaseContactDB[];
+  } | null> {
+    const [caseRow] = await db
+      .select({
+        workerName: workerCases.workerName,
+        workerEmail: workerCases.workerEmail,
+        companyName: workerCases.company,
+        claimNumber: workerCases.claimNumber,
+      })
+      .from(workerCases)
+      .where(and(
+        eq(workerCases.id, caseId),
+        eq(workerCases.organizationId, organizationId),
+      ))
+      .limit(1);
+    if (!caseRow) return null;
+
+    const contacts = await db.select()
+      .from(caseContacts)
+      .where(and(
+        eq(caseContacts.caseId, caseId),
+        eq(caseContacts.organizationId, organizationId),
+      ));
+
+    return {
+      workerName: caseRow.workerName,
+      workerEmail: caseRow.workerEmail ?? null,
+      companyName: caseRow.companyName,
+      claimNumber: caseRow.claimNumber ?? null,
+      contacts,
+    };
+  }
+
+  async markContactDistributed(
+    contactId: string,
+    organizationId: string,
+    at: Date = new Date(),
+  ): Promise<boolean> {
+    const [result] = await db.update(caseContacts)
+      .set({ lastDistributedAt: at, updatedAt: new Date() } as any)
+      .where(and(
+        eq(caseContacts.id, contactId),
+        eq(caseContacts.organizationId, organizationId),
+      ))
+      .returning({ id: caseContacts.id });
+    return !!result;
+  }
+
+  async markContactResponded(
+    contactId: string,
+    organizationId: string,
+    responseText: string,
+    at: Date = new Date(),
+  ): Promise<CaseContactDB | null> {
+    const [result] = await db.update(caseContacts)
+      .set({ respondedAt: at, responseText, updatedAt: new Date() } as any)
+      .where(and(
+        eq(caseContacts.id, contactId),
+        eq(caseContacts.organizationId, organizationId),
+      ))
+      .returning();
+    return result ?? null;
+  }
+
+  async updatePlanDistributionStatus(
+    planId: string,
+    organizationId: string,
+    status: RTWDistributionStatus,
+  ): Promise<boolean> {
+    const [result] = await db.update(rtwPlans)
+      .set({ distributionStatus: status, updatedAt: new Date() } as any)
+      .where(and(
+        eq(rtwPlans.id, planId),
+        eq(rtwPlans.organizationId, organizationId),
+      ))
+      .returning({ id: rtwPlans.id });
+    return !!result;
+  }
+
+  async approveRTWPlan(
+    planId: string,
+    organizationId: string,
+    opts: { bypassReason?: string | null } = {},
+  ): Promise<
+    | { approved: true; bypassReason: string | null; priorDistributionStatus: RTWDistributionStatus }
+    | { approved: false; reason: "distribution_incomplete"; currentDistributionStatus: RTWDistributionStatus }
+    | null
+  > {
+    // Gate is enforced inside the storage layer so the Alex agent tool
+    // (rtw-tools.ts updateRTWPlanStatusTool) cannot bypass the distribution
+    // check by writing directly to the column. A route-level gate alone is
+    // theatre if other callers reach in (council finding — agent-tool bypass).
+    const [current] = await db
+      .select({ id: rtwPlans.id, distributionStatus: rtwPlans.distributionStatus })
+      .from(rtwPlans)
+      .where(and(eq(rtwPlans.id, planId), eq(rtwPlans.organizationId, organizationId)))
+      .limit(1);
+    if (!current) return null;
+    const bypassReason = opts.bypassReason?.trim() || null;
+    if (current.distributionStatus !== "all_responded" && !bypassReason) {
+      return {
+        approved: false as const,
+        reason: "distribution_incomplete" as const,
+        currentDistributionStatus: current.distributionStatus,
+      };
+    }
+    const [result] = await db
+      .update(rtwPlans)
+      .set({
+        status: "approved",
+        distributionStatus: "finalised",
+        updatedAt: new Date(),
+      } as any)
+      .where(and(eq(rtwPlans.id, planId), eq(rtwPlans.organizationId, organizationId)))
+      .returning({ id: rtwPlans.id });
+    if (!result) return null;
+    return {
+      approved: true as const,
+      bypassReason,
+      priorDistributionStatus: current.distributionStatus,
+    };
+  }
+
+  async hasOtherDistributedPlansOnCase(
+    caseId: string,
+    organizationId: string,
+    excludePlanId: string,
+  ): Promise<boolean> {
+    const rows = await db
+      .select({ id: rtwPlans.id })
+      .from(rtwPlans)
+      .where(
+        and(
+          eq(rtwPlans.caseId, caseId),
+          eq(rtwPlans.organizationId, organizationId),
+          ne(rtwPlans.id, excludePlanId),
+          ne(rtwPlans.distributionStatus, "not_distributed"),
+        ),
+      )
+      .limit(1);
+    return rows.length > 0;
+  }
+
+  async ensureWorkerContact(
+    caseId: string,
+    organizationId: string,
+    args: { workerName: string; workerEmail: string },
+  ): Promise<CaseContactDB> {
+    // Idempotent: if a worker contact already exists for this case+org, return
+    // it; otherwise insert with isPrimary=false so the upsert never clashes
+    // with an existing primary contact for the case.
+    const [existing] = await db
+      .select()
+      .from(caseContacts)
+      .where(
+        and(
+          eq(caseContacts.caseId, caseId),
+          eq(caseContacts.organizationId, organizationId),
+          eq(caseContacts.role, "worker"),
+        ),
+      )
+      .limit(1);
+    if (existing) return existing;
+    // Cast matches the additive-columns pattern used elsewhere in this file
+    // (e.g. markContactDistributed) — Drizzle's inferred insert type sometimes
+    // narrows away additive columns; `as any` is the established workaround.
+    const [inserted] = await db
+      .insert(caseContacts)
+      .values({
+        caseId,
+        organizationId,
+        role: "worker",
+        name: args.workerName,
+        email: args.workerEmail,
+        isPrimary: false,
+        isActive: true,
+      } as any)
+      .returning();
+    return inserted;
+  }
+
+  // getCaseContactById is implemented above (around line 3076) — re-used by
+  // the response-mark route for IDOR-safe writes.
 
   // ============================================================================
   // RTW Plan Output - Email Management (OUT-07, OUT-08)

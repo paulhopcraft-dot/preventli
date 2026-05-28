@@ -83,7 +83,7 @@ export const generateRTWPlanTool: AgentTool = {
 
 export const updateRTWPlanStatusTool: AgentTool = {
   name: "update_rtw_plan_status",
-  description: "Update the approval status of an RTW plan document. Use 'pending' when sending for comment, 'approved' when deemed accepted.",
+  description: "Update the approval status of an RTW plan document. Use 'pending' when sending for comment, 'approved' when deemed accepted. Approval is gated on multi-party distribution completion — set bypassReason to override (audited).",
   inputSchema: {
     type: "object",
     properties: {
@@ -92,18 +92,50 @@ export const updateRTWPlanStatusTool: AgentTool = {
         type: "string",
         enum: ["draft", "pending", "approved", "rejected", "modification_requested"],
       },
+      bypassReason: {
+        type: "string",
+        description: "Optional. Required to set status='approved' before all gating parties have responded. Captured in audit log.",
+      },
     },
     required: ["caseId", "status"],
   },
-  async execute({ caseId, status }) {
+  async execute({ caseId, status, bypassReason }) {
     const [plan] = await db
-      .select({ id: rtwPlans.id })
+      .select({ id: rtwPlans.id, organizationId: rtwPlans.organizationId })
       .from(rtwPlans)
       .where(eq(rtwPlans.caseId, caseId as string))
       .limit(1);
 
     if (!plan) {
       return { updated: false, message: "No RTW plan found for case — plan may not have been created yet" };
+    }
+
+    // Approval routes through the gated storage method so the multi-party
+    // distribution check is enforced for the agent tool, not just the HTTP
+    // route. Other transitions (draft/pending/rejected/modification_requested)
+    // are not gated.
+    if (status === "approved") {
+      const outcome = await storage.approveRTWPlan(plan.id, plan.organizationId, {
+        bypassReason: (bypassReason as string | undefined) ?? null,
+      });
+      if (outcome === null) {
+        return { updated: false, message: "Plan not found during approve" };
+      }
+      if (outcome.approved === false) {
+        return {
+          updated: false,
+          message: `Plan cannot be approved: distribution_status is '${outcome.currentDistributionStatus}', not 'all_responded'. Pass bypassReason to override (audited).`,
+          gate: "distribution_incomplete",
+          currentDistributionStatus: outcome.currentDistributionStatus,
+        };
+      }
+      return {
+        updated: true,
+        planId: plan.id,
+        newStatus: status,
+        bypassReason: outcome.bypassReason,
+        priorDistributionStatus: outcome.priorDistributionStatus,
+      };
     }
 
     await db

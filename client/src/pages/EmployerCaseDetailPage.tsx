@@ -16,6 +16,7 @@ import { CaseContactsPanel } from "@/components/CaseContactsPanel";
 import { AutoDraftButton } from "@/components/AutoDraftButton";
 import { AutoDraftRTWPlanBanner } from "@/components/AutoDraftRTWPlanBanner";
 import { CurrentRTWPlanCard } from "@/components/CurrentRTWPlanCard";
+import { DistributionResponsesPanel } from "@/components/rtw/DistributionResponsesPanel";
 import { MedicoLegalReportPanel } from "@/components/MedicoLegalReportPanel";
 import { HealthWellbeingPanel } from "@/components/HealthWellbeingPanel";
 import {
@@ -999,6 +1000,12 @@ export default function EmployerCaseDetailPage() {
       {/* Current/active RTW plan card (only renders when latest plan is past draft) */}
       <div className="px-4 pt-4">
         <CurrentRTWPlanCard caseId={workerCase.id} />
+      </div>
+
+      {/* Distribution responses panel (spec §6) — renders only when the latest
+          plan has been distributed; otherwise self-hides. */}
+      <div className="px-4 pt-4">
+        <DistributionResponsesPanel caseId={workerCase.id} />
       </div>
 
       {/* Tabs at the top */}
