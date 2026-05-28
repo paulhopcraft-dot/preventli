@@ -7,6 +7,8 @@ import {
 import { llmMatchEmailToCase } from "./llmEmailMatcher";
 import { createLogger } from "../lib/logger";
 import { markOutreachResponded, checkAndTriggerDowngradeOutreach } from "./workerOutreachService";
+import { resolveInboundMailbox } from "./inboundMailbox";
+import { draftReplyForInbound } from "./inboundReplyDrafter";
 import type { InsertCaseEmail, InsertEmailAttachment, CaseEmailDB } from "@shared/schema";
 
 const log = createLogger("InboundEmail");
@@ -26,7 +28,7 @@ export interface InboundEmailPayload {
     sizeBytes: number;
     base64Data?: string;
   }>;
-  source?: "sendgrid" | "postmark" | "demo" | "freshdesk" | "manual";
+  source?: "sendgrid" | "postmark" | "imap" | "demo" | "freshdesk" | "manual";
   /** Optional simulated date for demo/test scenarios (ISO string or Date) */
   receivedAt?: string | Date;
 }
@@ -242,7 +244,7 @@ export async function processInboundEmail(payload: InboundEmailPayload): Promise
   }
 
   if (certificateDetected && caseId) {
-    if (shouldAutoCreateCertificate(match.method, match.confidence ?? null, hasCertAttachment)) {
+    if (shouldAutoCreateCertificate(match.method, match.confidence ?? null, hasCertAttachment, source)) {
       try {
         await createCertificateFromEmail(caseId, subject, bodyText, fromName, effectiveDate);
       } catch (err) {
@@ -255,6 +257,38 @@ export async function processInboundEmail(payload: InboundEmailPayload): Promise
         matchConfidence: match.confidence,
         hasCertAttachment,
         certKeywordsInContent,
+      });
+    }
+  }
+
+  // 9. AI-drafted reply for GPNet front-line + escalation mailboxes only.
+  //    Skipped when:
+  //      - the inbound did not match an existing case (Paul's spec: unmatched
+  //        = drop with log, no draft — including the auto-created-case path)
+  //      - the recipient mailbox is not one of the AI-drafted GPNet inboxes
+  //        (e.g. lisah@preventli.ai stays fully manual)
+  //    Fire-and-forget by design — webhook must respond 200 OK regardless.
+  if (caseId && organizationId && !isNewCase) {
+    const mailboxConfig = resolveInboundMailbox(toEmail);
+    if (mailboxConfig) {
+      draftReplyForInbound({
+        caseId,
+        organizationId,
+        mailboxConfig,
+        inbound: {
+          messageId,
+          fromEmail,
+          fromName,
+          subject,
+          bodyText,
+        },
+      }).catch((err) => {
+        log.error("Inbound reply draft failed", { caseId, mailbox: mailboxConfig.mailbox }, err);
+      });
+    } else if (toEmail) {
+      log.info("Inbound mailbox not configured for AI drafting — skipped", {
+        toEmail,
+        caseId,
       });
     }
   }
@@ -315,8 +349,14 @@ export function shouldAutoCreateCertificate(
   method: string,
   confidence: number | null,
   hasCertAttachment: boolean,
+  source?: InboundEmailPayload["source"],
 ): boolean {
   if (!hasCertAttachment) return false;
+  // IMAP-sourced mail is untrusted at the perimeter: anyone on the internet
+  // can email support@gpnet.au with a PDF named medical-certificate.pdf.
+  // Until a sender-allowlist exists, refuse to auto-write clinical data from
+  // this source. Email still surfaces as a discussion note for human review.
+  if (source === "imap") return false;
   if (HIGH_TRUST_MATCH_METHODS.has(method)) return true;
   if (method === "llm") return (confidence ?? 0) >= LLM_CERT_CONFIDENCE_FLOOR;
   return false;

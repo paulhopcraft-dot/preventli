@@ -1,11 +1,17 @@
 import { Router, type Response } from "express";
 import { db } from "../../db";
 import { organizations, insurers, insertOrganizationSchema } from "@shared/schema";
-import { eq, ilike, or, desc } from "drizzle-orm";
+import { eq, ilike, or, desc, and } from "drizzle-orm";
 import { authorize, type AuthRequest } from "../../middleware/auth";
 import { z } from "zod";
 import { logoUpload, saveLogoFile, deleteUploadedFile, getFilenameFromUrl } from "../../services/fileUpload";
 import { logger } from "../../lib/logger";
+import {
+  gpnetOnlyExclusionPredicate,
+  isGpnetSideAdmin,
+  shouldDefaultGpnetOnly,
+  viewerFromRequest,
+} from "../../lib/orgVisibility";
 
 const router = Router();
 
@@ -23,6 +29,17 @@ router.get("/", async (req: AuthRequest, res: Response) => {
     const limit = parseInt(req.query.limit as string) || 50;
     const offset = (page - 1) * limit;
 
+    const viewer = viewerFromRequest(req);
+    const gpnetCurtain = gpnetOnlyExclusionPredicate(viewer, organizations.id);
+    const searchClause = search
+      ? or(
+          ilike(organizations.name, `%${search}%`),
+          ilike(organizations.slug, `%${search}%`),
+          ilike(organizations.contactEmail, `%${search}%`),
+        )
+      : undefined;
+    const whereClause = and(gpnetCurtain, searchClause);
+
     let query = db
       .select({
         id: organizations.id,
@@ -34,6 +51,7 @@ router.get("/", async (req: AuthRequest, res: Response) => {
         contactEmail: organizations.contactEmail,
         insurerId: organizations.insurerId,
         isActive: organizations.isActive,
+        gpnetOnly: organizations.gpnetOnly,
         createdAt: organizations.createdAt,
         updatedAt: organizations.updatedAt,
         insurerName: insurers.name,
@@ -44,15 +62,8 @@ router.get("/", async (req: AuthRequest, res: Response) => {
       .limit(limit)
       .offset(offset);
 
-    // Apply search filter if provided
-    if (search) {
-      query = query.where(
-        or(
-          ilike(organizations.name, `%${search}%`),
-          ilike(organizations.slug, `%${search}%`),
-          ilike(organizations.contactEmail, `%${search}%`)
-        )
-      ) as typeof query;
+    if (whereClause) {
+      query = query.where(whereClause) as typeof query;
     }
 
     const results = await query;
@@ -83,6 +94,11 @@ router.get("/:id", async (req: AuthRequest, res: Response) => {
   try {
     const id = req.params.id as string;
 
+    // gpnetOnly curtain: Preventli-side admins get 404 (not 403) for hidden
+    // orgs, matching the by-id existence-protection pattern used elsewhere.
+    const viewer = viewerFromRequest(req);
+    const gpnetCurtain = gpnetOnlyExclusionPredicate(viewer, organizations.id);
+
     const result = await db
       .select({
         id: organizations.id,
@@ -94,13 +110,14 @@ router.get("/:id", async (req: AuthRequest, res: Response) => {
         contactEmail: organizations.contactEmail,
         insurerId: organizations.insurerId,
         isActive: organizations.isActive,
+        gpnetOnly: organizations.gpnetOnly,
         createdAt: organizations.createdAt,
         updatedAt: organizations.updatedAt,
         insurerName: insurers.name,
       })
       .from(organizations)
       .leftJoin(insurers, eq(organizations.insurerId, insurers.id))
-      .where(eq(organizations.id, id))
+      .where(and(eq(organizations.id, id), gpnetCurtain))
       .limit(1);
 
     if (result.length === 0) {
@@ -141,6 +158,24 @@ router.post("/", async (req: AuthRequest, res: Response) => {
     }
 
     const data = validation.data;
+    const viewer = viewerFromRequest(req);
+    const isGpnetAdmin = isGpnetSideAdmin(viewer);
+
+    // Privilege-escalation gate: only GPNet-side admins may create orgs with
+    // gpnetOnly=true. Preventli-side admins (e.g. Lisa) cannot mint a new
+    // org and then promote themselves into it.
+    if ((data as any).gpnetOnly === true && !isGpnetAdmin) {
+      return res.status(403).json({
+        error: "Forbidden",
+        message: "Only GPNet-side admins may set gpnetOnly on an organisation",
+      });
+    }
+
+    // Private-by-default for GPNet superuser: see shouldDefaultGpnetOnly docs.
+    const defaultedGpnetOnly = shouldDefaultGpnetOnly((data as any).gpnetOnly, isGpnetAdmin);
+    if (defaultedGpnetOnly !== undefined) {
+      (data as any).gpnetOnly = defaultedGpnetOnly;
+    }
 
     // Check for duplicate slug
     const existingSlug = await db
@@ -200,11 +235,16 @@ router.put("/:id", async (req: AuthRequest, res: Response) => {
   try {
     const id = req.params.id as string;
 
-    // Check organization exists
+    // gpnetOnly curtain: Preventli-side admins get 404 (not 403) for hidden
+    // orgs, so they cannot enumerate / modify them.
+    const viewer = viewerFromRequest(req);
+    const gpnetCurtain = gpnetOnlyExclusionPredicate(viewer, organizations.id);
+
+    // Check organization exists (and is visible to this viewer)
     const existing = await db
-      .select({ id: organizations.id, slug: organizations.slug })
+      .select({ id: organizations.id, slug: organizations.slug, gpnetOnly: organizations.gpnetOnly })
       .from(organizations)
-      .where(eq(organizations.id, id))
+      .where(and(eq(organizations.id, id), gpnetCurtain))
       .limit(1);
 
     if (existing.length === 0) {
@@ -227,6 +267,21 @@ router.put("/:id", async (req: AuthRequest, res: Response) => {
     }
 
     const data = validation.data;
+
+    // Privilege-escalation gate: only GPNet-side admins may change the
+    // gpnetOnly flag. Without this gate a Preventli-side admin could PUT
+    // { gpnetOnly: true } on their own home org and instantly become
+    // GPNet-side (admin-in-gpnetOnly-org sees everything).
+    if (
+      Object.prototype.hasOwnProperty.call(data, "gpnetOnly") &&
+      (data as any).gpnetOnly !== existing[0].gpnetOnly &&
+      !isGpnetSideAdmin(viewer)
+    ) {
+      return res.status(403).json({
+        error: "Forbidden",
+        message: "Only GPNet-side admins may change gpnetOnly",
+      });
+    }
 
     // Check for slug conflict if changing slug
     if ((data as any).slug && (data as any).slug !== existing[0].slug) {
@@ -292,11 +347,14 @@ router.delete("/:id", async (req: AuthRequest, res: Response) => {
   try {
     const id = req.params.id as string;
 
-    // Check organization exists
+    // gpnetOnly curtain: Preventli-side admins get 404 on hidden orgs.
+    const gpnetCurtain = gpnetOnlyExclusionPredicate(viewerFromRequest(req), organizations.id);
+
+    // Check organization exists (and is visible to this viewer)
     const existing = await db
       .select({ id: organizations.id })
       .from(organizations)
-      .where(eq(organizations.id, id))
+      .where(and(eq(organizations.id, id), gpnetCurtain))
       .limit(1);
 
     if (existing.length === 0) {
@@ -347,11 +405,14 @@ router.post(
         });
       }
 
-      // Check organization exists
+      // gpnetOnly curtain: Preventli-side admins get 404 on hidden orgs.
+      const gpnetCurtain = gpnetOnlyExclusionPredicate(viewerFromRequest(req), organizations.id);
+
+      // Check organization exists (and is visible to this viewer)
       const existing = await db
         .select({ id: organizations.id, logoUrl: organizations.logoUrl })
         .from(organizations)
-        .where(eq(organizations.id, id))
+        .where(and(eq(organizations.id, id), gpnetCurtain))
         .limit(1);
 
       if (existing.length === 0) {
@@ -403,11 +464,14 @@ router.delete("/:id/logo", async (req: AuthRequest, res: Response) => {
   try {
     const id = req.params.id as string;
 
-    // Check organization exists
+    // gpnetOnly curtain: Preventli-side admins get 404 on hidden orgs.
+    const gpnetCurtain = gpnetOnlyExclusionPredicate(viewerFromRequest(req), organizations.id);
+
+    // Check organization exists (and is visible to this viewer)
     const existing = await db
       .select({ id: organizations.id, logoUrl: organizations.logoUrl })
       .from(organizations)
-      .where(eq(organizations.id, id))
+      .where(and(eq(organizations.id, id), gpnetCurtain))
       .limit(1);
 
     if (existing.length === 0) {

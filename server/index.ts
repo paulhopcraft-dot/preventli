@@ -10,6 +10,7 @@ import { NotificationScheduler } from "./services/notificationScheduler";
 import { syncScheduler } from "./services/syncScheduler";
 import { complianceScheduler } from "./services/complianceScheduler";
 import { agentScheduler } from "./agent-runner/triggers";
+import { imapPoller, buildConfigFromEnv as buildImapConfigFromEnv } from "./services/imapPoller";
 import { storage } from "./storage";
 import { checkStorageHealth } from "./services/storageService";
 import { logger } from "./lib/logger";
@@ -177,6 +178,22 @@ const startServer = async () => {
     logger.compliance.info("Compliance scheduler started", { complianceTime });
   } else {
     logger.compliance.info("Compliance scheduler disabled (set COMPLIANCE_CHECK_ENABLED=true to enable)");
+  }
+
+  // Start IMAP poller if enabled. Pulls inbound mail from GPNet mailboxes
+  // (support@gpnet.au, jacinta.bailey@gpnet.au) into the existing inbound
+  // pipeline. Drafter (commit 6b8a2c5) generates auto-reply drafts.
+  if (process.env.IMAP_POLLER_ENABLED === "true") {
+    const imapConfig = buildImapConfigFromEnv();
+    if (imapConfig) {
+      const cronExpression = process.env.IMAP_POLLER_CRON || "*/2 * * * *";
+      imapPoller.start(imapConfig, cronExpression);
+      logger.email.info("IMAP poller started", { cronExpression, mailboxes: imapConfig.mailboxes.length });
+    } else {
+      logger.email.warn("IMAP poller disabled — IMAP_HOST not set");
+    }
+  } else {
+    logger.email.info("IMAP poller disabled (set IMAP_POLLER_ENABLED=true to enable)");
   }
 
   // Start agent scheduler if enabled
@@ -357,6 +374,11 @@ const gracefulShutdown = async () => {
     agentScheduler.stop();
   } catch (err) {
     logger.ai.error("Agent scheduler shutdown error", {}, err);
+  }
+  try {
+    imapPoller.stop();
+  } catch (err) {
+    logger.email.error("IMAP poller shutdown error", {}, err);
   }
   process.exit(0);
 };

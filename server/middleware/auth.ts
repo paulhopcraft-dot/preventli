@@ -1,21 +1,30 @@
 import type { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 import { db } from "../db";
-import { partnerUserOrganizations, users } from "@shared/schema";
+import { organizations, partnerUserOrganizations, users } from "@shared/schema";
 import type { UserRole } from "@shared/schema";
 import { and, eq } from "drizzle-orm";
 import { logger } from "../lib/logger";
 
+interface AuthUser {
+  id: string;
+  email: string;
+  role: UserRole;
+  organizationId: string;
+  companyId?: string | null; // Deprecated - use organizationId
+  // Persistent home org (users.organizationId). Differs from organizationId for
+  // partner-role users who have picked a client. Populated for admin role only;
+  // undefined otherwise.
+  homeOrgId?: string;
+  // gpnetOnly status of homeOrgId. Populated for admin role only; defaults to
+  // false elsewhere when read by the visibility helper.
+  homeOrgIsGpnetOnly?: boolean;
+}
+
 declare global {
   namespace Express {
     interface Request {
-      user?: {
-        id: string;
-        email: string;
-        role: UserRole;
-        organizationId: string;
-        companyId?: string | null; // Deprecated - use organizationId
-      };
+      user?: AuthUser;
       // Partner-tier: the org the user is currently acting on. For non-partner
       // roles this equals user.organizationId. For partner-role users it is
       // the picked client org id when set, or null when no client is picked
@@ -26,13 +35,7 @@ declare global {
 }
 
 export interface AuthRequest extends Request {
-  user?: {
-    id: string;
-    email: string;
-    role: UserRole;
-    organizationId: string;
-    companyId?: string | null; // Deprecated - use organizationId
-  };
+  user?: AuthUser;
   activeOrganizationId?: string | null;
 }
 
@@ -92,6 +95,32 @@ export function authorize(allowedRoles?: UserRole[]) {
         organizationId,
         companyId: decoded.companyId, // Keep for backwards compat
       };
+
+      // gpnet-only visibility curtain: admins are the only role for which
+      // home-org gpnetOnly matters (non-admins are tenant-scoped already).
+      // Read from users.organizationId — NOT from req.user.organizationId,
+      // which gets overwritten to the active client for partner-role users.
+      // One join per admin request; non-admins skip the lookup entirely.
+      if (decoded.role === "admin") {
+        const homeOrgRow = await db
+          .select({
+            homeOrgId: users.organizationId,
+            gpnetOnly: organizations.gpnetOnly,
+          })
+          .from(users)
+          .leftJoin(organizations, eq(organizations.id, users.organizationId))
+          .where(eq(users.id, decoded.id))
+          .limit(1);
+        if (homeOrgRow.length > 0) {
+          req.user.homeOrgId = homeOrgRow[0].homeOrgId;
+          req.user.homeOrgIsGpnetOnly = homeOrgRow[0].gpnetOnly ?? false;
+        } else {
+          // Defensive: token references a user that no longer exists. Treat
+          // as Preventli-side (most-restrictive default) rather than failing
+          // the request, so the predicate hides gpnetOnly orgs from a ghost.
+          req.user.homeOrgIsGpnetOnly = false;
+        }
+      }
 
       // Partner-tier: resolve active organisation. For partner users, when
       // organizationId differs from users.organizationId (home org) it means

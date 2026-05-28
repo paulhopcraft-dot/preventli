@@ -126,5 +126,22 @@ describe("shouldAutoCreateCertificate — clinical-write gate", () => {
     it("blocks cert auto-create for high-confidence LLM match without PDF", () => {
       expect(shouldAutoCreateCertificate("llm", 1.0, false)).toBe(false);
     });
+
+    it("blocks cert auto-create when source is 'imap' — even on high-trust match with PDF", () => {
+      // Anyone on the open internet can email support@gpnet.au with a PDF
+      // named medical-certificate.pdf. Until a sender-allowlist exists, no
+      // clinical write is allowed from IMAP-sourced mail.
+      expect(shouldAutoCreateCertificate("thread", null, true, "imap")).toBe(false);
+      expect(shouldAutoCreateCertificate("sender_email", 1.0, true, "imap")).toBe(false);
+      expect(shouldAutoCreateCertificate("claim_number", 1.0, true, "imap")).toBe(false);
+      expect(shouldAutoCreateCertificate("subject_bracket", 1.0, true, "imap")).toBe(false);
+      expect(shouldAutoCreateCertificate("llm", 1.0, true, "imap")).toBe(false);
+    });
+
+    it("preserves existing behaviour for non-imap sources", () => {
+      expect(shouldAutoCreateCertificate("thread", null, true, "postmark")).toBe(true);
+      expect(shouldAutoCreateCertificate("thread", null, true, "sendgrid")).toBe(true);
+      expect(shouldAutoCreateCertificate("thread", null, true, undefined)).toBe(true);
+    });
   });
 });

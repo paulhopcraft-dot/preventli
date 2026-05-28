@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, boolean, json, jsonb, integer, numeric, primaryKey, index } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, boolean, json, jsonb, integer, numeric, primaryKey, index, bigint } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -1637,6 +1637,12 @@ export const emailDrafts = pgTable("email_drafts", {
   caseContextSnapshot: jsonb("case_context_snapshot"),
   status: text("status").notNull().default("draft"),
   createdBy: varchar("created_by"),
+  // v0 email-drafter (inbound auto-reply): which GPNet mailbox the reply
+  // will be sent from, and the Message-ID being replied to (for threading).
+  // Nullable — only populated by the inbound-reply drafter, not by the
+  // case-manager-triggered draft service.
+  mailbox: text("mailbox"),
+  inReplyTo: text("in_reply_to"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -1815,6 +1821,11 @@ export const organizations = pgTable("organizations", {
   notes: text("notes"),
   // GP escalation detection: days past latest cert expiry before flagging the case
   gpEscalationThresholdDays: integer("gp_escalation_threshold_days").notNull().default(7),
+  // One-way visibility curtain: when true, this org + its cases are invisible
+  // to admins whose home org is NOT gpnetOnly. GPNet-side admins (admin in a
+  // gpnetOnly home org) see everything. Default false preserves existing
+  // behaviour for all orgs until Paul flips one manually.
+  gpnetOnly: boolean("gpnet_only").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -2819,3 +2830,29 @@ export const node = pgTable("Node", {
 
 export type NodeDB = typeof node.$inferSelect;
 export type InsertNode = typeof node.$inferInsert;
+
+// IMAP poller per-mailbox cursor state. One row per polled mailbox address.
+// UIDs and UIDVALIDITY are 32-bit unsigned per RFC 3501; bigint keeps headroom.
+export const imapMailboxState = pgTable("imap_mailbox_state", {
+  mailbox: varchar("mailbox").primaryKey(),
+  uidValidity: bigint("uid_validity", { mode: "number" }).notNull(),
+  lastSeenUid: bigint("last_seen_uid", { mode: "number" }).notNull(),
+  lastPolledAt: timestamp("last_polled_at"),
+  lastErrorAt: timestamp("last_error_at"),
+  lastError: text("last_error"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export type ImapMailboxStateDB = typeof imapMailboxState.$inferSelect;
+// Explicit insert type — drizzle's $inferInsert on bigint(mode:"number") +
+// nullable timestamps drops the optional columns in this drizzle version.
+// Spelling it out lets the IMAP poller pass cursor + status fields cleanly.
+export type InsertImapMailboxState = {
+  mailbox: string;
+  uidValidity: number;
+  lastSeenUid: number;
+  lastPolledAt?: Date | null;
+  lastErrorAt?: Date | null;
+  lastError?: string | null;
+};

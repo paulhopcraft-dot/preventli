@@ -32,6 +32,7 @@ const companySchema = z.object({
   contactEmail: z.string().email("Invalid email").optional().or(z.literal("")),
   insurerId: z.string().optional(),
   isActive: z.boolean().optional().transform((v) => v ?? true),
+  gpnetOnly: z.boolean().optional().transform((v) => v ?? false),
 });
 
 type CompanyFormData = {
@@ -42,6 +43,7 @@ type CompanyFormData = {
   contactEmail?: string;
   insurerId?: string;
   isActive: boolean;
+  gpnetOnly: boolean;
 };
 
 interface Organization {
@@ -54,6 +56,7 @@ interface Organization {
   contactEmail: string | null;
   insurerId: string | null;
   isActive: boolean;
+  gpnetOnly: boolean;
 }
 
 interface Insurer {
@@ -91,8 +94,26 @@ export default function CompanyForm() {
       contactEmail: "",
       insurerId: "",
       isActive: true,
+      gpnetOnly: false,
     },
   });
+
+  // Only GPNet-side admins (admin user whose home org has gpnetOnly=true) can
+  // see/use the gpnetOnly toggle. Server is the real gate; this is UX hiding.
+  const { data: meData } = useQuery<{ data: { user: { role: string; homeOrgIsGpnetOnly: boolean } } }>({
+    queryKey: ["/api/auth/me"],
+  });
+  const canEditGpnetOnly = Boolean(meData?.data?.user?.homeOrgIsGpnetOnly);
+
+  // Private-by-default for the superuser: when a GPNet-side admin opens the
+  // new-org form, pre-toggle the gpnetOnly switch ON. Editing existing orgs
+  // is unaffected (the org's own value loads from the API). Server enforces
+  // the same default if the client never flips the switch.
+  useEffect(() => {
+    if (!isEditing && canEditGpnetOnly) {
+      form.setValue("gpnetOnly", true);
+    }
+  }, [canEditGpnetOnly, isEditing, form]);
 
   // Populate form when editing
   useEffect(() => {
@@ -106,6 +127,7 @@ export default function CompanyForm() {
         contactEmail: org.contactEmail || "",
         insurerId: org.insurerId || "",
         isActive: org.isActive,
+        gpnetOnly: org.gpnetOnly ?? false,
       });
       setLogoUrl(org.logoUrl);
     }
@@ -362,6 +384,24 @@ export default function CompanyForm() {
                 onCheckedChange={(checked) => form.setValue("isActive", checked)}
               />
             </div>
+
+            {/* GPNet-only visibility flag — only visible to GPNet-side admins.
+                Backend rejects the field for everyone else (403). */}
+            {canEditGpnetOnly && (
+              <div className="flex items-center justify-between border-t pt-6">
+                <div>
+                  <Label htmlFor="gpnetOnly">GPNet-Only Visibility</Label>
+                  <p className="text-sm text-muted-foreground">
+                    When enabled, this organisation and all its cases are hidden from Preventli-side admins.
+                  </p>
+                </div>
+                <Switch
+                  id="gpnetOnly"
+                  checked={form.watch("gpnetOnly")}
+                  onCheckedChange={(checked) => form.setValue("gpnetOnly", checked)}
+                />
+              </div>
+            )}
 
             {/* Submit */}
             <div className="flex gap-3 pt-4 border-t">

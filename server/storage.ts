@@ -50,6 +50,8 @@
   InsertCaseEmail,
   EmailAttachmentDB,
   InsertEmailAttachment,
+  ImapMailboxStateDB,
+  InsertImapMailboxState,
   WorkerDB,
   InsertWorker,
   TelehealthBookingDB,
@@ -96,6 +98,7 @@ import {
   preEmploymentHealthHistory,
   caseEmails,
   emailAttachments,
+  imapMailboxState,
   workers,
   telehealthBookings,
   caseDocuments,
@@ -114,6 +117,7 @@ import { combineRestrictions } from "./services/restrictionMapper";
 import { detectGpEscalation } from "./services/gpEscalation";
 import { eq, desc, asc, inArray, ilike, sql, and, lte, gte, or, isNull, ne } from "drizzle-orm";
 import { logger } from "./lib/logger";
+import { gpnetOnlyExclusionPredicate, type Viewer } from "./lib/orgVisibility";
 
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
 
@@ -501,10 +505,10 @@ export interface PaginatedCasesResult {
 
 export interface IStorage {
   // Case methods - UPDATED for multi-tenant isolation
-  getCases(organizationId: string, isAdmin?: boolean): Promise<WorkerCase[]>;
-  getCasesPaginated(organizationId: string | undefined, page: number, limit: number): Promise<PaginatedCasesResult>;
+  getCases(organizationId: string, isAdmin?: boolean, viewer?: Viewer): Promise<WorkerCase[]>;
+  getCasesPaginated(organizationId: string | undefined, page: number, limit: number, viewer?: Viewer): Promise<PaginatedCasesResult>;
   getGPNet2CaseById(id: string, organizationId: string): Promise<WorkerCase | null>;
-  getGPNet2CaseByIdAdmin(id: string): Promise<WorkerCase | null>; // Admin-only, no org filter
+  getGPNet2CaseByIdAdmin(id: string, viewer?: Viewer): Promise<WorkerCase | null>; // Admin-only, no org filter — viewer applies gpnetOnly curtain when supplied
   syncWorkerCaseFromFreshdesk(caseData: Partial<WorkerCase>): Promise<void>;
   createCase(caseData: {
     organizationId: string;
@@ -730,6 +734,10 @@ export interface IStorage {
   getFailedCaseEmails(): Promise<CaseEmailDB[]>;
   assignEmailToCase(emailId: string, caseId: string): Promise<CaseEmailDB>;
 
+  // IMAP poller cursor state
+  getImapMailboxState(mailbox: string): Promise<ImapMailboxStateDB | null>;
+  upsertImapMailboxState(state: InsertImapMailboxState): Promise<ImapMailboxStateDB>;
+
   // Chat Memory — Alex per-case/worker conversation history
   getChatMemory(key: { caseId?: string; workerId?: string }, limit?: number): Promise<ChatMemoryDB[]>;
   saveChatMessage(data: InsertChatMemory): Promise<void>;
@@ -755,20 +763,18 @@ class DbStorage implements IStorage {
     return row[0]?.days ?? 7;
   }
 
-  async getCases(organizationId: string, isAdmin?: boolean): Promise<WorkerCase[]> {
+  async getCases(organizationId: string, isAdmin?: boolean, viewer?: Viewer): Promise<WorkerCase[]> {
+    const openOnly = or(eq(workerCases.caseStatus, "open"), isNull(workerCases.caseStatus));
+    const gpnetCurtain = viewer
+      ? gpnetOnlyExclusionPredicate(viewer, workerCases.organizationId)
+      : undefined;
+    const whereClause = isAdmin
+      ? and(openOnly, gpnetCurtain)
+      : and(eq(workerCases.organizationId, organizationId), openOnly, gpnetCurtain);
     const dbCases = await db
       .select()
       .from(workerCases)
-      .where(isAdmin
-        ? or(eq(workerCases.caseStatus, "open"), isNull(workerCases.caseStatus))
-        : and(
-          eq(workerCases.organizationId, organizationId),
-          // Filter out closed cases - only show open cases by default
-          or(
-            eq(workerCases.caseStatus, "open"),
-            isNull(workerCases.caseStatus)
-          )
-        ));
+      .where(whereClause);
     const caseIds = dbCases.map((dbCase) => dbCase.id);
 
     const notesByCase = new Map<string, CaseDiscussionNote[]>();
@@ -912,20 +918,15 @@ class DbStorage implements IStorage {
     return casesWithAttachments;
   }
 
-  async getCasesPaginated(organizationId: string | undefined, page: number, limit: number): Promise<PaginatedCasesResult> {
+  async getCasesPaginated(organizationId: string | undefined, page: number, limit: number, viewer?: Viewer): Promise<PaginatedCasesResult> {
     // Build where conditions - admin users (organizationId = undefined) see all cases
+    const openOnly = or(eq(workerCases.caseStatus, "open"), isNull(workerCases.caseStatus));
+    const gpnetCurtain = viewer
+      ? gpnetOnlyExclusionPredicate(viewer, workerCases.organizationId)
+      : undefined;
     const conditions = organizationId
-      ? and(
-          eq(workerCases.organizationId, organizationId),
-          or(
-            eq(workerCases.caseStatus, "open"),
-            isNull(workerCases.caseStatus)
-          )
-        )
-      : or(
-          eq(workerCases.caseStatus, "open"),
-          isNull(workerCases.caseStatus)
-        );
+      ? and(eq(workerCases.organizationId, organizationId), openOnly, gpnetCurtain)
+      : and(openOnly, gpnetCurtain);
 
     // Get total count first
     const countResult = await db
@@ -1204,12 +1205,18 @@ class DbStorage implements IStorage {
     return applyDiscussionInsights(caseData, discussionNotes, discussionInsights);
   }
 
-  async getGPNet2CaseByIdAdmin(id: string): Promise<WorkerCase | null> {
-    // Admin version - NO organization filter (can access any case)
+  async getGPNet2CaseByIdAdmin(id: string, viewer?: Viewer): Promise<WorkerCase | null> {
+    // Admin version - NO organization filter (can access any case).
+    // gpnet-only curtain: when a viewer is supplied AND they're a Preventli-side
+    // admin, exclude cases whose org has gpnet_only=true. Treat as not-found
+    // rather than 403 — don't leak existence by ID.
+    const gpnetCurtain = viewer
+      ? gpnetOnlyExclusionPredicate(viewer, workerCases.organizationId)
+      : undefined;
     const dbCase = await db
       .select()
       .from(workerCases)
-      .where(eq(workerCases.id, id))
+      .where(and(eq(workerCases.id, id), gpnetCurtain))
       .limit(1);
 
     if (dbCase.length === 0) {
@@ -4236,6 +4243,37 @@ class DbStorage implements IStorage {
       .select()
       .from(emailAttachments)
       .where(eq(emailAttachments.emailId, emailId));
+  }
+
+  async getImapMailboxState(mailbox: string): Promise<ImapMailboxStateDB | null> {
+    const [row] = await db
+      .select()
+      .from(imapMailboxState)
+      .where(eq(imapMailboxState.mailbox, mailbox))
+      .limit(1);
+    return row ?? null;
+  }
+
+  async upsertImapMailboxState(state: InsertImapMailboxState): Promise<ImapMailboxStateDB> {
+    // The set-clause type inference is broken for this table's mix of bigint
+    // (mode:number) + nullable timestamps in this drizzle version; matches the
+    // workaround used in other onConflictDoUpdate sites in this file (line ~1421).
+    const [row] = await db
+      .insert(imapMailboxState)
+      .values({ ...state, updatedAt: new Date() } as any)
+      .onConflictDoUpdate({
+        target: imapMailboxState.mailbox,
+        set: ({
+          uidValidity: state.uidValidity,
+          lastSeenUid: state.lastSeenUid,
+          lastPolledAt: state.lastPolledAt ?? null,
+          lastErrorAt: state.lastErrorAt ?? null,
+          lastError: state.lastError ?? null,
+          updatedAt: new Date(),
+        } as any),
+      })
+      .returning();
+    return row;
   }
 
   async findCaseContactByEmail(email: string): Promise<{ caseId: string; organizationId: string; role: string } | null> {
