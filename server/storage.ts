@@ -4260,7 +4260,7 @@ class DbStorage implements IStorage {
     // workaround used in other onConflictDoUpdate sites in this file (line ~1421).
     const [row] = await db
       .insert(imapMailboxState)
-      .values({ ...state, updatedAt: new Date() })
+      .values({ ...state, updatedAt: new Date() } as any)
       .onConflictDoUpdate({
         target: imapMailboxState.mailbox,
         set: ({
